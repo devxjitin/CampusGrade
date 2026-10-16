@@ -20,12 +20,6 @@ const eslintConfig = defineConfig([
     "vitest.config.ts",
     "vitest.setup.ts",
     "e2e/**",
-    // dev.js is a standalone Node CommonJS script (run directly via `node
-    // dev.js`, not part of the Next.js app bundle or its scripts in
-    // package.json) that starts the dev server with SWC disabled. It isn't
-    // ESM and isn't app source, so it doesn't follow next/react lint
-    // conventions either — same reasoning as the Playwright/Vitest files above.
-    "dev.js",
   ]),
 ]);
 

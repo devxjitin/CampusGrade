@@ -161,14 +161,21 @@ async def health():
 async def ready():
     if not is_database_available():
         raise HTTPException(503, "Database is unavailable")
-    revision = schema_revision_status()
+    revision = await schema_revision_status()
     if not revision["ready"]:
         raise HTTPException(503, {"database_revision": revision})
+    if not getattr(app.state, "private_storage_ready", False):
+        raise HTTPException(503, "Private storage is unavailable")
     if settings.redis_required:
         if redis_core.redis_pool is None:
             raise HTTPException(503, "Redis is unavailable")
         await redis_core.redis_pool.ping()
-    return {"status": "ready", "app": settings.app_id, "database_revision": revision["current"], "dependencies": {"redis": "connected" if redis_core.redis_pool else "optional"}}
+    return {
+        "status": "ready",
+        "app": settings.app_id,
+        "database_revision": revision["current"],
+        "dependencies": {"storage": "ready", "redis": "connected" if redis_core.redis_pool else "optional"},
+    }
 
 
 app.include_router(auth_router)

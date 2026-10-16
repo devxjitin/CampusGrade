@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Draft v2 — plan only, no code changed yet |
+| **Status** | Draft v3 — Sprint 1 implemented (see Sprint.md) |
 | **Date** | 2026-10-16 |
 | **Owner** | Jitin Kumar Sengar |
 | **Target** | Production-ready Docker stack, running on **Docker Desktop** for now. Cloud-ready: AWS is a later, optional step (Appendix A). |
@@ -173,8 +173,8 @@ blocks production. Every infrastructure choice below is a standard container or 
 | Worker | Same image, `python -m worker` command | Postgres job queue + advisory-lock periodic tasks (§3). |
 | Database | **PostgreSQL 16** container, named volume, not exposed to the host in prod | Same engine as today; tuned config, nightly backups (F10). |
 | Cache / queue | **None** (Redis + RQ removed) | Postgres covers jobs, rate-limit counters, sessions. |
-| File storage | **MinIO** (S3-compatible) container, private bucket | The existing `S3PrivateObjectStorage` runs unchanged against it, so the code is exercised exactly as it would be on AWS S3. Presigned URLs (F4) go through the proxy at `/storage/*`. |
-| Reverse proxy | **Caddy 2** | HTTPS out of the box (`tls internal` locally, Let's Encrypt on a real domain), HTTP/2+3, compression, security headers (HSTS, CSP), load-balances api replicas, routes `/api/*` → api, `/storage/*` → MinIO, `/*` → web. |
+| File storage | **RustFS** (S3-compatible, Apache-2.0) container, private bucket | The existing `S3PrivateObjectStorage` runs unchanged against it, so the code is exercised exactly as it would be on AWS S3. Presigned URLs (F4) go through the proxy at `/storage/*`. |
+| Reverse proxy | **Caddy 2** | HTTPS out of the box (`tls internal` locally, Let's Encrypt on a real domain), HTTP/2+3, compression, security headers (HSTS, CSP), load-balances api replicas, routes `/api/*` → api (prefix stripped, so the backend keeps unprefixed routes), `/storage/*` → RustFS (Sprint 3), `/*` → web. |
 | AI | **None in-app.** Keep the existing human-in-the-loop external-AI flow (generate prompt → teacher uses an external AI tool → import JSON → validate & save) | No AI vendor, keys, or cost in our infrastructure. Dead Azure code is deleted. |
 | Email | **SMTP** interface. **Mailpit** container in dev/CI; any SMTP provider (Google Workspace relay, Brevo, SES SMTP…) in prod by config | One protocol everywhere; no vendor lock-in. |
 | Frontend | **Next.js 16 (App Router, `output: "standalone"`) + React 19 + TS + Tailwind v4 + TanStack Query** | Keep. Add generated OpenAPI types end-to-end, Zod form validation. |
@@ -196,7 +196,7 @@ blocks production. Every infrastructure choice below is a standard container or 
 | Azure OpenAI client (`ai/assignment_ai.py` invoke/config functions) and its env vars | Never called. Keep `extract_text_from_document`. |
 | `POST /teacher/{id}/ai-suggestions/{student}` (410 stub) and the `assignment_ai_suggestions` table | Dead endpoint; superseded by AI evaluation proposals. |
 | `admin_routes.py` legacy file | Dead code (B12). |
-| `PRIVATE_STORAGE_BACKEND=local` in production | Prod always uses the S3 API (MinIO now, S3 later); local disk stays for unit tests only. |
+| `PRIVATE_STORAGE_BACKEND=local` in production | Prod always uses the S3 API (RustFS now, S3 later); local disk stays for unit tests only. |
 | Repo clutter (B15) | Hygiene. |
 | `AUTH_COOKIE_MODE=false` header-auth fallback | Cookie mode has been live; the escape hatch is now just attack surface. |
 
@@ -207,13 +207,13 @@ blocks production. Every infrastructure choice below is a standard container or 
 | F1 | **Background job system** | `jobs` table (type, payload, status, attempts, run_after, last_error, locked_by), worker service, retries with backoff, dead-letter, Super Admin "Jobs" page to view/retry. | Must |
 | F2 | **Live repository auto-sync** | Worker polls linked repos before the deadline (B4); respects GitHub rate limits using the app token; shows "last synced" to student and teacher. | Must |
 | F3 | **Self-service password reset** | "Forgot password" → email with single-use, 30-min token (model already exists) → set new password → revoke all sessions. | Must |
-| F4 | **Presigned downloads/uploads** | Attachments and repository archives served via 5-min presigned URLs from MinIO; large uploads go browser → storage directly. | Must |
+| F4 | **Presigned downloads/uploads** | Attachments and repository archives served via 5-min presigned URLs from RustFS; large uploads go browser → storage directly. | Must |
 | F5 | **Improve the external-AI flow** | Keep the manual flow (no in-app model calls). Pseudonymize students in prompts/exports (S2), validate imported JSON against the rubric with clear per-field errors, and show a diff of proposal vs. current grade before the teacher saves. | Should |
 | F6 | **Email notifications** | Results published, deadline in 24 h, discussion reply — opt-out in settings. Sent by the worker over SMTP. | Should |
 | F7 | **Distributed rate limiting** | Postgres-backed limiter for login, password reset and refresh, shared by all api replicas. | Must |
 | F8 | **Operational endpoints** | `/api/health` (liveness), `/api/ready` (DB + migration head + storage), fixed (B1); `/api/metrics`. | Must |
 | F9 | **Data export** | Super Admin can export a session's grades + audit log (CSV/XLSX). | Could |
-| F10 | **Backup & restore** | `backup` container: nightly `pg_dump` + MinIO bucket mirror, 14 daily / 8 weekly retention, copied to a host folder outside Docker; `restore` script tested in CI. | Must |
+| F10 | **Backup & restore** | `backup` container: nightly `pg_dump` + object-storage bucket mirror, 14 daily / 8 weekly retention, copied to a host folder outside Docker; `restore` script tested in CI. | Must |
 
 ### 6.3 UI changes
 
@@ -237,7 +237,7 @@ blocks production. Every infrastructure choice below is a standard container or 
               /api/*      │    │   │ /storage/*  (presigned URLs only)
         ┌─────────────────┘    │   └──────────────────┐
         ▼                      ▼ /*                   ▼
-   api ×2 (gunicorn)       web (Next.js standalone)   minio
+   api ×2 (gunicorn)       web (Next.js standalone)   storage (RustFS)
         │                                              ▲
         │        network "backend" (internal: true)    │
         ├──────────► postgres ◄────── worker ──────────┤
@@ -255,7 +255,7 @@ blocks production. Every infrastructure choice below is a standard container or 
 | `compose.dev.yaml` | Local development: source bind-mounts, hot reload, Mailpit, ports exposed for debugging. |
 | `compose.prod.yaml` | Production: pinned GHCR images (`${CAMPUSGRADE_VERSION}`), no bind mounts, no published ports except the proxy, resource limits, `restart: unless-stopped`. |
 | `compose.monitoring.yaml` | Optional profile: Prometheus + Grafana. |
-| `secrets/` (git-ignored) | `secret_key.txt`, `postgres_password.txt`, `minio_root_password.txt`, `github_token.txt`, `smtp_password.txt`. A `scripts/init-secrets` command generates strong values. |
+| `secrets/` (git-ignored) | `secret_key.txt`, `postgres_password.txt`, `database_url.txt`, `private_s3_secret_key.txt`, `github_token.txt`, `smtp_password.txt` (Sprint 4). `scripts\init-secrets.ps1` generates strong values. |
 
 ### 7.2 Production container standards
 
@@ -265,7 +265,7 @@ Every service in `compose.prod.yaml`:
 - Has a **health check**; dependants use `depends_on: condition: service_healthy`.
 - Has **CPU/memory limits** sized to fit Docker Desktop's allocation (target: whole stack ≤ 6 GB RAM).
 - Uses `restart: unless-stopped` and the `json-file` log driver with rotation (`max-size: 10m`, `max-file: 5`).
-- Is on the narrowest network it needs: only `proxy` publishes ports; `postgres`, `minio` and `worker` sit on an `internal: true` network (the worker also joins an egress network for GitHub and SMTP).
+- Is on the narrowest network it needs: only `proxy` publishes ports; `postgres`, `storage` and `worker` sit on an `internal: true` network (the worker also joins an egress network for GitHub and SMTP).
 
 Sizing on Docker Desktop (give Docker ≥ 4 CPUs / 8 GB in Settings → Resources):
 
@@ -276,16 +276,16 @@ Sizing on Docker Desktop (give Docker ≥ 4 CPUs / 8 GB in Settings → Resource
 | api | 2 | 1 CPU / 768 MB |
 | worker | 1 | 1 CPU / 1 GB (repo zips) |
 | postgres | 1 | 1.5 CPU / 1.5 GB |
-| minio | 1 | 0.5 CPU / 512 MB |
+| storage (RustFS) | 1 | 0.5 CPU / 512 MB |
 | backup | 1 | 0.25 CPU / 256 MB |
 
 ### 7.3 Security baseline
 
 - HTTPS only; HTTP redirects to HTTPS. Locally, Caddy's internal CA (trust it once on this PC); with a real domain, Let's Encrypt.
 - Cookies `Secure`, `SameSite=Lax`; HSTS, CSP, `X-Content-Type-Options` and `Referrer-Policy` set at the proxy.
-- Postgres and MinIO are never reachable from the host or LAN in prod; admin access is via `docker compose exec`.
+- Postgres and RustFS are never reachable from the host or LAN in prod; admin access is via `docker compose exec`.
 - Secrets only as Compose secrets; `.env` holds non-secret settings only.
-- MinIO bucket private, no anonymous policy; presigned URLs expire in 5 minutes.
+- RustFS bucket private, no anonymous policy; presigned URLs expire in 5 minutes.
 - Images scanned by Trivy in CI; a CRITICAL vulnerability fails the build.
 - Docker Desktop: keep it updated and don't expose the daemon on TCP.
 
@@ -350,7 +350,7 @@ the production compose stack are built first, so every sprint ships working soft
 | Sprint | Weeks | Delivers |
 |---|---|---|
 | 0 | before start | Owner prerequisites: Docker Desktop resources, GitHub/GHCR access, tokens |
-| 1 | 1–2 | Production compose stack (Caddy, MinIO, secrets, non-root images) + CI publishing to GHCR + deploy script; B1, B2, B8, B9, B10, `/api` prefix |
+| 1 | 1–2 | Production compose stack (Caddy, RustFS, secrets, non-root images) + CI publishing to GHCR + deploy script; B1, B2, B8, B9, B10, `/api` prefix |
 | 2 | 3–4 | Worker + Postgres jobs (the architecture fix); live repo auto-sync; Redis removed |
 | 3 | 5–6 | Presigned files, backend split + dead code removed, backups + rollback, release tagging |
 | 4 | 7–8 | Password reset + email notifications (SMTP) |
@@ -385,7 +385,7 @@ Because everything uses standard interfaces, the move is mostly configuration:
 | Compose on Docker Desktop | Same `compose.prod.yaml` on a VM | ECS Fargate services `web`, `api`, `worker` |
 | Caddy `tls internal` | Caddy + Let's Encrypt | CloudFront + ALB + ACM + WAF |
 | Postgres container + `backup` | Same, or managed Postgres | RDS PostgreSQL Multi-AZ, PITR |
-| MinIO | MinIO or any S3 provider | Amazon S3 (only `PRIVATE_S3_ENDPOINT` changes) |
+| RustFS | RustFS or any S3 provider | Amazon S3 (only `PRIVATE_S3_ENDPOINT` changes) |
 | Mailpit / SMTP provider | SMTP provider | Amazon SES (SMTP or API) |
 | Compose secrets | Compose secrets | Secrets Manager |
 | `migrate` one-shot container | Same | One-off ECS task in the pipeline |

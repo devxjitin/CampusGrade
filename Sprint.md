@@ -86,6 +86,17 @@ feature branch ──PR──► CI: lint · types · pytest · vitest · migrat
 
 ## Sprint 1 — Production stack + CI/CD skeleton (weeks 1–2) → `v0.1.0`
 
+> **Status: implemented on branch `feature/production-ready`; `v0.1.0` not yet tagged.**
+> Verified locally on Docker Desktop with locally built images: all services healthy,
+> `scripts\deploy.ps1` passes its smoke test, login/cookies/CSRF/redirects behave through
+> the HTTPS proxy, app containers run non-root, read-only, all capabilities dropped. Not yet
+> verified: the GitHub Actions workflow itself (needs the first push), GHCR publishing, and
+> the Playwright session test (needs a browser install; runs in CI). The 13 DB-backed backend
+> tests that use testcontainers time out on this PC's Docker Desktop (they fail identically on
+> the untouched baseline); CI on Linux runs them.
+> Deviations from the plan: `/api` prefix is stripped by Caddy rather than served by the
+> backend (S1-02); RustFS replaced MinIO (S1-12); Redis dropped from the stack now.
+
 **Goal:** the current CampusGrade app runs in a production-grade compose stack on Docker
 Desktop at `https://campusgrade.localhost`, from images CI built and published, with the
 worst bugs fixed.
@@ -97,11 +108,11 @@ grade it over HTTPS, and stay logged in past 15 minutes. Deploying a new version
 | ID | Task | Ref |
 |---|---|---|
 | S1-01 | Fix `/ready`: `await schema_revision_status()`; check DB, migration head and storage; add a test | B1, F8 |
-| S1-02 | Serve every router under `/api` (incl. `/api/health`, `/api/ready`); update CSRF exempt paths and tests | PRD §5 |
+| S1-02 | `/api` prefix: **done at the proxy** — Caddy strips `/api/` and the backend keeps its unprefixed routes (`/login`, `/ready`, …). Browser-visible URLs are `/api/*`; no CSRF-path or test churn | PRD §5 |
 | S1-03 | Gunicorn + UvicornWorker with `--proxy-headers --forwarded-allow-ips=<proxy>`; rate limiter keys on the real client IP | B6 (part 1), B9 |
 | S1-04 | Remove `alembic upgrade` and admin bootstrap from the entrypoint; add `migrate` and `bootstrap-admin` commands | B8 |
 | S1-05 | Config reads `*_FILE` variables (`SECRET_KEY_FILE`, `DATABASE_PASSWORD_FILE`, `GITHUB_TOKEN_FILE`, …) for Compose secrets | S3 |
-| S1-06 | S3 storage settings split into internal endpoint (`http://minio:9000`) and public endpoint (`https://campusgrade.localhost/storage`) so presigned URLs work later | F4 prep |
+| S1-06 | S3 storage settings split into internal endpoint (`http://storage:9000`) and public endpoint (`https://campusgrade.localhost/storage`) so presigned URLs work later | F4 prep |
 
 ### Frontend
 | ID | Task | Ref |
@@ -115,7 +126,7 @@ grade it over HTTPS, and stay logged in past 15 minutes. Deploying a new version
 | S1-09 | Backend Dockerfile: multi-stage `uv sync --frozen`, non-root user, `HEALTHCHECK`, no build tools in the final image |
 | S1-10 | Frontend Dockerfile: standalone output only, non-root, final image < 250 MB |
 | S1-11 | Split compose into `compose.yaml` (base), `compose.dev.yaml` (bind mounts, hot reload, Mailpit, open ports) and `compose.prod.yaml` (GHCR images by `${CAMPUSGRADE_VERSION}`, only the proxy publishes ports) |
-| S1-12 | Add **Caddy** (`tls internal`, HSTS/CSP headers, compression, `/api/*` → api, `/*` → web) and **MinIO** + a one-shot `minio-init` that creates the private bucket; prod uses `PRIVATE_STORAGE_BACKEND=s3` against MinIO |
+| S1-12 | Add **Caddy** (`tls internal`, HSTS/CSP headers, compression, `/api/*` → api, `/*` → web) and **RustFS** (S3-compatible; MinIO no longer publishes container images) plus a one-shot `storage-init` that creates the private bucket with the app's own boto3 client (`backend/scripts/ensure_bucket.py`); prod uses `PRIVATE_STORAGE_BACKEND=s3` against RustFS |
 | S1-13 | Prod hardening on every service: non-root, `read_only` + `tmpfs`, `cap_drop: ALL`, `no-new-privileges`, health checks, resource limits, `restart: unless-stopped`, log rotation, `internal: true` backend network |
 | S1-14 | Compose secrets from `./secrets/*.txt` (git-ignored) + `scripts\init-secrets.ps1` that generates strong values |
 | S1-15 | One-shot `migrate` service; `api` waits for it with `service_completed_successfully` |
@@ -134,8 +145,9 @@ grade it over HTTPS, and stay logged in past 15 minutes. Deploying a new version
 | S1-20 | Delete clutter: `layout.tsx.bak`, empty `src/hooks`/`src/layouts`, `run_frontend.py`, `dev.js`, `setup.ps1`, Windows re-exec in `main.py`; remove stale `IMPLEMENTATION_PLAN.md`/`ARCHITECTURE.md` references in code comments | B15 |
 | S1-21 | Rewrite `README.md` (dev mode, prod mode, deploy, secrets) and `CLAUDE.md`/`AGENTS.md` (cookie auth, `(app)` route group, `features/` layout, `/api` prefix, compose files) | B14 |
 
-Redis + RQ stay in the stack for this sprint so repository analysis keeps working; they
-are removed in Sprint 2.
+Redis is not in the stack: it was already optional, and the old compose file never ran an RQ
+worker, so queued analysis jobs would never have been consumed. With no Redis, analysis uses
+the existing in-process fallback until the worker arrives in Sprint 2.
 
 **Demo script:** merge a one-line PR → CI publishes images → `scripts\deploy.ps1 -Version v0.1.0`
 → open `https://campusgrade.localhost` → admin creates a teacher and a student → teacher
@@ -204,7 +216,7 @@ can be rolled back with one command.
 ### Backend
 | ID | Task | Ref |
 |---|---|---|
-| S3-01 | Presigned GET for attachments/archives (5 min), presigned PUT for teacher uploads, via MinIO's public endpoint | F4 |
+| S3-01 | Presigned GET for attachments/archives (5 min), presigned PUT for teacher uploads, via the object store's public endpoint | F4 |
 | S3-02 | Move remaining storage calls off the event loop (`to_thread` or `aioboto3`) | B7 |
 | S3-03 | Split `assignment_routes.py` into `assignments/`, `submissions/`, `grading/`, `integrity/`, `discussions/`, `external_ai/` (router + service each); no file over 800 lines | B11 |
 | S3-04 | Move the live helpers out of `admin_routes.py`; delete the file | B12 |
@@ -220,8 +232,8 @@ can be rolled back with one command.
 ### Docker / CI/CD
 | ID | Task | Ref |
 |---|---|---|
-| S3-09 | Caddy routes `/storage/*` → MinIO (presigned requests only, no listing) | F4 |
-| S3-10 | `backup` service: nightly `pg_dump` + MinIO bucket mirror, 14 daily / 8 weekly retention, written to a host folder (e.g. `D:\CampusGradeBackups`) outside Docker's disk | F10 |
+| S3-09 | Caddy routes `/storage/*` → RustFS (presigned requests only, no listing) | F4 |
+| S3-10 | `backup` service: nightly `pg_dump` + RustFS bucket mirror, 14 daily / 8 weekly retention, written to a host folder (e.g. `D:\CampusGradeBackups`) outside Docker's disk | F10 |
 | S3-11 | `scripts\restore.ps1 -From <backup>`; CI test: seed → back up → wipe → restore → data matches | F10 |
 | S3-12 | `deploy.ps1` takes a backup before migrating; `scripts\rollback.ps1` redeploys the previous version; deploy auto-rolls back if smoke tests fail | PRD §8 |
 | S3-13 | Release workflow: on tag `vX.Y.Z`, re-tag the tested `:<sha>` images and create a GitHub Release with generated notes | PRD §8 |
@@ -343,7 +355,7 @@ reboot check passed, no open P0/P1 bugs, and the owner signs off.
 | PRD item | Sprint |
 |---|---|
 | S1 root lockdown (advisory) | 0 |
-| B1, B2, B8, B9, B10, B14, B15, S3, F8, `/api` prefix, Caddy, MinIO, prod compose, CI/CD | 1 |
+| B1, B2, B8, B9, B10, B14, B15, S3, F8, `/api` prefix, Caddy, RustFS, prod compose, CI/CD | 1 |
 | B3, B4, B6, F1, F2, F7, Redis/RQ removal | 2 |
 | B5, B7, B11, B12, B13, F4, F10, dead-feature removal, releases + rollback | 3 |
 | F3, F6 | 4 |
@@ -360,5 +372,5 @@ reboot check passed, no open P0/P1 bugs, and the owner signs off.
 | Sprint 2 job refactor breaks the grading publish logic | Golden-path and concurrency tests run before the old scheduler is deleted; keep the old loop behind a flag for one release |
 | Route split (S3-03) causes regressions | Pure move first (same behaviour, new files), behaviour changes in later PRs; e2e suite must pass |
 | GitHub rate limits during deadline-time auto-sync | Authenticated token, conditional requests (ETag), back off on 403/429, configurable interval |
-| Presigned MinIO URLs don't work from the browser | Internal vs. public endpoint split from Sprint 1 (S1-06); e2e test downloads through the proxy |
+| Presigned RustFS URLs don't work from the browser | Internal vs. public endpoint split from Sprint 1 (S1-06); e2e test downloads through the proxy |
 | Caddy's local certificate isn't trusted by browsers | Trust Caddy's root CA once on this PC (documented in README); real domain → Let's Encrypt |

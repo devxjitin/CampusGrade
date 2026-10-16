@@ -21,6 +21,7 @@ differs from the plan — only where it sits until Sprint 10.
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 
 from dotenv import load_dotenv
@@ -64,8 +65,21 @@ def is_weak_secret(value: str) -> bool:
     return len(candidate) < 32 or candidate.isdigit() or len(set(candidate)) < 8 or candidate.lower() in _WEAK_SECRETS
 
 
+# Docker/Compose secrets are mounted as one file per secret under /run/secrets
+# (file name == setting name, e.g. /run/secrets/secret_key). pydantic-settings
+# reads them directly, so credentials never have to live in environment
+# variables, `docker inspect` output, or committed env files. Environment
+# variables still win over secret files, and the directory is optional so
+# local development and tests are unaffected.
+_SECRETS_DIR = os.getenv("SECRETS_DIR", "/run/secrets")
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+        secrets_dir=_SECRETS_DIR if os.path.isdir(_SECRETS_DIR) else None,
+    )
 
     # --- core ---
     app_env: str = "development"
@@ -111,6 +125,16 @@ class Settings(BaseSettings):
     private_s3_bucket: str | None = None
     private_s3_endpoint: str | None = None
     private_s3_region: str | None = None
+    # Credentials for S3-compatible storage (MinIO). Leave unset on AWS to use the
+    # normal boto3 credential chain / IAM role.
+    private_s3_access_key: str | None = None
+    private_s3_secret_key: str | None = None
+    # Browser-reachable base URL used to sign presigned links (Sprint 3), e.g.
+    # https://campusgrade.localhost/storage. Falls back to the internal endpoint.
+    private_s3_public_endpoint: str | None = None
+    # Server-side encryption header. AWS S3 accepts "AES256"; MinIO without a
+    # KMS rejects it, so set this to empty there.
+    private_s3_sse: str | None = "AES256"
 
     # --- github repository submissions ---
     github_token: str | None = None

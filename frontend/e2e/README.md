@@ -1,17 +1,31 @@
-# E2E smoke tests
+# E2E tests (Playwright)
 
-One test per role: log in, land on the dashboard, see the nav items that
-role should see. This is the safety net for Sprint 5 (four roles go live)
-and Sprint 6 (cookie auth + middleware) — both sprints must keep these
-green.
+Browser tests run against a real, seeded stack, never mocks.
+
+## What is covered
+
+- `login.spec.ts`: one test per role (log in, land on the dashboard, see the nav items that role should see), unauthenticated redirect, role-gated admin pages, persistent shell.
+- `session.spec.ts`: the access cookie expires but the refresh cookie is valid, so the user stays signed in (regression for the "logged out after 15 minutes idle" bug).
+
+Tests skip themselves when their credentials are not set, so a partial setup still runs what it can.
+
+## Running in CI
+
+`.github/workflows/ci.yml` builds the production images, starts `compose.prod.yaml`, creates a Super Admin with `bootstrap_admin.py`, and runs this suite against `https://campusgrade.localhost`. Only the Super Admin account exists there, so the other role tests are skipped; seed more accounts in the CI job to run them.
 
 ## Running locally
 
-1. Start Postgres and the backend (`cd backend && python app.py`).
-2. Seed four fixture accounts — one per role. Until Sprint 4/5 land, `admin`
-   use the live `super_admin` and `program_admin` roles.
-3. Start the frontend (`npm run dev`).
-4. `npm run e2e`
+1. Start the stack: `docker compose -f compose.yaml -f compose.dev.yaml up --build` (app on `http://localhost:3000`) or the production stack with `scripts\deploy.ps1`.
+2. Create an admin: `scripts\bootstrap-admin.ps1` (production stack), or `docker compose -f compose.yaml -f compose.dev.yaml run --rm -e BOOTSTRAP_ADMIN_EMAIL=... -e BOOTSTRAP_ADMIN_PASSWORD=... api python bootstrap_admin.py`.
+3. From `frontend/`: install the browser once with `npx playwright install chromium`, then
+
+```
+E2E_BASE_URL=http://localhost:3000 \
+E2E_SUPER_ADMIN_EMAIL=... E2E_SUPER_ADMIN_PASSWORD=... \
+npm run e2e
+```
+
+For the HTTPS stack use `E2E_BASE_URL=https://campusgrade.localhost` (the config ignores Caddy's local certificate).
 
 ## Fixture accounts
 
@@ -23,9 +37,3 @@ E2E_PROGRAM_ADMIN_EMAIL / E2E_PROGRAM_ADMIN_PASSWORD
 E2E_TEACHER_EMAIL / E2E_TEACHER_PASSWORD
 E2E_STUDENT_EMAIL / E2E_STUDENT_PASSWORD
 ```
-
-## CI
-
-Not wired into `.github/workflows/ci.yml` yet — that requires a seeded
-staging database reachable from the CI runner, which is a Sprint 19
-(hardening) task. Run these locally before merging any Sprint 5/6/7 PR.

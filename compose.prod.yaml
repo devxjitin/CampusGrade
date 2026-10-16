@@ -1,0 +1,106 @@
+# Production overlay: pinned images from GHCR, hardened containers, resource
+# limits, only the reverse proxy reachable from outside.
+#
+#   scripts\deploy.ps1 -Version v0.1.0
+#
+# which runs, in essence:
+#   docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml up -d --wait
+#
+# Every long-running service: non-root where the image allows it, read-only root
+# filesystem, all Linux capabilities dropped (a few added back where required),
+# no-new-privileges, health check, restart policy, rotated logs, memory/CPU caps.
+x-hardened: &hardened
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+services:
+  postgres:
+    <<: *hardened
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /run/postgresql
+    # The postgres entrypoint fixes ownership of the data directory and then
+    # drops to the postgres user, which needs these capabilities.
+    cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]
+    deploy:
+      resources:
+        limits: { cpus: "1.5", memory: 1536M }
+
+  storage:
+    <<: *hardened
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /logs
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 512M }
+
+  storage-init:
+    image: ${CAMPUSGRADE_REGISTRY:-ghcr.io/devxjitin}/campusgrade-api:${CAMPUSGRADE_VERSION:?set CAMPUSGRADE_VERSION, e.g. v0.1.0}
+    pull_policy: ${CAMPUSGRADE_PULL_POLICY:-always}
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+
+  migrate:
+    image: ${CAMPUSGRADE_REGISTRY:-ghcr.io/devxjitin}/campusgrade-api:${CAMPUSGRADE_VERSION:?set CAMPUSGRADE_VERSION, e.g. v0.1.0}
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp]
+    pull_policy: ${CAMPUSGRADE_PULL_POLICY:-always}
+
+  api:
+    <<: *hardened
+    image: ${CAMPUSGRADE_REGISTRY:-ghcr.io/devxjitin}/campusgrade-api:${CAMPUSGRADE_VERSION:?set CAMPUSGRADE_VERSION, e.g. v0.1.0}
+    pull_policy: ${CAMPUSGRADE_PULL_POLICY:-always}
+    read_only: true
+    tmpfs: [/tmp]
+    deploy:
+      replicas: 2
+      resources:
+        limits: { cpus: "1.0", memory: 768M }
+
+  web:
+    <<: *hardened
+    image: ${CAMPUSGRADE_REGISTRY:-ghcr.io/devxjitin}/campusgrade-web:${CAMPUSGRADE_VERSION:?set CAMPUSGRADE_VERSION, e.g. v0.1.0}
+    pull_policy: ${CAMPUSGRADE_PULL_POLICY:-always}
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache:mode=1777
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
+
+  proxy:
+    <<: *hardened
+    read_only: true
+    tmpfs: [/config]
+    # Binding ports 80/443 is the only privilege Caddy needs.
+    cap_add: [NET_BIND_SERVICE]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    healthcheck:
+      # Internal-only listener defined in the Caddyfile (not published).
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
