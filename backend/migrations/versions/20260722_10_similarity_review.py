@@ -27,7 +27,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint("fk_assignment_duplicate_flags_reviewed_by", "assignment_duplicate_flags", type_="foreignkey")
+    op.execute("ALTER TABLE assignment_duplicate_flags DROP CONSTRAINT IF EXISTS fk_assignment_duplicate_flags_reviewed_by")
     op.drop_column("assignment_duplicate_flags", "review_notes")
     op.drop_column("assignment_duplicate_flags", "reviewed_at")
     op.drop_column("assignment_duplicate_flags", "reviewed_by")

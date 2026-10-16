@@ -32,5 +32,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint(_CHECK_NAME, "users", type_="check")
+    op.execute(f"ALTER TABLE users DROP CONSTRAINT IF EXISTS {_CHECK_NAME}")
     op.execute("UPDATE users SET role = 'admin' WHERE role IN ('super_admin', 'program_admin')")

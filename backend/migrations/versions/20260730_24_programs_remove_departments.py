@@ -133,7 +133,7 @@ def downgrade() -> None:
         )
     )
 
-    op.drop_constraint("uq_programs_name", "programs", type_="unique")
+    op.execute("ALTER TABLE programs DROP CONSTRAINT IF EXISTS uq_programs_name")
     op.add_column("programs", sa.Column("department_id", sa.String(length=64), nullable=True))
     op.execute(sa.text("UPDATE programs SET department_id = :department_id").bindparams(department_id=_SOET_ID))
     op.alter_column("programs", "department_id", nullable=False)

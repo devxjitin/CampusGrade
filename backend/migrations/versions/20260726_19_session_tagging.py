@@ -75,7 +75,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint("uq_student_subject_enrollment_session", "student_subject_enrollments", type_="unique")
+    op.execute("ALTER TABLE student_subject_enrollments DROP CONSTRAINT IF EXISTS uq_student_subject_enrollment_session")
     op.create_unique_constraint("uq_student_subject_enrollment", "student_subject_enrollments", ["student_id", "subject_id"])
     op.drop_index("ix_student_subject_enrollments_session_id", table_name="student_subject_enrollments")
     op.drop_column("student_subject_enrollments", "session_id")
