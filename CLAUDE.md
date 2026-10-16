@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-CampusGrade: an assignment, repository-analysis, and grading platform. FastAPI + PostgreSQL backend, Next.js (App Router, TypeScript, Tailwind CSS v4, TanStack Query) frontend in `frontend/`. The old Vite/React frontend (`frontend-legacy/`) has been removed after cutover; see `MIGRATION_PLAN.md` for the migration history.
+CampusGrade: an assignment, repository-analysis, and grading platform. FastAPI + PostgreSQL backend, Next.js (App Router, TypeScript, Tailwind CSS v4, TanStack Query) frontend in `frontend/`. The old Vite/React frontend (`frontend-legacy/`) has been removed after cutover; see `PRD.md` and `Sprint.md` for the current plan.
 
 ## Commands
 
@@ -49,4 +49,4 @@ CampusGrade: an assignment, repository-analysis, and grading platform. FastAPI +
 - Some pages are shared client components rendered by multiple thin route `page.tsx` files with different props (e.g. `AssignmentDashboardView` with an `initialView` prop, `CreateAssignmentView` used by both `/assignments/create` and `/assignments/[id]/edit`) — this replicates legacy's single-component-multiple-routes pattern (`AssignmentDashboard initialView="..."` in `App.jsx`) under App Router.
 - The external-AI grading workflow (prompt generation, proposal import, repo-bundle export, validate + save) is human-in-the-loop only — no internal embeddings/RAG. It's UI embedded in `CreateAssignmentView.tsx` and `BulkExternalEvaluationDialog.tsx`, calling `lib/api.ts` functions that hit `/assignments/teacher-tools/external-ai-*` and `/assignments/teacher/:id/external-evaluation/*`.
 - In dev, `next.config.ts` rewrites `/api/*` to the FastAPI backend (`BACKEND_ORIGIN`, default `http://127.0.0.1:5001`) and redirects the old `/login/student` and `/login/teacher` paths to `/login`. The frontend's real API base URL is `NEXT_PUBLIC_API_URL` (defaults to `/api`).
-- See `MIGRATION_PLAN.md` for the full Vite→Next.js migration history (the pre-migration `frontend-legacy/` app has been removed).
+- See `PRD.md` (requirements, known issues, Docker production target) and `Sprint.md` (delivery plan).
