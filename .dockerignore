@@ -1,0 +1,14 @@
+**/node_modules
+**/.next
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+.venv
+.git
+.env
+.env.*
+!.env.example
+CampusGradeV2
+frontend/test-results
+backend/uploads

@@ -1,0 +1,101 @@
+[project]
+name = "canvasgrade"
+version = "0.1.0"
+description = "Independent assignment, repository analysis, and grading platform"
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "bcrypt==4.2.1",
+    "argon2-cffi==23.1.0",
+    "fastapi==0.115.8",
+    "pydantic[email]>=2.9",
+    "pydantic-settings>=2.6",
+    "uvicorn==0.34.0",
+    "sqlalchemy==2.0.37",
+    "alembic==1.15.1",
+    "asyncpg==0.30.0",
+    "redis[hiredis]>=5.0",
+    "rq>=2.1",
+    "boto3>=1.35",
+    "psycopg[binary]==3.2.9",
+    "cryptography==44.0.0",
+    "openpyxl==3.1.5",
+    "pypdf==5.4.0",
+    "python-docx==1.1.2",
+    "pyjwt==2.10.1",
+    "python-dotenv==1.0.1",
+    "python-multipart==0.0.20",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3,<9",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=5",
+    "httpx>=0.27",
+    "testcontainers[postgres]>=4.8",
+    "ruff>=0.7",
+    "mypy>=1.13",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["backend/tests"]
+
+[tool.ruff]
+line-length = 160
+target-version = "py310"
+exclude = ["backend/migrations/versions"]
+# CI (.github/workflows/ci.yml) runs `ruff check` against an explicit file
+# list, not the whole `backend` tree — most of the pre-existing tree (7 test
+# files that predate Sprint 0, routes_fastapi/, models/, services/, ai/,
+# utils/, scripts/) has ~650 pre-existing findings; see IMPLEMENTATION_PLAN.md
+# Sprint 0 notes. Fixing those in bulk now would be a drive-by change with no
+# test coverage behind it.
+#
+# Currently ruff-clean (verified — add new files here as they're written,
+# and widen the CI file list in the same PR):
+#   backend/tests/conftest.py
+#   backend/tests/test_golden_paths.py
+#   backend/config.py
+#   backend/core/  (db.py, errors.py, logging_setup.py, redis.py)
+#   backend/routes_fastapi/institution_routes.py           (Sprint 2)
+#   backend/routes_fastapi/notification_routes.py          (Sprint 2)
+#   backend/routes_fastapi/user_routes.py                  (Sprint 2)
+#   backend/routes_fastapi/admin/academic_sessions.py      (Sprint 2)
+#   backend/routes_fastapi/admin_settings.py                (Sprint 2, partial — see CHANGELOG.md)
+#   backend/routes_fastapi/admin/departments.py             (Sprint 2)
+#   backend/routes_fastapi/admin/users.py                   (Sprint 2, fully ported — all 12 routes)
+#   backend/services/academic_calendar.py                   (Sprint 2 — async twins added, sync originals untouched)
+#   backend/routes_fastapi/admin/courses.py                 (Sprint 2)
+#   backend/routes_fastapi/admin/batches.py                 (Sprint 2)
+#   backend/routes_fastapi/admin/sections.py                (Sprint 2)
+#   backend/routes_fastapi/admin/subjects.py                (Sprint 2)
+#   backend/services/session_rollover.py                    (Sprint 2 — fully converted, no sync twin needed)
+#   backend/routes_fastapi/admin/session_rollover.py         (Sprint 2)
+#   backend/routes_fastapi/assignment_routes.py              (Sprint 2 — all 50 routes; 14 helpers keep a sync original + async twin, see CHANGELOG.md)
+#
+# Every sprint that ports a legacy file into a clean home per
+# IMPLEMENTATION_PLAN.md must leave that file ruff-clean and add it to this
+# list and to ci.yml in the same PR. By the end of the plan this comment
+# should be deleted and CI should just run `ruff check backend`.
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# E501: line length — this codebase's existing style favors dense one-liners
+#   in places; not worth a mass reformat mid-refactor.
+# B008: flags `Depends(...)` used as an argument default — that is FastAPI's
+#   own documented dependency-injection pattern, used in every route in this
+#   codebase. Not a real bug for this framework.
+ignore = ["E501", "B008"]
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_ignores = true
+files = ["backend/config.py", "backend/core", "backend/schemas"]
+plugins = ["pydantic.mypy"]
+# Without the pydantic plugin, mypy treats BaseSettings like a normal
+# pydantic model and demands every no-default field (secret_key,
+# database_url) be passed to Settings(...) explicitly — even though
+# pydantic-settings populates them from the environment at runtime, which is
+# the entire point of the class. The plugin teaches mypy that.

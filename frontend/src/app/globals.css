@@ -1,0 +1,555 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens ported from frontend-legacy/tailwind.config.js and
+ * frontend-legacy/src/index.css. Tailwind v4 reads color scales from
+ * CSS custom properties instead of a JS config, so the KR Mangalam
+ * brand palette (primary = vibrant red, secondary = deep blue) is
+ * declared here and used the same way it was before: bg-primary-600,
+ * text-secondary-700, etc.
+ */
+@theme {
+  --color-primary-50: #fdf2f3;
+  --color-primary-100: #fae6e7;
+  --color-primary-200: #f4b3b8;
+  --color-primary-300: #eb8088;
+  --color-primary-400: #e64d59;
+  --color-primary-500: #e3000f;
+  --color-primary-600: #cc000d;
+  --color-primary-700: #a3000a;
+  --color-primary-800: #7a0008;
+  --color-primary-900: #630006;
+
+  --color-secondary-50: #f1f5fa;
+  --color-secondary-100: #e3ebf6;
+  --color-secondary-200: #c1d7ed;
+  --color-secondary-300: #9fc2e4;
+  --color-secondary-400: #5c99d2;
+  --color-secondary-500: #1a70c0;
+  --color-secondary-600: #0c3c8a;
+  --color-secondary-700: #092d67;
+  --color-secondary-800: #061e45;
+  --color-secondary-900: #030f22;
+
+  --color-accent-500: #3d3d3d;
+
+  --animate-shimmer: shimmer 1.5s infinite;
+
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+}
+
+:root {
+  color-scheme: light;
+  --ui-primary: #e3000f;
+  --ui-primary-strong: #a3000a;
+  --ui-secondary: #0c3c8a;
+  --ui-canvas: #f8fafc;
+  --ui-surface: #ffffff;
+  --ui-border: #e2e8f0;
+  --ui-text: #0f172a;
+  --ui-muted: #64748b;
+  --ui-radius: 0.875rem;
+  --ui-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+}
+
+body {
+  font-family: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+  background: var(--ui-canvas);
+  color: var(--ui-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.3);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.5);
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -webkit-appearance: none !important;
+  -moz-appearance: textfield;
+  appearance: textfield !important;
+}
+
+@layer components {
+  .input-field {
+    @apply w-full px-4 py-2.5 border rounded-xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 shadow-sm focus:bg-white focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 outline-none transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed;
+  }
+
+  .input {
+    @apply min-h-[42px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .form-hint {
+    @apply mt-1 text-xs text-gray-500;
+  }
+
+  .btn {
+    @apply relative min-h-[42px] overflow-hidden border border-transparent px-4 py-2.5 rounded-xl font-semibold transition-all duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-600/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply bg-primary-600 hover:bg-primary-700 text-white active:scale-[0.98];
+  }
+
+  .btn-secondary {
+    @apply bg-secondary-500 hover:bg-secondary-600 text-white active:scale-[0.98];
+  }
+
+  .btn-outline {
+    @apply border border-gray-300 text-gray-700 hover:bg-gray-50 active:scale-[0.98];
+  }
+
+  .btn-ghost {
+    @apply text-gray-600 hover:bg-gray-100 active:scale-[0.98];
+  }
+
+  .btn-danger {
+    @apply bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg active:scale-[0.98];
+  }
+
+  .badge {
+    @apply px-2.5 py-1 text-xs font-bold rounded-lg inline-flex items-center;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl border border-slate-200/80 transition-all duration-300;
+  }
+
+  .card-hover {
+    @apply hover:border-slate-300 hover:-translate-y-1;
+  }
+
+  .stat-card {
+    /* Tailwind v4 can't @apply a custom @layer components class (.card)
+       from within another one, unlike v3 — inline its utilities instead. */
+    @apply bg-white rounded-2xl border border-slate-200/80 transition-all duration-300 p-6 flex flex-col justify-center;
+  }
+
+  .ui-icon-button {
+    @apply inline-flex h-10 w-10 flex-none items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40;
+  }
+
+  .ui-page-header {
+    @apply mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between;
+  }
+
+  .ui-eyebrow {
+    @apply mb-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-primary-600;
+  }
+
+  .ui-page-title {
+    @apply text-xl font-bold tracking-tight text-slate-950 md:text-2xl;
+  }
+
+  .ui-page-description {
+    @apply mt-0.5 max-w-3xl text-xs leading-5 text-slate-500;
+  }
+
+  .ui-page-actions {
+    @apply flex flex-wrap items-center gap-2 sm:justify-end;
+  }
+
+  .ui-section-header {
+    @apply mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between;
+  }
+
+  .ui-section-title {
+    @apply text-lg font-bold text-slate-950;
+  }
+
+  .ui-section-description {
+    @apply mt-0.5 text-sm text-slate-500;
+  }
+
+  .ui-empty-state {
+    @apply flex min-h-48 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-8 text-center;
+  }
+
+  .ui-search-field {
+    @apply flex min-h-[42px] min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-slate-400 shadow-sm transition focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500/20;
+  }
+
+  .ui-search-field input {
+    @apply min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400;
+  }
+
+  .ui-field {
+    @apply grid gap-1.5;
+  }
+
+  .ui-field-label {
+    @apply text-sm font-semibold text-slate-700;
+  }
+
+  .ui-field-hint {
+    @apply text-xs leading-5 text-slate-500;
+  }
+
+  .ui-field-error {
+    @apply text-xs leading-5 text-red-600;
+  }
+
+  .ui-select-wrap {
+    @apply relative flex items-center;
+  }
+
+  .ui-select-wrap select {
+    @apply min-h-[42px] w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm text-slate-900 shadow-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20;
+  }
+
+  .ui-select-wrap svg {
+    @apply pointer-events-none absolute right-3 text-slate-400;
+  }
+
+  .ui-file-dropzone {
+    @apply flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center transition hover:border-primary-400 hover:bg-primary-50/40 focus-within:ring-2 focus-within:ring-primary-500/30;
+  }
+
+  .ui-tabs {
+    @apply flex min-w-0 gap-1 overflow-x-auto border-b border-slate-200;
+  }
+
+  .ui-tabs button {
+    @apply relative flex min-h-11 flex-none items-center gap-2 px-3 text-sm font-semibold text-slate-500 transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500/30;
+  }
+
+  .ui-tabs button.is-active {
+    @apply text-primary-700 after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:bg-primary-600;
+  }
+
+  .ui-tabs button span {
+    @apply rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600;
+  }
+
+  .ui-toolbar {
+    @apply mb-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur lg:flex-row lg:items-center lg:justify-between;
+  }
+
+  .ui-data-card {
+    @apply overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm;
+  }
+
+  .ui-workspace-tabs {
+    @apply shrink-0 border-b border-slate-200 bg-white;
+  }
+
+  .ui-workspace-tabs button {
+    @apply relative flex min-h-12 shrink-0 items-center gap-2 px-3 text-sm font-semibold text-slate-500 transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500/30;
+  }
+
+  .ui-workspace-tabs button.is-active {
+    @apply text-primary-700 after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:bg-primary-600;
+  }
+
+  .ui-action-bar {
+    @apply sticky bottom-0 z-10 -mx-4 mt-6 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] backdrop-blur sm:-mx-6 sm:px-6 md:-mx-8 md:px-8;
+  }
+
+  .ui-status-badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold capitalize;
+  }
+
+  .ui-status-badge.is-success {
+    @apply bg-emerald-50 text-emerald-700;
+  }
+  .ui-status-badge.is-warning {
+    @apply bg-amber-50 text-amber-700;
+  }
+  .ui-status-badge.is-info {
+    @apply bg-secondary-50 text-secondary-700;
+  }
+  .ui-status-badge.is-danger {
+    @apply bg-rose-50 text-rose-700;
+  }
+  .ui-status-badge.is-neutral {
+    @apply bg-slate-100 text-slate-600;
+  }
+
+  .ui-metric-card {
+    @apply flex items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm;
+  }
+
+  .ui-feedback-state {
+    @apply flex min-h-48 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 p-8 text-sm font-medium text-slate-500;
+  }
+}
+
+/* ─── AssessHub visual system (ported as-is from frontend-legacy) ───── */
+.app-content {
+  background:
+    radial-gradient(circle at 8% 4%, rgba(227, 0, 15, 0.045), transparent 24rem),
+    radial-gradient(circle at 94% 10%, rgba(12, 60, 138, 0.06), transparent 28rem),
+    linear-gradient(180deg, #f8fafc 0%, #f5f7fb 100%);
+}
+
+.card,
+.ui-data-card,
+.ui-toolbar,
+.ui-metric-card {
+  background-image: linear-gradient(145deg, rgba(255, 255, 255, 1), rgba(248, 250, 252, 0.72));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 1px 2px rgba(15, 23, 42, 0.03),
+    0 10px 30px rgba(15, 23, 42, 0.045);
+}
+
+.card-hover:hover,
+button.card:hover,
+a.card:hover {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 16px 36px rgba(15, 23, 42, 0.09),
+    0 4px 12px rgba(12, 60, 138, 0.05);
+}
+
+.btn-primary {
+  background-image: linear-gradient(135deg, #e3000f 0%, #c4000d 72%, #a3000a 100%);
+  box-shadow: 0 8px 18px rgba(227, 0, 15, 0.18);
+}
+
+.btn-primary:hover {
+  box-shadow: 0 12px 24px rgba(227, 0, 15, 0.25);
+}
+
+.btn-secondary {
+  background-image: linear-gradient(135deg, #1a70c0 0%, #0c3c8a 72%, #092d67 100%);
+  box-shadow: 0 8px 18px rgba(12, 60, 138, 0.18);
+}
+
+.btn-danger {
+  background-image: linear-gradient(135deg, #e11d48, #be123c);
+}
+
+.btn-outline {
+  background-image: linear-gradient(180deg, #fff, #f8fafc);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.btn-outline:hover {
+  border-color: rgba(12, 60, 138, 0.3);
+  color: var(--ui-secondary);
+  box-shadow: 0 6px 16px rgba(12, 60, 138, 0.08);
+}
+
+*:focus-visible {
+  outline: 2px solid rgba(12, 60, 138, 0.5);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn { animation: fadeIn 0.3s ease-out; }
+.animate-fadeInUp { animation: fadeInUp 0.4s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Toast notifications (used by components/Toast) ─────────────────── */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toastOut {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(100%); }
+}
+
+@keyframes toastTimer {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+.toast-region {
+  position: fixed;
+  z-index: 10100;
+  top: 1rem;
+  right: 1rem;
+  display: grid;
+  width: min(24rem, calc(100vw - 2rem));
+  gap: 0.75rem;
+  pointer-events: none;
+}
+
+.toast-notification {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  overflow: hidden;
+  padding: 0.875rem 0.875rem 0.95rem;
+  border: 1px solid var(--toast-border);
+  border-radius: 8px;
+  background: var(--toast-surface);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
+  color: var(--toast-text);
+  pointer-events: auto;
+  animation: toastIn 0.24s ease-out both;
+}
+
+.toast-notification--exiting {
+  animation: toastOut 0.24s ease-in both;
+}
+
+.toast-notification--success {
+  --toast-surface: #f0fdf4;
+  --toast-border: #bbf7d0;
+  --toast-text: #14532d;
+  --toast-accent: #16a34a;
+  --toast-icon-surface: #dcfce7;
+}
+
+.toast-notification--error {
+  --toast-surface: #fff1f2;
+  --toast-border: #fecdd3;
+  --toast-text: #881337;
+  --toast-accent: #e11d48;
+  --toast-icon-surface: #ffe4e6;
+}
+
+.toast-notification--warning {
+  --toast-surface: #fffbeb;
+  --toast-border: #fde68a;
+  --toast-text: #78350f;
+  --toast-accent: #d97706;
+  --toast-icon-surface: #fef3c7;
+}
+
+.toast-notification--info {
+  --toast-surface: #eff6ff;
+  --toast-border: #bfdbfe;
+  --toast-text: #1e3a8a;
+  --toast-accent: #2563eb;
+  --toast-icon-surface: #dbeafe;
+}
+
+.toast-notification__icon {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--toast-icon-surface);
+  color: var(--toast-accent);
+}
+
+.toast-notification__content {
+  min-width: 0;
+  padding-top: 0.05rem;
+}
+
+.toast-notification__label,
+.toast-notification__message {
+  margin: 0;
+}
+
+.toast-notification__label {
+  color: var(--toast-accent);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.toast-notification__message {
+  margin-top: 0.18rem;
+  color: var(--toast-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.toast-notification__close {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  align-self: start;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--toast-text);
+  cursor: pointer;
+  opacity: 0.58;
+}
+
+.toast-notification__close:hover,
+.toast-notification__close:focus-visible {
+  background: color-mix(in srgb, var(--toast-accent) 10%, transparent);
+  opacity: 1;
+}
+
+.toast-notification__timer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  transform-origin: left;
+  background: var(--toast-accent);
+  animation: toastTimer var(--toast-duration, 4000ms) linear forwards;
+}
+
+@media (max-width: 640px) {
+  .toast-region {
+    top: 0.75rem;
+    right: 0.75rem;
+    width: calc(100vw - 1.5rem);
+  }
+}
+
+/* ─── Loading skeleton shimmer (used by components/LoadingSkeleton) ──── */
+@keyframes shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(100, 116, 139, 0.08) 50%, transparent 100%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+}

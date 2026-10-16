@@ -1,0 +1,12 @@
+"use client";
+
+import AuthGate from "@/components/AuthGate";
+
+// Route group for every authenticated page (mirrors the <ProtectedRoute>
+// wrapping in frontend-legacy's App.jsx). Pages that need a narrower role
+// set (e.g. teacher-only) should further guard themselves with AuthGate's
+// allowedRoles prop, matching the per-route <Guard roles={[...]}> pattern
+// used in the legacy router.
+export default function DashboardGroupLayout({ children }: { children: React.ReactNode }) {
+  return <AuthGate allowedRoles={["super_admin", "program_admin", "teacher", "student"]}>{children}</AuthGate>;
+}

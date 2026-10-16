@@ -1,0 +1,71 @@
+name: campusgrade
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: campusgrade
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-campusgrade_dev}
+      POSTGRES_DB: campusgrade_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U campusgrade -d campusgrade_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      APP_ENV: development
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env.docker (see .env.docker.example)}
+      DATABASE_URL: postgresql+psycopg://campusgrade:${POSTGRES_PASSWORD:-campusgrade_dev}@postgres:5432/campusgrade_db
+      ALLOWED_ORIGINS: http://localhost:3000
+      PORT: "5001"
+      REDIS_URL: redis://redis:6379/0
+      REDIS_REQUIRED: "false"
+      COOKIE_SECURE: "false"
+      PRIVATE_STORAGE_BACKEND: local
+      PRIVATE_STORAGE_PATH: /data/private
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+      AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@campusgrade.dev}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      BOOTSTRAP_ADMIN_NAME: CampusGrade Administrator
+    volumes:
+      - private_data:/data/private
+    ports:
+      - "5001:5001"
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        BACKEND_ORIGIN: http://api:5001
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  private_data:

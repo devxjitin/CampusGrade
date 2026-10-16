@@ -1,0 +1,11 @@
+name,email,teacher_id,contact_number,designation,department
+Aarav Mehta,aarav.mehta.demo@krmu.edu.in,DEMO-T-9001,+919800001111,Assistant Professor,School of Computer Science and Engineering
+Neha Batra,neha.batra.demo@krmu.edu.in,DEMO-T-9002,+919800001122,Associate Professor,School of Information Technology
+Rohan Dua,aarav.mehta.demo@krmu.edu.in,DEMO-T-9003,+919800001133,Assistant Professor,School of Computer Science and Engineering
+Ira Suri,ira.suri.demo@krmu.edu.in,DEMO-T-9002,+919800001144,Lecturer,School of Information Technology
+,blank.name.teacher.demo@krmu.edu.in,DEMO-T-9005,+919800001155,Assistant Professor,School of Computer Science and Engineering
+Kabir Anand,kabir.anand.demo@krmu.edu.in,DEMO/T/9006,+919800001166,Assistant Professor,School of Mechanical Engineering
+Mahi Jain,mahi.jain.demo@krmu.edu.in,DEMO-T-9007,9,Assistant Professor,School of Electronics and Communication Engineering
+Yashika Sen,yashika.sen.demo@krmu.edu.in,DEMO-T-9008,,Assistant Professor,School of Management and Commerce
+Tara Nair,,DEMO-T-9009,+919800001177,Assistant Professor,School of Management and Commerce
+Prof. Diya Sharma,diya.sharma.demo@krmu.edu.in,DEMO-T-9010,+919800001188,Professor,School of Computer Science and Engineering

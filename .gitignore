@@ -179,3 +179,19 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# Local binary wheels
+dlib_wheels/
+
+# Runtime data and generated dependencies
+.local/
+backend/uploads/
+frontend/node_modules/
+frontend/dist/
+.vscode/
+
+# Docker local env
+.env.docker
+CampusGradeV2/
+=2.6
+frontend/test-results/

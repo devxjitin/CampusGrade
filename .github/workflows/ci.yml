@@ -1,0 +1,90 @@
+name: CI
+
+# Sprint 0 of IMPLEMENTATION_PLAN.md. This is the gate that makes every
+# later sprint safe: a PR that breaks the build, drops a migration
+# downgrade path, or lets frontend/backend API types drift cannot merge.
+#
+# Scope note: `ruff` checks an explicit, currently-clean file list (see the
+# comment on [tool.ruff] in pyproject.toml) — NOT the whole backend/tests
+# directory, which still contains pre-Sprint-0 test files with ~650
+# pre-existing findings. Every sprint that ports or adds a clean file adds
+# it to that list in the same PR. Do not widen it to a whole directory in
+# one pass; that defeats the point of reviewing a real, checkable diff.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync
+      - name: ruff (explicit clean-file list — see pyproject.toml)
+        run: uv run ruff check backend/tests/conftest.py backend/tests/test_golden_paths.py backend/tests/test_errors.py backend/config.py backend/core backend/routes_fastapi/notification_routes.py backend/routes_fastapi/user_routes.py backend/routes_fastapi/admin/academic_sessions.py backend/routes_fastapi/admin_settings.py backend/routes_fastapi/admin/users.py backend/services/academic_calendar.py backend/routes_fastapi/admin/courses.py backend/routes_fastapi/admin/batches.py backend/routes_fastapi/admin/sections.py backend/routes_fastapi/admin/subjects.py backend/services/session_rollover.py backend/routes_fastapi/admin/session_rollover.py backend/routes_fastapi/assignment_routes.py backend/services/identity_service.py backend/routes_fastapi/admin/admins.py backend/tests/test_authorization_matrix.py backend/tests/test_program_admin_scoping.py backend/tests/test_security.py backend/tests/test_cookie_auth.py backend/routes_fastapi/auth_routes.py
+      - name: mypy (backend/config.py, backend/core, backend/schemas — widened sprint by sprint)
+        run: uv run mypy
+
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync
+      - name: pytest (Docker-backed integration tests auto-skip if no Docker)
+        run: uv run pytest backend/tests --cov=backend --cov-report=term-missing -v
+
+  migrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync
+      - name: upgrade / downgrade / upgrade round-trip
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/postgres
+        run: |
+          cd backend
+          uv run alembic upgrade head
+          uv run alembic downgrade base
+          uv run alembic upgrade head
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - name: unit tests (vitest)
+        run: npx vitest run --passWithNoTests
+      - name: generated API types are not stale
+        run: |
+          git diff --exit-code -- src/types/api.d.ts || \
+          (echo "::error::src/types/api.d.ts is stale — run 'npm run gen:types' against a running backend and commit the result" && exit 1)
