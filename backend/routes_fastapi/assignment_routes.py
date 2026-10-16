@@ -5,7 +5,6 @@ import json
 import uuid
 
 import jwt
-from ai.assignment_ai import _azure_openai_config, _extract_json_payload, _invoke_prompt_with_timeout
 from core.db import db_session
 from core.policy import Permission, require, require_roles, require_user
 from core.principal import Role
