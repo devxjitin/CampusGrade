@@ -24,9 +24,9 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 # `models/database.py` used to be the module every other module transitively
 # imported early enough to bootstrap `.env` into os.environ via
@@ -36,7 +36,22 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # (`utils/security_utils.py`'s live SECRET_KEY read for legacy Fernet
 # ciphertext, `migrations/env.py` which Alembic runs outside the app
 # entirely) still see `.env` values.
-load_dotenv()
+_SECRETS_DIR = os.getenv("SECRETS_DIR", "/run/secrets")
+
+
+def _load_dotenv() -> None:
+    """Copy `.env` values into `os.environ` (for the few modules that read
+    `os.getenv` directly) without ever overriding a real environment variable or
+    a mounted Docker secret of the same name."""
+    for key, value in dotenv_values().items():
+        if value is None or key in os.environ:
+            continue
+        if os.path.exists(os.path.join(_SECRETS_DIR, key.lower())):
+            continue
+        os.environ[key] = value
+
+
+_load_dotenv()
 
 _WEAK_SECRETS = {
     "super_secret_jwt_key_here",
@@ -68,10 +83,9 @@ def is_weak_secret(value: str) -> bool:
 # Docker/Compose secrets are mounted as one file per secret under /run/secrets
 # (file name == setting name, e.g. /run/secrets/secret_key). pydantic-settings
 # reads them directly, so credentials never have to live in environment
-# variables, `docker inspect` output, or committed env files. Environment
-# variables still win over secret files, and the directory is optional so
-# local development and tests are unaffected.
-_SECRETS_DIR = os.getenv("SECRETS_DIR", "/run/secrets")
+# variables, `docker inspect` output, or committed env files. Precedence:
+# real environment variables > mounted secrets > `.env`. The directory is
+# optional so local development and tests are unaffected.
 
 
 class Settings(BaseSettings):
@@ -80,6 +94,20 @@ class Settings(BaseSettings):
         extra="ignore",
         secrets_dir=_SECRETS_DIR if os.path.isdir(_SECRETS_DIR) else None,
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # Mounted secrets outrank a `.env` file. With the default order a developer
+        # `.env` that gets bind-mounted into a dev container (./backend:/app) would
+        # silently override the Docker secret (e.g. point DATABASE_URL elsewhere).
+        return (init_settings, env_settings, file_secret_settings, dotenv_settings)
 
     # --- core ---
     app_env: str = "development"
