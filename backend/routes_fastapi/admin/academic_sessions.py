@@ -9,9 +9,16 @@ import uuid
 from core.db import db_session
 from core.policy import Permission, require
 from fastapi import APIRouter, Depends, HTTPException
-from models.sql_models import SqlAcademicSession
+from models.assignment import SqlAssignment
+from models.sql_models import (
+    SqlAcademicSession,
+    SqlRolloverRun,
+    SqlStudentSessionRecord,
+    SqlStudentSubjectEnrollment,
+    SqlTeacherSessionAllocation,
+)
 from schemas.academic import AcademicSessionCreate, AcademicSessionUpdate
-from sqlalchemy import select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -100,6 +107,32 @@ async def update_academic_session(session_id: str, body: AcademicSessionUpdate, 
     return {"message": "Academic session updated"}
 
 
+async def _delete_blockers(db: AsyncSession, record: SqlAcademicSession) -> list[str]:
+    """Reasons a session must not be deleted. Deleting one cascades to student
+    records, teacher allocations and rollover runs, and silently detaches its
+    assignments and enrollments, so only a truly empty session may go."""
+    blockers: list[str] = []
+    if record.is_current or record.status == "active":
+        blockers.append("it is the current session")
+    counts = (
+        ("student records", select(func.count()).select_from(SqlStudentSessionRecord).where(SqlStudentSessionRecord.session_id == record.id)),
+        ("teacher allocations", select(func.count()).select_from(SqlTeacherSessionAllocation).where(SqlTeacherSessionAllocation.session_id == record.id)),
+        ("subject enrollments", select(func.count()).select_from(SqlStudentSubjectEnrollment).where(SqlStudentSubjectEnrollment.session_id == record.id)),
+        ("assignments", select(func.count()).select_from(SqlAssignment).where(SqlAssignment.session_id == record.id)),
+        (
+            "rollover runs",
+            select(func.count()).select_from(SqlRolloverRun).where(
+                or_(SqlRolloverRun.from_session_id == record.id, SqlRolloverRun.to_session_id == record.id)
+            ),
+        ),
+    )
+    for label, query in counts:
+        total = await db.scalar(query)
+        if total:
+            blockers.append(f"it has {total} {label}")
+    return blockers
+
+
 @router.delete("/academic-sessions/{session_id}")
 async def delete_academic_session(session_id: str, principal=Depends(require(Permission.SESSION_MANAGE)), db: AsyncSession = Depends(db_session)):
     del principal
@@ -108,6 +141,9 @@ async def delete_academic_session(session_id: str, principal=Depends(require(Per
     ).first()
     if not record:
         raise HTTPException(status_code=404, detail="Academic session not found")
+    blockers = await _delete_blockers(db, record)
+    if blockers:
+        raise HTTPException(status_code=409, detail="Cannot delete this academic session: " + ", ".join(blockers))
     await db.delete(record)
     try:
         await db.flush()

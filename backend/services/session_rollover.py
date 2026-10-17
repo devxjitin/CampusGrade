@@ -81,10 +81,13 @@ async def _get_or_build_target_session(db: AsyncSession, from_session: SqlAcadem
 
 
 async def _active_students_in_session(db: AsyncSession, session_id: str):
+    # Repeating and on-leave students must carry over too (at the same level),
+    # otherwise they would have no record at all in the next session.
     return (
         await db.scalars(
             select(SqlStudentSessionRecord).where(
-                SqlStudentSessionRecord.session_id == session_id, SqlStudentSessionRecord.status == "active"
+                SqlStudentSessionRecord.session_id == session_id,
+                SqlStudentSessionRecord.status.in_(("active", "repeating", "on_leave")),
             )
         )
     ).all()
@@ -103,7 +106,7 @@ async def _plan(db: AsyncSession, from_session: SqlAcademicSession, to_session: 
         student = (await db.scalars(select(SqlUser).where(SqlUser.id == record.student_id))).first()
         if not student:
             continue
-        if record.is_override and record.status in {"repeating", "on_leave"}:
+        if record.status in {"repeating", "on_leave"}:
             promotions.append({"record": record, "student": student, "study_year": record.study_year, "semester": record.semester, "status": record.status, "keep_same_level": True})
             continue
         batch = batches_by_id.get(record.batch_id) if record.batch_id else None
@@ -225,6 +228,9 @@ async def execute(db: AsyncSession, from_session: SqlAcademicSession, executed_b
             graduated += 1
         else:
             promoted += 1
+            if p["keep_same_level"]:
+                # Repeating / on-leave students are not auto-enrolled (same as the preview count).
+                continue
             # 3. Auto-enrol compulsory subjects for the new level.
             batch = (await db.scalars(select(SqlBatch).where(SqlBatch.id == record.batch_id))).first() if record.batch_id else None
             subject_query = select(SqlSubject).where(SqlSubject.enrollment_type == "compulsory", SqlSubject.year == p["study_year"])
