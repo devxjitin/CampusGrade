@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from routes_fastapi.admin_routes import _normalize_course_code, _normalize_course_year, _normalize_program_name
+from services.admin_helpers import _normalize_course_code, _normalize_course_year, _normalize_program_name
 
 router = APIRouter(tags=["admin-programs"])
 

@@ -14,7 +14,7 @@ super-admin only (`Permission.ADMIN_MANAGE`):
   replace-not-patch shape the plan's snippet describes.
 
 New accounts get a random temporary password via
-`admin_routes._generate_temporary_password()` (the same one every other
+`admin_helpers._generate_temporary_password()` (the same one every other
 admin-created account uses since Sprint 4 deleted the predictable
 `firstname@last2digits` generators) and `must_change_password=True`.
 """
@@ -36,7 +36,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from utils.security_utils import encrypt_password
 
-from routes_fastapi.admin_routes import _generate_temporary_password, _normalize_person_name, _normalize_user_email
+from services.admin_helpers import _generate_temporary_password, _normalize_person_name, _normalize_user_email
 
 router = APIRouter(prefix="/admins", tags=["admin-admins"])
 

@@ -21,19 +21,10 @@ ACCESS_COOKIE_NAME = "campusgrade_access"
 
 
 def get_bearer_token(request: Request):
-    """Sprint 6, the original implementation plan: read the access token from the
-    httpOnly `campusgrade_access` cookie first — that's what `/login`/
-    `/auth/refresh` set from this sprint on — and fall back to the
-    `Authorization` header for one sprint so a frontend that hasn't been
-    updated yet (or a non-browser API client) keeps working. Header support
-    is removed in Sprint 10 per the plan. `AUTH_COOKIE_MODE=false` (see
-    `config.py`) skips the cookie entirely and only accepts the header —
-    the plan's emergency rollback for this sprint.
-    """
-    if get_settings().auth_cookie_mode:
-        cookie_token = request.cookies.get(ACCESS_COOKIE_NAME)
-        if cookie_token:
-            return cookie_token
+    """Read the access token from the httpOnly `campusgrade_access` cookie, else the `Authorization` header (non-browser API clients)."""
+    cookie_token = request.cookies.get(ACCESS_COOKIE_NAME)
+    if cookie_token:
+        return cookie_token
 
     auth_header = request.headers.get("Authorization", "")
     parts = auth_header.split()

@@ -44,7 +44,7 @@ def resolve_current_session(db) -> SqlAcademicSession | None:
 async def resolve_current_session_async(db: AsyncSession) -> SqlAcademicSession | None:
     """Async twin of `resolve_current_session`. Kept side-by-side rather than
     converting the original, because the original is still called with a
-    sync `Session` from `admin_routes.py` and `assignment_routes.py`
+    sync `Session` from `admin_helpers.py` and `assignment_routes.py`
     (neither ported yet — see the original implementation plan Sprint 2/10). Both
     versions must stay behaviorally identical; if you change the filter/order
     logic in one, change it in the other."""

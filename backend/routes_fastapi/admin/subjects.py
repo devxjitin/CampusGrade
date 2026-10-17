@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from routes_fastapi.admin.courses import compute_teacher_allocation_counts_async
-from routes_fastapi.admin_routes import (
+from services.admin_helpers import (
     _build_batch_label,
     _normalize_subject_code,
     _normalize_subject_credits,

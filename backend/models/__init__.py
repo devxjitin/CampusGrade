@@ -1,6 +1,5 @@
 from models.assignment import (
     SqlAssignment,
-    SqlAssignmentAISuggestion,
     SqlAssignmentAnnouncement,
     SqlAssignmentDuplicateFlag,
     SqlAssignmentEvaluationParticipant,
@@ -56,5 +55,4 @@ __all__ = [
     "SqlAssignmentAnnouncement",
     "SqlAssignmentThread",
     "SqlAssignmentThreadMessage",
-    "SqlAssignmentAISuggestion",
 ]

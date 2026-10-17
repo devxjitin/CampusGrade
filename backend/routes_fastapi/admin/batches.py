@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from routes_fastapi.admin.courses import compute_teacher_allocation_counts_async
-from routes_fastapi.admin_routes import (
+from services.admin_helpers import (
     _build_batch_aliases,
     _build_batch_label,
     _build_course_aliases,
@@ -25,7 +25,7 @@ from routes_fastapi.admin_routes import (
 
 router = APIRouter(tags=["admin-batches"])
 
-# Same audit as admin/courses.py: every import from admin_routes.py above is
+# Same audit as admin/courses.py: every import from admin_helpers.py above is
 # a pure string/number helper with no `db`/`session` parameter.
 
 

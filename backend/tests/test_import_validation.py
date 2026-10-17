@@ -4,7 +4,7 @@ from unittest.mock import Mock
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 
-from routes_fastapi.admin_routes import (
+from services.admin_helpers import (
     MAX_IMPORT_ROWS,
     _commit_delete,
     _normalize_contact_number,

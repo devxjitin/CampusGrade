@@ -7,19 +7,12 @@ this origin, CSRF included. `/login`/`/auth/refresh` mint the CSRF cookie
 themselves (see `routes_fastapi/auth_routes.py`) and are exempt from this
 check, since a request that doesn't have a session yet can't be expected to
 already have a matching CSRF token.
-
-Also exempt when `AUTH_COOKIE_MODE=false` (see `config.py`) — the header
-fallback isn't vulnerable to CSRF the way cookie auth is (a forged
-cross-site request can't set a custom `Authorization` header), so forcing
-the CSRF check on header-only clients would just break them for no safety
-benefit.
 """
 
 from __future__ import annotations
 
 import secrets
 
-from config import get_settings
 from fastapi import FastAPI, Request
 
 from core.errors import Forbidden, error_response
@@ -36,8 +29,7 @@ def register_csrf_middleware(app: FastAPI) -> None:
     @app.middleware("http")
     async def csrf(request: Request, call_next):
         if (
-            get_settings().auth_cookie_mode
-            and request.method in _UNSAFE_METHODS
+            request.method in _UNSAFE_METHODS
             and request.url.path not in _EXEMPT_PATHS
         ):
             cookie = request.cookies.get(CSRF_COOKIE_NAME, "")

@@ -13,7 +13,6 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Reques
 from fastapi.responses import Response
 from models.assignment import (
     SqlAssignment,
-    SqlAssignmentAISuggestion,
     SqlAssignmentAnnouncement,
     SqlAssignmentDuplicateFlag,
     SqlAssignmentEvaluationParticipant,
@@ -894,24 +893,6 @@ def _serialize_grade(grade):
     }
 
 
-def _serialize_suggestion(row):
-    if not row:
-        return None
-    return {
-        "id": row.id,
-        "submission_version_id": row.submission_version_id,
-        "status": row.status,
-        "rubric_scores": row.rubric_scores or {},
-        "feedback": row.feedback,
-        "evidence": row.evidence or {},
-        "confidence": row.confidence,
-        "model_name": row.model_name,
-        "error": row.error,
-        "created_at": row.created_at,
-        "updated_at": row.updated_at,
-    }
-
-
 async def _serialize_thread(db: AsyncSession, row):
     student = (await db.scalars(select(SqlUser).filter_by(id=row.student_id))).first()
     messages = (await db.scalars(select(SqlAssignmentThreadMessage).filter_by(thread_id=row.id).order_by(SqlAssignmentThreadMessage.created_at))).all()
@@ -1455,14 +1436,6 @@ async def _assignment_roster_payload(db: AsyncSession, assignment):
         payload = await _submission_payload(db, assignment, student.id, include_analysis=True)
         grade = (await db.scalars(select(SqlAssignmentGrade).filter_by(assignment_id=assignment.id, student_id=student.id))).first()
         payload["grade"] = _serialize_grade(grade) if grade else None
-        suggestion = (
-            await db.scalars(
-                select(SqlAssignmentAISuggestion).filter_by(
-                    assignment_id=assignment.id, student_id=student.id, submission_version_id=payload["version"]["id"] if payload.get("version") else ""
-                )
-            )
-        ).first()
-        payload["ai_suggestion"] = _serialize_suggestion(suggestion)
         payload["student"] = {
             "id": student.id,
             "name": student.name,
@@ -2545,12 +2518,6 @@ async def update_thread_status(thread_id: str, body: ThreadStatusInput, teacher=
     thread.status = body.status
     await db.commit()
     return {"message": "Discussion updated"}
-
-
-@router.post("/teacher/{assignment_id}/ai-suggestions/{student_id}")
-def request_ai_suggestion(assignment_id: str, student_id: str, teacher=Depends(require_roles("teacher"))):
-    del assignment_id, student_id, teacher
-    raise HTTPException(410, "In-app AI suggestions were replaced by the bulk external-AI evaluation workflow")
 
 
 def _parse_dashboard_date(value: str | None, *, end=False):

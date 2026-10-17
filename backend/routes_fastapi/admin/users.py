@@ -26,7 +26,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from utils.security_utils import encrypt_password
 
-from routes_fastapi import admin_routes as legacy
+from services import admin_helpers as legacy
 from routes_fastapi.admin_settings import read_assignment_monitoring_settings
 from routes_fastapi.assignment_routes import _assignment_stats, _submission_has_content
 
@@ -34,7 +34,7 @@ router = APIRouter(tags=["admin-users"])
 
 
 async def _build_teacher_assignments_async(db: AsyncSession, raw_assignments):
-    """Async port of admin_routes.py's `_build_teacher_assignments`. Purely a
+    """Async port of admin_helpers.py's `_build_teacher_assignments`. Purely a
     validation/lookup helper (no cross-file service coupling — unlike
     `mirror_teacher_allocations`, which stays out of scope here, see
     CHANGELOG.md), so it was safe to duplicate as an async version rather
@@ -97,14 +97,14 @@ async def _build_teacher_assignments_async(db: AsyncSession, raw_assignments):
 
 
 async def _lock_user_safety_context_async(db: AsyncSession, user_id: str):
-    """Async port of admin_routes.py's `_lock_user_safety_context`. Row-locks
+    """Async port of admin_helpers.py's `_lock_user_safety_context`. Row-locks
     (`with_for_update()`) the same way, for the same reason: this guards the
     "don't remove the last active admin" check against a concurrent request
     doing the same thing. Kept as an exact behavioral mirror of the sync
     version rather than reusing it directly, since the sync version takes a
     sync `Session`."""
     # Sprint 5, the original implementation plan: "super_admin", not "admin" — see the
-    # note on `admin_routes.py::_lock_user_safety_context`.
+    # note on `admin_helpers.py::_lock_user_safety_context`.
     active_admins = (
         await db.scalars(select(SqlUser).where(SqlUser.role == "super_admin", SqlUser.is_active.is_(True)).order_by(SqlUser.id).with_for_update())
     ).all()
@@ -372,7 +372,7 @@ async def get_users(
     admin=Depends(require_user(Permission.USER_MANAGE)),
     db: AsyncSession = Depends(db_session),
 ):
-    """Async port of admin_routes.py::get_users — read-only, no shared-helper
+    """Async port of admin_helpers.py::get_users — read-only, no shared-helper
     coupling, safe to port on its own. See CHANGELOG.md Sprint 2."""
     del admin
     query = select(SqlUser)
@@ -467,7 +467,7 @@ async def toggle_user_status(
     admin=Depends(require_user(Permission.USER_MANAGE)),
     db: AsyncSession = Depends(db_session),
 ):
-    """Async port of admin_routes.py::toggle_user_status. Uses the async
+    """Async port of admin_helpers.py::toggle_user_status. Uses the async
     row-locking safety context above; `_assert_admin_continuity` is pure
     logic (no DB access) so it's imported and reused directly from the sync
     module rather than duplicated."""
@@ -495,7 +495,7 @@ async def toggle_user_status(
 
 @router.patch("/user/{user_id}/reset-password", response_model=TemporaryCredentialResponse)
 async def reset_user_password(user_id: str, request: Request, admin=Depends(require_user(Permission.USER_MANAGE)), db: AsyncSession = Depends(db_session)):
-    """Async port of admin_routes.py::reset_user_password. No admin-continuity
+    """Async port of admin_helpers.py::reset_user_password. No admin-continuity
     logic involved (resetting a password doesn't remove an admin), so this
     one only needed a plain lookup, not the row-locking safety context."""
     user = (await db.scalars(select(SqlUser).where(SqlUser.id == user_id))).first()
@@ -535,7 +535,7 @@ async def reset_user_password(user_id: str, request: Request, admin=Depends(requ
 
 @router.delete("/user/{user_id}")
 async def delete_user(user_id: str, request: Request, admin=Depends(require_user(Permission.USER_MANAGE)), db: AsyncSession = Depends(db_session)):
-    """Async port of admin_routes.py::delete_user. Same row-locking safety
+    """Async port of admin_helpers.py::delete_user. Same row-locking safety
     context as toggle_user_status; a delete that would remove the last
     active admin, or an admin deleting themselves, is rejected before the
     delete is even issued."""
@@ -562,7 +562,7 @@ async def delete_user(user_id: str, request: Request, admin=Depends(require_user
 
 @router.post("/add-teacher", response_model=TemporaryCredentialResponse)
 async def add_teacher(body: TeacherCreate, request: Request, admin=Depends(require_user(Permission.USER_MANAGE)), db: AsyncSession = Depends(db_session)):
-    """Async port of admin_routes.py::add_teacher. `_build_teacher_assignments_async`
+    """Async port of admin_helpers.py::add_teacher. `_build_teacher_assignments_async`
     above replaces the sync helper; no coupling to `mirror_teacher_allocations`
     (that's only called from update_teacher_assignments/update_admin_user,
     still not ported — see CHANGELOG.md)."""
@@ -629,7 +629,7 @@ async def import_teachers(
     admin=Depends(require_user(Permission.USER_MANAGE)),
     db: AsyncSession = Depends(db_session),
 ):
-    """Async port of admin_routes.py::import_teachers. Self-contained bulk
+    """Async port of admin_helpers.py::import_teachers. Self-contained bulk
     CSV/Excel import — no academic_calendar coupling (unlike add_student,
     which is still blocked, see CHANGELOG.md)."""
     if not file:
@@ -736,7 +736,7 @@ async def import_students(
     admin=Depends(require_user(Permission.USER_MANAGE)),
     db: AsyncSession = Depends(db_session),
 ):
-    """Async port of admin_routes.py::import_students. Self-contained bulk
+    """Async port of admin_helpers.py::import_students. Self-contained bulk
     CSV/Excel import — unlike add_student, this route never touches
     academic_calendar.py (no session-record/auto-enrollment logic here), so
     it wasn't blocked the way add_student is."""
@@ -925,12 +925,12 @@ async def _require_section_for_batch_async(db: AsyncSession, section_id: str, co
 
 @router.post("/add-student", response_model=TemporaryCredentialResponse)
 async def add_student(body: StudentCreate, request: Request, admin=Depends(require_user(Permission.USER_MANAGE)), db: AsyncSession = Depends(db_session)):
-    """Async port of admin_routes.py::add_student. This was the one function
+    """Async port of admin_helpers.py::add_student. This was the one function
     in this file genuinely blocked on `services/academic_calendar.py`'s
     `resolve_current_session`/`derive_study_year_semester` — unblocked this
     session by adding `resolve_current_session_async` alongside the existing
     sync version (see services/academic_calendar.py; the sync version is
-    untouched and still serves `assignment_routes.py`/`admin_routes.py`)."""
+    untouched and still serves `assignment_routes.py`/`admin_helpers.py`)."""
     from services.academic_calendar import derive_study_year_semester, resolve_current_session_async
 
     data = body.model_dump()
@@ -1075,7 +1075,7 @@ async def add_student(body: StudentCreate, request: Request, admin=Depends(requi
 
 @router.patch("/user/{user_id}/assignments")
 async def update_teacher_assignments(user_id: str, body: AssignmentsUpdate, admin=Depends(require_user(Permission.USER_MANAGE)), db: AsyncSession = Depends(db_session)):
-    """Async port of admin_routes.py::update_teacher_assignments. Unblocked
+    """Async port of admin_helpers.py::update_teacher_assignments. Unblocked
     this session by `mirror_teacher_allocations_async` (see
     services/academic_calendar.py)."""
     from services.academic_calendar import mirror_teacher_allocations_async
@@ -1095,7 +1095,7 @@ async def update_teacher_assignments(user_id: str, body: AssignmentsUpdate, admi
 
 @router.put("/user/{user_id}")
 async def update_admin_user(user_id: str, body: AdminUserUpdate, request: Request, admin=Depends(require_user(Permission.USER_MANAGE)), db: AsyncSession = Depends(db_session)):
-    """Async port of admin_routes.py::update_admin_user — the last of the 10
+    """Async port of admin_helpers.py::update_admin_user — the last of the 10
     genuinely-coupled functions in this file. Deliberately deferred earlier
     this session because of its size and the number of interacting checks;
     ported now that every dependency it needs (`_lock_user_safety_context_async`,

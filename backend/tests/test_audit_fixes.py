@@ -20,7 +20,7 @@ from models.database import is_database_available
 from models.notification import SqlNotification
 from models.sql_models import SqlUser
 from pydantic import ValidationError
-from routes_fastapi.admin_routes import (
+from services.admin_helpers import (
     _assert_admin_continuity,
     _lock_user_safety_context,
 )

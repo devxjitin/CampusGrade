@@ -13,13 +13,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from routes_fastapi.admin.courses import compute_teacher_allocation_counts_async
-from routes_fastapi.admin_routes import _build_batch_label, _normalize_section_name
+from services.admin_helpers import _build_batch_label, _normalize_section_name
 
 router = APIRouter(tags=["admin-sections"])
 
 
 async def _validate_section_links_async(db: AsyncSession, course_id: str, batch_id: str) -> None:
-    """Async twin of admin_routes.py's `_validate_section_links` (a private,
+    """Async twin of admin_helpers.py's `_validate_section_links` (a private,
     session-taking-but-pure lookup helper local to that file — not a
     cross-file service, so safe to duplicate, same as `_build_teacher_assignments_async`)."""
     if not (await db.scalars(select(SqlCourse).where(SqlCourse.id == course_id))).first():
