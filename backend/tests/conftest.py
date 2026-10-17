@@ -124,14 +124,23 @@ def client(app_env: None) -> Iterator["TestClient"]:  # noqa: F821,UP037 - TestC
     import importlib
     import sys
 
-    def _is_app_module(name: str) -> bool:
-        return name == "app" or name.startswith("models.") or name.startswith("routes_fastapi.")
+    # Several modules capture the database engine or session getter when they are first
+    # imported (core.db, the dependencies in core.policy, models.database, ...), and test
+    # modules import the app at collection time, before any database URL is known. So every
+    # DB-backed test gets a freshly imported copy of the whole backend graph (except the
+    # settings module and the tests themselves), and the original modules are put back
+    # afterwards so that patch() in other tests targets the module the code under test
+    # actually belongs to.
+    backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    keep = {"config"}
 
-    # Remember the modules other tests imported at collection time, so they can be put
-    # back afterwards. Without this, `patch("routes_fastapi.deps.x")` in a later test
-    # would patch a freshly re-imported module while the code under test still belongs
-    # to the original one, and the patch would silently have no effect.
-    saved = {name: module for name, module in sys.modules.items() if _is_app_module(name)}
+    def _is_app_module(name: str) -> bool:
+        if name in keep or name == "tests" or name.startswith("tests.") or name == "conftest":
+            return False
+        path = getattr(sys.modules.get(name), "__file__", None) or ""
+        return os.path.abspath(path).startswith(backend_dir + os.sep)
+
+    saved = {name: sys.modules[name] for name in list(sys.modules) if _is_app_module(name)}
     for name in saved:
         del sys.modules[name]
 
@@ -142,7 +151,7 @@ def client(app_env: None) -> Iterator["TestClient"]:  # noqa: F821,UP037 - TestC
         with TestClient(app_module.app) as test_client:
             yield test_client
     finally:
-        for name in [n for n in sys.modules if _is_app_module(n)]:
+        for name in [n for n in list(sys.modules) if _is_app_module(n)]:
             del sys.modules[name]
         sys.modules.update(saved)
 
