@@ -17,6 +17,7 @@ from models.job import Job
 from services import jobs
 
 from worker.handlers import HANDLERS
+from worker.periodic import run_due_periodic
 
 logger = logging.getLogger("CampusGrade.Worker")
 
@@ -95,6 +96,7 @@ async def main() -> None:
     while not stop.is_set():
         try:
             await recover_stale()
+            await run_due_periodic()
             worked = await run_one(worker_id)
         except Exception:
             logger.exception("Worker loop error")

@@ -143,6 +143,23 @@ services:
       start_period: 40s
       retries: 5
 
+  # Runs every background job and periodic task (python -m worker). The API process
+  # does only HTTP. Needs the database, storage, and outbound access to GitHub.
+  worker:
+    image: campusgrade-api:local
+    command: ["python", "-m", "worker"]
+    environment:
+      <<: *api-env
+    secrets: *api-secrets
+    networks: [backend, egress]
+    stop_grace_period: 30s
+    # The image's HTTP check does not apply; replaced by a heartbeat check in S2-10.
+    healthcheck:
+      disable: true
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      storage-init: { condition: service_completed_successfully }
+
   web:
     image: campusgrade-web:local
     environment:

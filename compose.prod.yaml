@@ -72,6 +72,17 @@ services:
       resources:
         limits: { cpus: "1.0", memory: 768M }
 
+  worker:
+    <<: *hardened
+    image: ${CAMPUSGRADE_REGISTRY:-ghcr.io/devxjitin}/campusgrade-api:${CAMPUSGRADE_VERSION:?set CAMPUSGRADE_VERSION, e.g. v0.1.0}
+    pull_policy: ${CAMPUSGRADE_PULL_POLICY:-always}
+    read_only: true
+    tmpfs: [/tmp]
+    deploy:
+      replicas: 1
+      resources:
+        limits: { cpus: "1.0", memory: 768M }
+
   web:
     <<: *hardened
     image: ${CAMPUSGRADE_REGISTRY:-ghcr.io/devxjitin}/campusgrade-web:${CAMPUSGRADE_VERSION:?set CAMPUSGRADE_VERSION, e.g. v0.1.0}
