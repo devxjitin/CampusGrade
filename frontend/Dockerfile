@@ -17,7 +17,7 @@ RUN npm run build
 
 # Plain Alpine plus only the Node binary: the full node image also ships npm and yarn,
 # which `node server.js` never uses (~150 MB less, and less to patch).
-FROM alpine:3.22 AS runtime
+FROM alpine:3.24 AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
