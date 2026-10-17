@@ -38,12 +38,15 @@ class TestLogin:
     def test_login_is_rate_limited(self, client, seed_user):
         seed_user(role="student", email="ratelimit@example.edu")
 
-        statuses = [
-            client.post("/login", json={"email": "ratelimit@example.edu", "password": "wrong"}).status_code
-            for _ in range(12)
-        ]
+        # The limiter uses fixed windows, so 12 requests that straddle a window boundary
+        # can stay under the limit. 22 requests always put at least 11 in one window.
+        statuses = []
+        for _ in range(22):
+            statuses.append(client.post("/login", json={"email": "ratelimit@example.edu", "password": "wrong"}).status_code)
+            if statuses[-1] == 429:
+                break
 
-        assert 429 in statuses, "the 11th+ attempt from one IP within the window should be throttled"
+        assert 429 in statuses, "more than 10 attempts from one IP within a window should be throttled"
 
 
 @requires_docker
