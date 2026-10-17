@@ -8,9 +8,8 @@ name: CI
 # re-tags the already-tested `sha-<commit>` image as `vX.Y.Z` and `latest`.
 # scripts/deploy.ps1 pulls from that registry.
 #
-# Scope note: `ruff` checks an explicit, currently-clean file list (see the
-# comment on [tool.ruff] in pyproject.toml), not the whole backend yet.
-# Sprint 3 widens it to everything.
+# `ruff` and `mypy` cover the whole backend (mypy keeps a documented baseline of
+# legacy modules in pyproject.toml).
 
 on:
   push:
@@ -31,9 +30,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
       - run: uv sync
-      - name: ruff (explicit clean-file list — see pyproject.toml)
-        run: uv run ruff check backend/tests/conftest.py backend/tests/test_golden_paths.py backend/tests/test_errors.py backend/tests/test_readiness.py backend/config.py backend/core backend/scripts/ensure_bucket.py backend/gunicorn.conf.py backend/routes_fastapi/notification_routes.py backend/routes_fastapi/user_routes.py backend/routes_fastapi/admin/academic_sessions.py backend/routes_fastapi/admin_settings.py backend/routes_fastapi/admin/users.py backend/services/academic_calendar.py backend/routes_fastapi/admin/courses.py backend/routes_fastapi/admin/batches.py backend/routes_fastapi/admin/sections.py backend/routes_fastapi/admin/subjects.py backend/services/session_rollover.py backend/routes_fastapi/admin/session_rollover.py backend/routes_fastapi/assignment_routes.py backend/services/identity_service.py backend/routes_fastapi/admin/admins.py backend/tests/test_authorization_matrix.py backend/tests/test_program_admin_scoping.py backend/tests/test_security.py backend/tests/test_cookie_auth.py backend/routes_fastapi/auth_routes.py backend/worker backend/services/jobs.py backend/services/rate_limiter.py backend/models/job.py backend/routes_fastapi/admin/jobs.py backend/tests/test_jobs.py backend/tests/test_periodic.py backend/tests/test_admin_jobs.py backend/tests/test_worker_processes.py backend/tests/worker_fixture.py backend/tests/test_repository_analysis_jobs.py backend/services/github_repository_service.py
-      - name: mypy (backend/config.py, backend/core, backend/schemas — widened sprint by sprint)
+      - name: ruff (whole backend)
+        run: uv run ruff check backend
+      - name: mypy (whole backend; legacy modules are listed as a baseline in pyproject.toml)
         run: uv run mypy
 
   backend-tests:

@@ -2,7 +2,6 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-
 NOTIFICATION_KEYS = {
     "assignment_deadlines", "assignment_submissions", "assignment_grades",
     "discussions", "administration",

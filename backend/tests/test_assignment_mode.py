@@ -129,7 +129,8 @@ class RepositoryValidationTests(unittest.TestCase):
 
     def test_rejects_non_repository_or_non_github_urls(self):
         for value in ("https://gitlab.com/student/project", "https://github.com/student/project/tree/main", "file:///etc/passwd"):
-            with self.assertRaises(GitHubRepositoryError): normalize_repository_url(value)
+            with self.assertRaises(GitHubRepositoryError):
+                normalize_repository_url(value)
 
     def test_parses_public_git_head_without_rest_metadata(self):
         payload = (

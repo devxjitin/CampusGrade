@@ -3,7 +3,7 @@
   Runs the same checks as GitHub CI on this PC, so GitHub is only the final confirmation.
 
 .DESCRIPTION
-  Backend:  ruff (the explicit clean-file list from .github\workflows\ci.yml), mypy, pytest
+  Backend:  ruff (whole backend), mypy, pytest
   Frontend: eslint, tsc, vitest, and optionally the production build
   Types:    api.d.ts freshness, when the API is running on localhost:5001
 
@@ -47,13 +47,7 @@ function Invoke-Step([string]$Name, [scriptblock]$Action, [string]$WorkDir = $ro
   $results.Add([pscustomobject]@{ Step = $Name; Result = $(if ($ok) { "pass" } else { "FAIL" }); Seconds = $seconds })
 }
 
-# The ruff file list lives in CI; read it from there so the two never drift apart.
-$ci = Get-Content (Join-Path $root ".github\workflows\ci.yml") -Raw
-$ruffMatch = [regex]::Match($ci, "uv run ruff check ([^\r\n]+)")
-if (-not $ruffMatch.Success) { throw "Could not find the ruff command in .github\workflows\ci.yml" }
-$ruffFiles = $ruffMatch.Groups[1].Value.Trim() -split "\s+"
-
-Invoke-Step "backend: ruff" { & uv run ruff check @ruffFiles }
+Invoke-Step "backend: ruff" { & uv run ruff check backend }
 Invoke-Step "backend: mypy" { & uv run mypy }
 if (-not $Quick) {
   Invoke-Step "backend: pytest" { & uv run pytest backend/tests -q }
