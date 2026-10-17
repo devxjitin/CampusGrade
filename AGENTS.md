@@ -56,4 +56,4 @@ Browser → Caddy (`docker/caddy/Caddyfile`: TLS, security headers) → `/api/*`
 
 ### CI/CD
 
-`.github/workflows/ci.yml`: lint/types/tests/migration round-trip/frontend build, then builds both images, Trivy-scans them, starts `compose.prod.yaml` and runs Playwright against `https://campusgrade.localhost`; pushes to `main` and `v*.*.*` tags publish `ghcr.io/devxjitin/campusgrade-{api,web}` tagged by git SHA, `main`, or the version tag.
+`.github/workflows/ci.yml`: lint/types/tests/migration round-trip/frontend build, then builds both images, Trivy-scans them, starts `compose.prod.yaml` and runs Playwright against `https://campusgrade.localhost`; a merge to `main` pushes the tested images to `ghcr.io/devxjitin/campusgrade-{api,web}` (tags `main`, `sha-<commit>`), with no second build. `.github/workflows/release.yml` runs on `v*.*.*` tags: it waits for that commit's `sha-<commit>` images and re-tags them with the version (and `latest` for stable versions); version tags do not re-run CI.

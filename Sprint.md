@@ -260,7 +260,7 @@ can be rolled back with one command.
 | S3-10 | `backup` service: nightly `pg_dump` + RustFS bucket mirror, 14 daily / 8 weekly retention, written to a host folder (e.g. `D:\CampusGradeBackups`) outside Docker's disk | F10 |
 | S3-11 | `scripts\restore.ps1 -From <backup>`; CI test: seed → back up → wipe → restore → data matches | F10 |
 | S3-12 | `deploy.ps1` takes a backup before migrating; `scripts\rollback.ps1` redeploys the previous version; deploy auto-rolls back if smoke tests fail | PRD §8 |
-| S3-13 | Release workflow: on tag `vX.Y.Z`, re-tag the tested `:<sha>` images and create a GitHub Release with generated notes | PRD §8 |
+| S3-13 | Release workflow: on tag `vX.Y.Z`, re-tag the tested `:<sha>` images (**done early** in `.github/workflows/release.yml`); still to do: create a GitHub Release with generated notes | PRD §8 |
 | S3-14 | Full Playwright e2e suite in CI (login, create assignment, submit, grade, publish); ruff/mypy run on all of `backend/` (delete the file allow-list) | B13 |
 | S3-15 | Dependabot for pip, npm, GitHub Actions and Docker base images | PRD §5 |
 | S3-16 | Optional: self-hosted GitHub Actions runner on this PC that runs `deploy.ps1` when a release is published | PRD §8 |

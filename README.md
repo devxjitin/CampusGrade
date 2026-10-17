@@ -69,7 +69,7 @@ uv run mypy
 cd frontend; npm ci; npm run lint; npx vitest run; npm run build
 ```
 
-End-to-end browser tests: see [frontend/e2e/README.md](frontend/e2e/README.md). CI (`.github/workflows/ci.yml`) runs all of the above, builds and scans the images, starts the production stack and runs Playwright against it. Pushes to `main` and `v*.*.*` tags publish images to GHCR.
+End-to-end browser tests: see [frontend/e2e/README.md](frontend/e2e/README.md). CI (`.github/workflows/ci.yml`) runs all of the above, builds and scans the images, starts the production stack and runs Playwright against it. A merge to `main` pushes the exact images that just passed those tests to GHCR (tags `main` and `sha-<commit>`). Pushing a version tag (`git tag -a v0.2.0 <commit on main> -m ... && git push origin v0.2.0`) runs `.github/workflows/release.yml`, which waits for that commit's tested images and re-tags them `v0.2.0` (and `latest` for stable versions) without rebuilding.
 
 ## Repository layout
 

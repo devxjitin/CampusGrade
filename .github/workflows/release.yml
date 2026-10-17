@@ -1,0 +1,60 @@
+name: Release
+
+# Pushing a version tag (vX.Y.Z) does not rebuild or re-test anything. The commit was
+# already built, scanned and tested by CI on main, which published it as
+# `sha-<commit>`. This workflow waits for those images and gives them the version
+# tag (plus `latest` for stable versions), so a release is exactly the tested bits.
+#
+#   git tag -a v0.2.0 <commit on main> -m "..." && git push origin v0.2.0
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Lowercase registry owner
+        run: echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag the tested images of this commit
+        run: |
+          set -eu
+          stable=0
+          if echo "${GITHUB_REF_NAME}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then stable=1; fi
+          for image in api web; do
+            repo="ghcr.io/${OWNER}/campusgrade-${image}"
+            source="${repo}:sha-${GITHUB_SHA}"
+            found=0
+            # CI on main publishes the image a few minutes after the merge; tagging right
+            # after merging is normal, so wait for it (up to 30 minutes).
+            for attempt in $(seq 1 60); do
+              if docker buildx imagetools inspect "${source}" >/dev/null 2>&1; then found=1; break; fi
+              echo "Waiting for ${source} (attempt ${attempt}/60)"
+              sleep 30
+            done
+            if [ "${found}" != 1 ]; then
+              echo "::error::${source} was never published. Tag a commit that is on main and passed CI."
+              exit 1
+            fi
+            tags="-t ${repo}:${GITHUB_REF_NAME}"
+            if [ "${stable}" = 1 ]; then tags="${tags} -t ${repo}:latest"; fi
+            # shellcheck disable=SC2086
+            docker buildx imagetools create ${tags} "${source}"
+            docker buildx imagetools inspect "${repo}:${GITHUB_REF_NAME}" | head -5
+          done
