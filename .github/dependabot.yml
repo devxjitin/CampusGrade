@@ -11,12 +11,22 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
+  # Python is pinned to 3.12 by pyproject.toml (requires-python <3.13); move it by hand.
   - package-ecosystem: docker
     directory: /backend
     schedule: { interval: weekly }
+    ignore:
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: docker
     directory: /frontend
     schedule: { interval: weekly }
+  # The backup tool must use the same Postgres major as the database (compose.yaml
+  # pins postgres:16-alpine); a newer pg_dump produces dumps an older server cannot
+  # restore. Upgrade both together, by hand.
   - package-ecosystem: docker
     directory: /docker/backup
     schedule: { interval: weekly }
+    ignore:
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
