@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.database import Base
@@ -213,7 +213,10 @@ class SqlAcademicSession(Base, TimestampedModel):
     tagged with a session. See the original changes plan Option A."""
 
     __tablename__ = "academic_sessions"
-    __table_args__ = (UniqueConstraint("label", "term", name="uq_academic_sessions_label_term"),)
+    __table_args__ = (
+        UniqueConstraint("label", "term", name="uq_academic_sessions_label_term"),
+        Index("uq_academic_sessions_single_current", "is_current", unique=True, postgresql_where=text("is_current")),
+    )
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     label: Mapped[str] = mapped_column(String(50), nullable=False)
     term: Mapped[str] = mapped_column(String(10), nullable=False)

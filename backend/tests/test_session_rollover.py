@@ -37,6 +37,8 @@ def rollover_world(client):
             previous = list((await db.scalars(select(SqlAcademicSession.id).where(SqlAcademicSession.is_current.is_(True)))).all())
             db.add(SqlCourse(id=ids["course"], name=f"Rollover {tag}", code=f"R{tag}", duration_years=2))
             await db.flush()
+            # Only one session may be current (unique index), so mine replaces the existing one for now.
+            await db.execute(update(SqlAcademicSession).values(is_current=False))
             db.add_all(
                 [
                     SqlBatch(id=ids["batch_new"], course_id=ids["course"], start_year=year, end_year=year + 2),
@@ -45,6 +47,7 @@ def rollover_world(client):
                     SqlAcademicSession(
                         id=ids["from_session"], label=f"{year}-{year + 1}", term="odd",
                         start_date=datetime.date(year, 7, 1), end_date=datetime.date(year, 12, 31),
+                        is_current=True, status="active",
                     ),
                 ]
             )
@@ -177,3 +180,46 @@ def test_academic_session_with_data_or_current_cannot_be_deleted(client, seed_us
 
     client.portal.call(make_plain)
     assert client.delete(url, headers=headers).status_code == 200  # an empty, non-current session can still go
+
+
+@requires_docker
+def test_second_rollover_of_the_same_session_is_refused(client, rollover_world):
+    from fastapi import HTTPException
+    from models.database import async_session_factory
+    from models.sql_models import SqlAcademicSession
+    from services import session_rollover
+
+    async def run_twice():
+        async with async_session_factory() as db:
+            from_session = await db.get(SqlAcademicSession, rollover_world["from_session"])
+            await session_rollover.execute(db, from_session, None)
+            await db.commit()
+        async with async_session_factory() as db:
+            stale = await db.get(SqlAcademicSession, rollover_world["from_session"])
+            with pytest.raises(HTTPException) as refused:
+                await session_rollover.execute(db, stale, None)
+            return refused.value.status_code
+
+    assert client.portal.call(run_twice) == 409
+
+
+@requires_docker
+def test_database_allows_only_one_current_session(client, rollover_world):
+    from models.database import async_session_factory
+    from models.sql_models import SqlAcademicSession
+    from sqlalchemy.exc import IntegrityError
+
+    year = rollover_world["year"]
+
+    async def add_second_current():
+        async with async_session_factory() as db:
+            db.add(
+                SqlAcademicSession(
+                    id=str(uuid.uuid4()), label=f"{year}-{year + 1}", term="even",
+                    start_date=datetime.date(year + 1, 1, 1), end_date=datetime.date(year + 1, 6, 30), is_current=True,
+                )
+            )
+            with pytest.raises(IntegrityError):
+                await db.commit()
+
+    client.portal.call(add_second_current)

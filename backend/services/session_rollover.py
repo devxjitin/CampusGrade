@@ -182,7 +182,25 @@ async def preview(db: AsyncSession, from_session: SqlAcademicSession) -> Rollove
 
 
 async def execute(db: AsyncSession, from_session: SqlAcademicSession, executed_by: str | None) -> dict:
+    # Lock the outgoing session row and re-read it: a second admin (or a double click)
+    # waits here, then sees the first rollover already moved "current" and is refused
+    # instead of failing half way on duplicate student records.
+    locked = (
+        await db.scalars(
+            select(SqlAcademicSession).where(SqlAcademicSession.id == from_session.id).with_for_update().execution_options(populate_existing=True)
+        )
+    ).first()
+    if locked is None or not locked.is_current:
+        raise HTTPException(409, "This session is no longer the current session — it may already have been rolled over")
+    from_session = locked
+
     to_session, exists = await _get_or_build_target_session(db, from_session)
+    if exists:
+        already_populated = await db.scalar(
+            select(func.count()).select_from(SqlStudentSessionRecord).where(SqlStudentSessionRecord.session_id == to_session.id)
+        )
+        if already_populated:
+            raise HTTPException(409, f"{to_session.label} ({to_session.term}) already has student records — undo or clear them before rolling over")
     plan = await _plan(db, from_session, to_session, exists)
 
     if not exists:
@@ -387,6 +405,8 @@ async def undo(db: AsyncSession, run_id: str) -> dict:
     if to_session:
         to_session.is_current = False
         to_session.status = "upcoming"
+        # Flush before re-activating the old session: only one row may be current at a time.
+        await db.flush()
     if from_session:
         from_session.is_current = True
         from_session.status = "active"
