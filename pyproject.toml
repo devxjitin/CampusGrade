@@ -5,7 +5,7 @@ description = "Independent assignment, repository analysis, and grading platform
 requires-python = ">=3.10,<3.13"
 dependencies = [
     "bcrypt==4.2.1",
-    "argon2-cffi==23.1.0",
+    "argon2-cffi==25.1.0",
     "fastapi==0.115.8",
     "pydantic[email]>=2.9",
     "pydantic-settings>=2.6",
