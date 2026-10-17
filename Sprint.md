@@ -86,16 +86,40 @@ feature branch ──PR──► CI: lint · types · pytest · vitest · migrat
 
 ## Sprint 1 — Production stack + CI/CD skeleton (weeks 1–2) → `v0.1.0`
 
-> **Status: implemented on branch `feature/production-ready`; `v0.1.0` not yet tagged.**
-> Verified locally on Docker Desktop with locally built images: all services healthy,
-> `scripts\deploy.ps1` passes its smoke test, login/cookies/CSRF/redirects behave through
-> the HTTPS proxy, app containers run non-root, read-only, all capabilities dropped. Not yet
-> verified: the GitHub Actions workflow itself (needs the first push), GHCR publishing, and
-> the Playwright session test (needs a browser install; runs in CI). The 13 DB-backed backend
-> tests that use testcontainers time out on this PC's Docker Desktop (they fail identically on
-> the untouched baseline); CI on Linux runs them.
-> Deviations from the plan: `/api` prefix is stripped by Caddy rather than served by the
-> backend (S1-02); RustFS replaced MinIO (S1-12); Redis dropped from the stack now.
+> **Status: done. Released as `v0.1.0`** (PR #1, squash-merged to `main` as `e33dbe3`).
+>
+> **Verified**
+> - CI (GitHub Actions, Linux) is green on the PR, on `main` and on the tag: lint, mypy, 200 backend
+>   tests (database-backed ones included), migration upgrade/downgrade/upgrade round-trip, frontend
+>   lint/build/unit tests, and the `stack` job, which builds both images, scans them with Trivy
+>   (no fixable CRITICAL findings), starts `compose.prod.yaml`, smoke-tests it through the HTTPS
+>   proxy and runs the Playwright session test.
+> - Images published to `ghcr.io/devxjitin/campusgrade-{api,web}` with tags `v0.1.0`, `latest`,
+>   `main` and `sha-<commit>` (confirmed from the publish job logs).
+> - Locally on Docker Desktop: `scripts\deploy.ps1` deploys, smoke-tests and tears down cleanly;
+>   login, cookies, CSRF, the expired-access-cookie refresh redirect and the security headers
+>   behave through the proxy; app containers run non-root, read-only, all capabilities dropped.
+>
+> **Not verified**
+> - Pulling the published images: the GHCR packages are private, so `docker login ghcr.io` (token
+>   with `read:packages`) or making the packages public is needed before `scripts\deploy.ps1
+>   -Version v0.1.0` can pull them. Not yet done on this PC.
+> - The production stack has not been opened in a real browser (Caddy's local certificate must be
+>   trusted first: `scripts	rust-caddy-ca.ps1`).
+>
+> **Deviations from the plan**
+> - `/api` prefix is stripped by Caddy instead of served by the backend (S1-02).
+> - RustFS replaced MinIO, which no longer publishes container images (S1-12).
+> - Redis is not in the stack; analysis uses the in-process fallback until Sprint 2.
+> - The web image is ~281 MB, not under 250 MB (S1-10); the Node binary alone is 124 MB.
+> - Trivy runs from its official container image because the `trivy-action` installer failed.
+>
+> **Found and fixed on the way (pre-existing, not in the original plan)**
+> - `frontend/src/lib/` was never committed (a Python `.gitignore` rule ignored every `lib/`).
+> - Seven migration downgrades failed on a fresh database, so the round-trip had never passed.
+> - 22 database-backed backend tests had always been skipped in CI; their setup was broken.
+> - Fixable CRITICAL advisories: PyJWT 2.10.1 -> 2.14.0, Next.js 16.2.11 -> 16.4.2.
+> - A developer `backend/.env` was baked into the backend image and could override Docker secrets.
 
 **Goal:** the current CampusGrade app runs in a production-grade compose stack on Docker
 Desktop at `https://campusgrade.localhost`, from images CI built and published, with the
