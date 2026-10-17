@@ -185,6 +185,39 @@ passes; no container runs as root; no port open except 80/443.
 
 ## Sprint 2 — Reliable background jobs, the architecture fix (weeks 3–4) → `v0.2.0`
 
+> **Status: done. Released as `v0.2.0`** (PR #4, squash-merged to `main` as `1413bcc`).
+>
+> **Verified**
+> - CI is green on the PR, on `main` and on the `v0.2.0` tag (the Release workflow completed).
+> - 221 backend tests pass, including real-process tests: a worker killed mid-job is retried, and a
+>   periodic task runs exactly once with two workers. The gated DB concurrency tests
+>   (`CANVASGRADE_RUN_DB_CONCURRENCY=1`) pass on the async publish path.
+> - Locally, with locally built images through `scripts\deploy.ps1 -NoPull`: 2 `api` replicas + 1
+>   `worker` are healthy under the hardened settings, Caddy splits requests evenly across the
+>   replicas and keeps serving with one replica stopped.
+> - The Super Admin **Background jobs** page works in a browser against the dev stack (filters,
+>   error detail, Retry); a retried job is picked up and run by the worker.
+>
+> **Not verified**
+> - Deploying the published `v0.2.0` images on this PC (the GHCR packages are private; `docker
+>   login ghcr.io` is needed first). The prod stack above used locally built images.
+> - The student submission panel ("Last synced … · commit …", analysis status) has component
+>   tests but has not been used in a browser with a real assignment.
+> - The full demo script end to end on a real student submission; each step was checked separately.
+>
+> **Deviations from the plan**
+> - S2-07: the twin helpers still had live callers (the worker's publish chain, `admin/users.py`,
+>   the concurrency tests), so those were converted to async and then the twins were deleted.
+> - Repository analysis used to swallow its own errors, so a broken repo looked like a succeeded
+>   job. It now re-raises after recording the failure, so the job retries with backoff and goes
+>   `dead` (S2-05 follow-up, found while building the Jobs page).
+> - The worker health check reads a heartbeat file touched by a thread, so a long blocking job does
+>   not look dead; the 10-minute job timeout cannot interrupt blocking code, so a hung run is
+>   recovered by stale-lock takeover instead.
+> - Docker only auto-restarts crashes, not manual kills, so the demo step is `docker compose kill
+>   worker` then `docker compose up -d worker`.
+> - `migrations/env.py` no longer disables existing loggers when migrations run in-process.
+
 **Goal:** the API does only HTTP. All background work runs in a separate `worker`
 container with retries and visibility.
 
