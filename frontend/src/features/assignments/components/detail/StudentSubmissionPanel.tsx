@@ -5,10 +5,40 @@ import { AlertCircle, CheckCircle2, FileCode2, GitCommit, Loader2, RefreshCw } f
 import GithubIcon from "@/components/icons/GithubIcon";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import { getStudentRepositoryFile } from "@/features/assignments/api";
-import { formatDateTime } from "@/lib/datetime";
+import { formatDateTime, formatRelativeTime } from "@/lib/datetime";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRecord = Record<string, any>;
+
+/** Analysis progress of the newest commit, driven by the worker job rather than a spinner. */
+const AnalysisStatus = ({ analysis }: { analysis?: AnyRecord | null }) => {
+  if (!analysis) return null;
+  const commit = analysis.commit_sha ? ` for commit ${String(analysis.commit_sha).slice(0, 7)}` : "";
+  const attempt = analysis.attempt && analysis.max_attempts ? `attempt ${analysis.attempt} of ${analysis.max_attempts}` : null;
+  let tone = "text-slate-500";
+  let text: string;
+  if (analysis.status === "ready") {
+    tone = "text-emerald-700";
+    text = `Analysis ready${commit}`;
+  } else if (analysis.job_status === "dead") {
+    tone = "font-semibold text-rose-600";
+    text = `Analysis failed${commit}${attempt ? ` after ${analysis.attempt} attempts` : ""}. An administrator has been notified.`;
+  } else if (analysis.job_status === "failed" || analysis.status === "failed") {
+    tone = "text-amber-700";
+    text = `Analysis hit a problem${commit}; retrying${attempt ? ` (${attempt})` : ""}${analysis.retry_at ? ` at ${formatDateTime(analysis.retry_at, { hour: "2-digit", minute: "2-digit" })}` : ""}.`;
+  } else if (analysis.status === "processing" || analysis.job_status === "running") {
+    tone = "text-primary-700";
+    text = `Analyzing your repository${commit}…`;
+  } else {
+    text = `Waiting for analysis${commit}`;
+  }
+  return (
+    <p className={`mt-2 flex items-center gap-1.5 text-xs ${tone}`} role="status">
+      {analysis.status === "ready" ? <CheckCircle2 className="h-3.5 w-3.5" /> : analysis.job_status === "dead" ? <AlertCircle className="h-3.5 w-3.5" /> : <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+      {text}
+    </p>
+  );
+};
 
 const lockMessages: Record<string, string> = {
   result_published: "Your result is published, so further updates are locked.",
@@ -58,7 +88,9 @@ export const StudentSubmissionPanel = ({
   snapshotContent: string;
   setSnapshotContent: Dispatch<SetStateAction<string>>;
   assignmentId: string;
-}) => (
+}) => {
+  const lastSyncedAt = assignment.sync_state?.last_updated_at || assignment.sync_state?.last_checked_at;
+  return (
   <>
 {activeTab === "submission" && (
             <section className="card p-5">
@@ -74,9 +106,15 @@ export const StudentSubmissionPanel = ({
                   <span className="font-semibold">Sync status</span>
                   <span className="capitalize">{assignment.freeze_state?.status || assignment.sync_state?.status || "unlinked"}</span>
                 </div>
-                {assignment.sync_state?.last_checked_at && <p className="mt-2 text-xs text-slate-500">Last checked {formatDateTime(assignment.sync_state.last_checked_at)}</p>}
+                {lastSyncedAt && (
+                  <p className="mt-2 text-xs text-slate-500" title={formatDateTime(lastSyncedAt)}>
+                    Last synced {formatRelativeTime(lastSyncedAt)}
+                    {version?.commit_sha ? ` · commit ${version.commit_sha.slice(0, 7)}` : ""}
+                  </p>
+                )}
+                <AnalysisStatus analysis={assignment.analysis} />
                 {assignment.sync_state?.error && <p className="mt-2 text-xs font-semibold text-rose-600">{assignment.sync_state.error}</p>}
-                <p className="mt-2 text-xs text-slate-500">After pushing a commit to GitHub, select Update repository to synchronize the latest commit.</p>
+                <p className="mt-2 text-xs text-slate-500">New commits are picked up automatically a few minutes after you push. Select Update repository to check right now.</p>
               </div>
               {version ? (
                 <div className="mt-5 space-y-3">
@@ -93,7 +131,7 @@ export const StudentSubmissionPanel = ({
                   <div className="rounded-xl bg-blue-50 p-3 text-sm text-blue-700">
                     <span className="flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4" />
-                      {assignment.freeze_state?.status === "frozen" ? "This commit is frozen for evaluation." : "Repository linked. Use Update repository after every GitHub push."}
+                      {assignment.freeze_state?.status === "frozen" ? "This commit is frozen for evaluation." : "Repository linked. New pushes are synchronized automatically."}
                     </span>
                   </div>
                 </div>
@@ -214,4 +252,5 @@ export const StudentSubmissionPanel = ({
             </section>
           )}
   </>
-);
+  );
+};

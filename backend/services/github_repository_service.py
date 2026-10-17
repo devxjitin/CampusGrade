@@ -712,14 +712,27 @@ def _analyze_repository_version(db, version_id: str) -> None:
                     submission.sync_status = "sync_error"
                     submission.sync_error = version.analysis_error
                 assignment = db.query(SqlAssignment).filter_by(id=submission.assignment_id).first()
-                if assignment:
-                    _notify(
-                        db,
-                        assignment.created_by,
-                        "Repository analysis failed",
-                        f"Analysis of {version.repository_name} failed and can be retried from teacher review.",
+                already_notified = (
+                    db.query(SqlNotification.id).filter_by(user_id=assignment.created_by, dedupe_key=f"repository-analysis-failed:{version_id}").first()
+                    if assignment
+                    else True
+                )
+                if assignment and not already_notified:
+                    db.add(
+                        SqlNotification(
+                            id=str(uuid.uuid4()),
+                            user_id=assignment.created_by,
+                            type="assignment",
+                            title="Repository analysis failed",
+                            message=f"Analysis of {version.repository_name} failed; CampusGrade retries it automatically.",
+                            metadata_json={},
+                            dedupe_key=f"repository-analysis-failed:{version_id}",
+                        )
                     )
             db.commit()
+        # Re-raise so the worker records the failure, retries with backoff, and marks the job
+        # `dead` (visible to Super Admins) once attempts run out.
+        raise
     finally:
         pass
 

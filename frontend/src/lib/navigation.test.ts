@@ -11,6 +11,7 @@ describe("administrator navigation", () => {
     expect(labels).toContain("Programs");
     expect(labels).toContain("Academic sessions");
     expect(labels).toContain("Session rollover");
+    expect(labels).toContain("Background jobs");
     expect(labels).toContain("Settings");
   });
 
@@ -23,6 +24,7 @@ describe("administrator navigation", () => {
     expect(labels).not.toContain("Programs");
     expect(labels).not.toContain("Academic sessions");
     expect(labels).not.toContain("Session rollover");
+    expect(labels).not.toContain("Background jobs");
     expect(labels).not.toContain("Settings");
   });
 });

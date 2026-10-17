@@ -23,6 +23,7 @@ export type Permission =
   | "program.manage"
   | "admin.manage"
   | "settings.manage"
+  | "jobs.manage"
   | "batch.manage"
   | "section.manage"
   | "subject.manage"
@@ -50,6 +51,7 @@ const PERMISSIONS: Record<Permission, readonly Role[]> = {
   "program.manage": [S],
   "admin.manage": [S],
   "settings.manage": [S],
+  "jobs.manage": [S],
   "batch.manage": [S, P],
   "section.manage": [S, P],
   "subject.manage": [S, P],

@@ -26,6 +26,7 @@ from models.assignment import (
     SqlAssignmentThread,
     SqlAssignmentThreadMessage,
 )
+from models.job import Job
 from models.notification import SqlNotification
 from models.settings_store import write_audit_log
 from models.sql_models import SqlBatch, SqlCourse, SqlSection, SqlSubject, SqlUser, utcnow
@@ -740,6 +741,27 @@ def _assignment_payload(assignment, body):
     assignment.allow_late, assignment.late_until = False, None
 
 
+async def _analysis_state(db: AsyncSession, version):
+    """Repository analysis status for the student/teacher UI, with retry info from the worker job."""
+    if version is None:
+        return None
+    state = {"version_id": version.id, "commit_sha": version.commit_sha, "status": version.analysis_status}
+    if version.analysis_status != "ready":
+        job = (
+            await db.scalars(
+                select(Job).where(Job.type == ANALYZE_JOB_TYPE, Job.payload["version_id"].as_string() == version.id).order_by(Job.id.desc()).limit(1)
+            )
+        ).first()
+        if job:
+            state.update(
+                job_status=job.status,
+                attempt=job.attempts,
+                max_attempts=job.max_attempts,
+                retry_at=_utc_response(job.run_after) if job.status == "failed" else None,
+            )
+    return state
+
+
 async def _submission_payload(db: AsyncSession, assignment, student_id, *, include_analysis=False):
     submission = (await db.scalars(select(SqlAssignmentSubmission).filter_by(assignment_id=assignment.id, student_id=student_id))).first()
     grade = (await db.scalars(select(SqlAssignmentGrade).filter_by(assignment_id=assignment.id, student_id=student_id))).first()
@@ -758,6 +780,8 @@ async def _submission_payload(db: AsyncSession, assignment, student_id, *, inclu
     repository_owner = (submission.repository_owner if submission else None) or (version.repository_owner if version else None)
     repository_name = (submission.repository_name if submission else None) or (version.repository_name if version else None)
     default_branch = (submission.default_branch if submission else None) or (version.default_branch if version else None)
+    pending_version = next((item for item in versions if submission and item.id == submission.pending_version_id), None)
+    analysis = await _analysis_state(db, pending_version or version)
     lock_reason = None
     if assignment.evaluation_locked_at:
         lock_reason = "evaluation_started"
@@ -784,6 +808,7 @@ async def _submission_payload(db: AsyncSession, assignment, student_id, *, inclu
         "repository": None
         if not repository_url
         else {"url": repository_url, "owner": repository_owner, "name": repository_name, "default_branch": default_branch, "immutable": True},
+        "analysis": analysis,
         "sync_state": None
         if not submission
         else {
