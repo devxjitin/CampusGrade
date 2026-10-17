@@ -14,3 +14,4 @@ Naye entries neeche add hote hain. Purani lines edit mat karo.
 [2026-10-17 18:29] [Claude] [Update: rollover tests ke liye double-execute + single-current checks]
 [2026-10-17 18:45] [Claude] [Fix: rollover undo cached fields revert, sirf run ke enrollments, latest-run guard]
 [2026-10-17 18:45] [Claude] [Refactor: rollover plan/execute bulk queries, fixed query count; migration 030 enrollment tag]
+[2026-10-17 21:17] [Claude] [Remove: subject auto-enrol (rollover + add-student), UI preview card aur label]

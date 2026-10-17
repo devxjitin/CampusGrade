@@ -122,7 +122,7 @@ export const SubjectFormDialog = ({
                 onChange={(e) => onChange("enrollment_type", e.target.value)}
                 className="w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-gray-900"
               >
-                <option value="compulsory">Compulsory (automatic enrollment)</option>
+                <option value="compulsory">Compulsory</option>
                 <option value="optional">Optional (student self-enrolls)</option>
               </select>
             </div>

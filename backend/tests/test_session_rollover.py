@@ -120,7 +120,7 @@ def test_rollover_carries_repeating_and_on_leave_students(client, seed_user, rol
             enrolled = {
                 row.student_id: row.subject_id
                 for row in (await db.scalars(select(SqlStudentSubjectEnrollment).where(SqlStudentSubjectEnrollment.session_id == to_id))).all()
-            }
+            }  # empty: nothing is auto-enrolled
             return preview, result, records, enrolled
 
     preview, result, records, enrolled = client.portal.call(run)
@@ -141,10 +141,8 @@ def test_rollover_carries_repeating_and_on_leave_students(client, seed_user, rol
     active = records[students["active"]["id"]]
     assert (active.study_year, active.semester) == (1, 2)
 
-    # Only the promoted student is auto-enrolled, which is what the preview counts too.
-    assert enrolled.get(students["active"]["id"]) == world["subject"]
-    for name in ("repeating", "leave", "graduate", "dropped"):
-        assert students[name]["id"] not in enrolled
+    # Subjects are not auto-enrolled by a rollover.
+    assert enrolled == {}
 
 
 @requires_docker
@@ -276,7 +274,7 @@ def test_undo_restores_cached_fields_and_keeps_manual_enrollments(client, seed_u
 
     cached, enrolled = client.portal.call(snapshot)
     assert cached == (1, 2)  # promoted to the even semester
-    assert enrolled == {(active["id"], result["run_id"])}
+    assert enrolled == set()  # a rollover creates no enrollments
 
     async def add_manual_enrollment():
         async with async_session_factory() as db:

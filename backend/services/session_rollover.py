@@ -1,9 +1,9 @@
 """The session-rollover engine: preview, execute and undo.
 
 Promotes every active student from one academic session to the next,
-creates the next intake's batches/sections on an Odd rollover, auto-enrols
-compulsory subjects, and graduates students whose study year has run past
-their course's duration. See the original academic-sessions plan Part 4.
+creates the next intake's batches/sections on an Odd rollover, and graduates
+students whose study year has run past their course's duration. Subjects are
+not auto-enrolled. See the original academic-sessions plan Part 4.
 
 Every row this module creates is stamped with a rollover_run_id so it can
 be audited, and undone within the allowed window (before any new
@@ -26,7 +26,6 @@ from models.sql_models import (
     SqlSection,
     SqlStudentSessionRecord,
     SqlStudentSubjectEnrollment,
-    SqlSubject,
     SqlTeacherSessionAllocation,
     SqlUser,
 )
@@ -58,7 +57,6 @@ class RolloverPreview:
     graduate_count: int = 0
     new_batches: list[dict] = field(default_factory=list)
     new_sections_count: int = 0
-    enrollment_count: int = 0
     teacher_allocation_count: int = 0
     warnings: list[str] = field(default_factory=list)
 
@@ -97,14 +95,6 @@ async def _active_students_in_session(db: AsyncSession, session_id: str):
     return [(record, student) for record, student in rows]
 
 
-def _subjects_for(subjects_by_year: dict[int, list[SqlSubject]], study_year: int, batch: SqlBatch | None) -> list[SqlSubject]:
-    """Compulsory subjects a student of `batch` takes in `study_year` (course-less subjects apply to everyone)."""
-    subjects = subjects_by_year.get(study_year, [])
-    if batch is None:
-        return subjects
-    return [subject for subject in subjects if subject.course_id is None or subject.course_id == batch.course_id]
-
-
 async def _plan(db: AsyncSession, from_session: SqlAcademicSession, to_session: SqlAcademicSession, to_session_exists: bool):
     """Shared logic between preview and execute: works out what would/should
     happen, without writing anything. Returns a dict of computed pieces.
@@ -117,24 +107,8 @@ async def _plan(db: AsyncSession, from_session: SqlAcademicSession, to_session: 
     courses_by_id = {row.id: row for row in courses}
     all_batches = (await db.scalars(select(SqlBatch))).all()
     batches_by_id = {row.id: row for row in all_batches}
-    subjects_by_year: dict[int, list[SqlSubject]] = {}
-    for subject in (await db.scalars(select(SqlSubject).where(SqlSubject.enrollment_type == "compulsory"))).all():
-        subjects_by_year.setdefault(subject.year, []).append(subject)
-    already_enrolled: set[tuple[str, str]] = set()
-    if to_session_exists:
-        already_enrolled = {
-            (student_id, subject_id)
-            for student_id, subject_id in (
-                await db.execute(
-                    select(SqlStudentSubjectEnrollment.student_id, SqlStudentSubjectEnrollment.subject_id).where(
-                        SqlStudentSubjectEnrollment.session_id == to_session.id
-                    )
-                )
-            ).all()
-        }
 
     promotions: list[dict] = []
-    enrollments: list[tuple[str, str]] = []
     for record, student in outgoing:
         if record.status in {"repeating", "on_leave"}:
             promotions.append({"record": record, "student": student, "study_year": record.study_year, "semester": record.semester, "status": record.status, "keep_same_level": True})
@@ -147,10 +121,6 @@ async def _plan(db: AsyncSession, from_session: SqlAcademicSession, to_session: 
         study_year, semester = derive_study_year_semester(batch, to_session)
         graduated = is_graduating(study_year, course.duration_years if course else 4)
         promotions.append({"record": record, "student": student, "study_year": study_year, "semester": semester, "status": "graduated" if graduated else "active", "keep_same_level": False})
-        if not graduated:
-            for subject in _subjects_for(subjects_by_year, study_year, batch):
-                if (student.id, subject.id) not in already_enrolled:
-                    enrollments.append((student.id, subject.id))
 
     new_batches: list[dict] = []
     if to_session.term == "odd":
@@ -176,8 +146,6 @@ async def _plan(db: AsyncSession, from_session: SqlAcademicSession, to_session: 
         "new_batches": new_batches,
         "promote_count": promote_count,
         "graduate_count": graduate_count,
-        "enrollments": enrollments,
-        "enrollment_count": len(enrollments),
         "teacher_allocation_count": teacher_allocation_count,
         "warnings": warnings,
     }
@@ -194,7 +162,6 @@ async def preview(db: AsyncSession, from_session: SqlAcademicSession) -> Rollove
         graduate_count=plan["graduate_count"],
         new_batches=plan["new_batches"],
         new_sections_count=len(plan["new_batches"]),  # one default section per new batch
-        enrollment_count=plan["enrollment_count"],
         teacher_allocation_count=plan["teacher_allocation_count"],
         warnings=plan["warnings"],
     )
@@ -267,14 +234,7 @@ async def execute(db: AsyncSession, from_session: SqlAcademicSession, executed_b
         else:
             promoted += 1
 
-    # 3. Auto-enrol compulsory subjects for the new level (the plan already left out
-    # graduated, repeating and on-leave students, matching the preview count).
-    db.add_all(
-        SqlStudentSubjectEnrollment(id=str(uuid.uuid4()), student_id=student_id, subject_id=subject_id, session_id=to_session.id, rollover_run_id=run.id)
-        for student_id, subject_id in plan["enrollments"]
-    )
-
-    # 4. Carry teacher allocations forward. users.assignments (the JSON blob
+    # 3. Carry teacher allocations forward. users.assignments (the JSON blob
     # every existing screen reads) is re-synced too, so teachers keep the
     # same allocations in the new session without an admin re-entering them.
     carried_allocations = 0
@@ -300,13 +260,13 @@ async def execute(db: AsyncSession, from_session: SqlAcademicSession, executed_b
         for teacher in teachers:
             teacher.assignments = allocations_by_teacher[teacher.id]
 
-    # 5. Flip is_current.
+    # 4. Flip is_current.
     await db.execute(update(SqlAcademicSession).where(SqlAcademicSession.id != to_session.id).values(is_current=False))
     to_session.is_current = True
     to_session.status = "active"
     from_session.status = "closed"
 
-    # 6. Sync cached fields for anything still shown from users.year/semester.
+    # 5. Sync cached fields for anything still shown from users.year/semester.
     for p in plan["promotions"]:
         if p["status"] != "graduated":
             sync_user_cached_fields(db, p["student"], new_records[p["student"].id])

@@ -14,7 +14,6 @@ from models.sql_models import (
     SqlCourse,
     SqlSection,
     SqlStudentSessionRecord,
-    SqlStudentSubjectEnrollment,
     SqlSubject,
     SqlUser,
 )
@@ -1040,17 +1039,6 @@ async def add_student(body: StudentCreate, request: Request, admin=Depends(requi
         )
         new_user.year = study_year
         new_user.semester = semester
-        subjects = (
-            await db.scalars(
-                select(SqlSubject).where(
-                    SqlSubject.enrollment_type == "compulsory",
-                    SqlSubject.year == study_year,
-                    (SqlSubject.course_id == course_id) | (SqlSubject.course_id.is_(None)),
-                )
-            )
-        ).all()
-        for subject in subjects:
-            db.add(SqlStudentSubjectEnrollment(id=str(uuid.uuid4()), student_id=new_user.id, subject_id=subject.id, session_id=current_session.id))
 
     try:
         await db.flush()
