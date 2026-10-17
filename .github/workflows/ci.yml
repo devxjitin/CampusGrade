@@ -206,6 +206,9 @@ jobs:
 
       # Publish exactly what was just tested: the same images, pushed instead of rebuilt.
       # Only on merges to main; pull requests never push anything.
+      - name: Backup and restore round trip
+        run: scripts/test-backup-restore.sh
+
       - name: Log in to GHCR
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3

@@ -45,6 +45,16 @@ services:
       resources:
         limits: { cpus: "0.5", memory: 512M }
 
+  backup:
+    <<: *hardened
+    read_only: true
+    tmpfs: [/tmp]
+    # Writes to a host folder that may belong to another user.
+    cap_add: [DAC_OVERRIDE, FOWNER]
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
+
   storage-init:
     image: ${CAMPUSGRADE_REGISTRY:-ghcr.io/devxjitin}/campusgrade-api:${CAMPUSGRADE_VERSION:?set CAMPUSGRADE_VERSION, e.g. v0.1.0}
     pull_policy: ${CAMPUSGRADE_PULL_POLICY:-always}

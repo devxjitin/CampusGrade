@@ -58,3 +58,26 @@ jobs:
             docker buildx imagetools create ${tags} "${source}"
             docker buildx imagetools inspect "${repo}:${GITHUB_REF_NAME}" | head -5
           done
+
+  # Publishes the GitHub Release page with notes generated from the merged pull
+  # requests since the previous tag. Runs only after the images carry the version tag.
+  github-release:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          flags="--generate-notes --verify-tag"
+          # Pre-releases (v1.2.3-rc1) are marked as such and never become "latest".
+          if ! echo "${GITHUB_REF_NAME}" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then flags="${flags} --prerelease"; fi
+          if gh release view "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} already exists; leaving it as is."
+          else
+            # shellcheck disable=SC2086
+            gh release create "${GITHUB_REF_NAME}" --repo "${GITHUB_REPOSITORY}" --title "${GITHUB_REF_NAME}" ${flags}
+          fi
