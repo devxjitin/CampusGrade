@@ -263,6 +263,40 @@ the Jobs page → Retry.
 
 ## Sprint 3 — Files, cleanup, backups and releases (weeks 5–6) → `v0.3.0`
 
+> **Status: merged to `main`, not yet released.** PR #7 (`ac04db8`) landed the work and `v0.3.0` has
+> not been tagged yet. Tagging is the remaining release step.
+>
+> **Done**
+> - S3-01/02/07/09: presigned GET/PUT through the object store's public endpoint, storage calls
+>   off the event loop, frontend uses presigned URLs, Caddy routes `/storage/*` (test:
+>   `test_presigned_storage.py`).
+> - S3-03/04: `assignment_routes.py` split into `routes_fastapi/assignments/` (crud, submissions,
+>   grading, discussions, external_ai, admin, workflow, payloads, common); `admin_routes.py` moved to
+>   `services/admin_helpers.py`.
+> - S3-05: Azure OpenAI client, the 410 AI-suggestions route, `assignment_ai_suggestions` (migration
+>   27) and `AUTH_COOKIE_MODE` are gone.
+> - S3-06/14 (lint half)/15: ruff and mypy run on the whole backend in CI; Dependabot configured.
+> - S3-10/11/12: `backup` service, `scripts\restore.ps1`, `scripts\rollback.ps1`, backup before
+>   migrating in `deploy.ps1`, `scripts/test-backup-restore.sh` round-trip test in CI.
+> - S3-13: the Release workflow now creates a GitHub Release with generated notes.
+> - Extra: `scripts\dev-local.ps1` and `scripts\check-local.ps1` (fast local loop, pre-push check).
+>
+> **Not done / not verified**
+> - `v0.3.0` is not tagged, so the published release and its GitHub Release are untested.
+> - "No backend file over 800 lines" is not met: `routes_fastapi/admin/users.py` is 1,245 lines.
+> - S3-14: the Playwright suite is still only `login.spec.ts` and `session.spec.ts`; create
+>   assignment, submit, grade and publish are missing. mypy still has a documented baseline of
+>   modules with errors, so "mypy clean" is partial.
+> - S3-08: `api.d.ts` is regenerated, but loose request types remain in some feature `api.ts` files.
+> - S3-16 (optional self-hosted runner) was not started.
+> - Not demonstrated: the 20 MB upload with progress bar in a browser, the deliberately broken
+>   deploy auto-rolling back, and restoring a nightly backup into a scratch database by hand (the
+>   CI round-trip test covers restore).
+>
+> **Deviations from the plan**
+> - The split has no separate `integrity/` package, and routers share `common.py`/`workflow.py`
+>   instead of a router + service pair each.
+
 **Goal:** fast, safe file handling, a maintainable backend, data that can be recovered,
 and a release process with tested rollback.
 
