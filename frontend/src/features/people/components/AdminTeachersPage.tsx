@@ -3,7 +3,7 @@
 // Ported from frontend-legacy/src/pages/AdminTeachers.jsx
 import Link from "next/link";
 import { Eye, KeyRound, Pencil, Trash2, Upload } from "lucide-react";
-import { PageHeader } from "@/components/ui";
+import { LoadingState, PageHeader } from "@/components/ui";
 import TemporaryPasswordDialog from "@/components/TemporaryPasswordDialog";
 import { useAdminTeachers } from "./adminTeachers/useAdminTeachers";
 import { assignmentSummary } from "./adminTeachers/shared";
@@ -84,7 +84,7 @@ export default function AdminTeachersPage() {
 
         <div className="ui-data-card overflow-x-auto">
           {loading ? (
-            <div className="p-6 text-center text-gray-500">Loading...</div>
+            <LoadingState label="Loading teachers…" />
           ) : error ? (
             <div className="p-6 text-center text-red-500">{error}</div>
           ) : (

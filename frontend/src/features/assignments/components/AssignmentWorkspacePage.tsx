@@ -13,7 +13,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { MessageSquare, Send } from "lucide-react";
-import { PageHeader } from "@/components/ui";
+import { LoadingState, PageHeader } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { formatDateTime } from "@/lib/datetime";
 import { getStudentAssignmentSubjects, getStudentAssignmentThreads, getTeacherAssignmentThreads, replyAssignmentThread, updateAssignmentThreadStatus } from "@/features/assignments/api";
@@ -126,7 +126,7 @@ export default function AssignmentWorkspacePage() {
     <>
       <PageHeader eyebrow={`${user.role} workspace`} title={title} description={description} />
       {loading ? (
-        <div className={`${card} p-12 text-center text-slate-500`}>Loading workspace…</div>
+        <LoadingState label="Loading workspace…" />
       ) : mode === "subjects" ? (
         <div className="grid gap-5 xl:grid-cols-2">
           {(data?.subjects || []).map((group: AnyRecord) => (

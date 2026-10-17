@@ -5,7 +5,7 @@
 // current; the topbar dropdown in DashboardLayout reads this same list.
 import { useEffect, useMemo, useState } from "react";
 import { CalendarRange, CheckCircle2, Edit2, Plus, Trash2 } from "lucide-react";
-import { Dialog, EntityCard, EntityCardGrid, PageHeader, useConfirm } from "@/components/ui";
+import { Dialog, EmptyState, EntityCard, EntityCardGrid, LoadingState, PageHeader, useConfirm } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { createAcademicSession, deleteAcademicSession, getAcademicSessions, updateAcademicSession } from "@/features/academics/api";
 import { getCachedUser } from "@/lib/session";
@@ -156,9 +156,9 @@ export default function AdminAcademicSessionsPage() {
       />
 
       {loading ? (
-        <div className="card p-8 text-center text-sm text-gray-500">Loading...</div>
+        <LoadingState label="Loading academic sessions…" />
       ) : sessions.length === 0 ? (
-        <div className="card p-8 text-center text-sm text-gray-500">No academic sessions yet. Add one to enable the topbar switcher.</div>
+        <EmptyState title="No academic sessions yet" description="Add one to enable the topbar switcher." />
       ) : (
         <EntityCardGrid>
           {sessions.map((session) => (

@@ -420,6 +420,34 @@ emails are sent only by the worker.
 
 ## Sprint 5 — External-AI flow and UX polish (weeks 9–10) → `v0.5.0`
 
+> **Status: implemented on branch `sprint-5` (committed locally, not pushed, not merged, not released).**
+>
+> **Done**
+> - S5-01/S5-10: prompts contain `Student-NN` only. Names, roll numbers, emails, GitHub logins and ids are
+>   scrubbed from file contents too; the prompt carries a random `batch_ref`; the signed mapping stays in the
+>   browser. A DB-backed test builds a real export and searches the prompt for every identifier.
+> - S5-02/S5-03: validation returns a 422 with a per-field `errors` list (student, criterion, path, message),
+>   and a per-criterion diff against the saved grade (`/validate`, alias `/preview`). Nothing is saved until `/save-evaluations`.
+> - S5-04: Super Admin session export (migration 28 `data_exports`, `export.session` worker job, presigned download).
+> - S5-05: four-step dialog (copy prompt, paste JSON, review changes, save) with focus trap, problem list and diff table.
+> - S5-07/S5-08/S5-09: axe (WCAG 2.1 A/AA) in Playwright on the signed-out pages, admin pages, student and
+>   teacher flows and every dialog step; 360 px "no sideways scroll" checks. Fixed low-contrast text, unnamed icon
+>   buttons and a mislabeled account button.
+> - S5-06 (partly): shared `LoadingState`/`EmptyState`/`ErrorState` on the admin list pages, audit log and assignment pages.
+> - Extras: `backend/seed_e2e.py` fixtures; `scripts	est-e2e-local.ps1` runs the whole Playwright suite on a
+>   throwaway Docker stack (no GitHub Actions needed).
+>
+> **Verified locally:** 247 backend tests, ruff, mypy, 34 frontend tests, eslint, tsc, and `scripts	est-e2e-local.ps1`
+> (16 passed, 4 skipped for roles that are not seeded), including the full demo script and axe on every page and dialog step.
+>
+> **Not done / not verified**
+> - S5-06: review, detail, profile and settings pages still use their own loading/error markup.
+> - S5-07: axe does not cover the grade-review workspace or a student submitting a repository; contrast was fixed
+>   where axe found it, not by a manual WCAG audit. Keyboard navigation was exercised only through the dialog and axe.
+> - S5-04 produces a ZIP of CSV files, not XLSX.
+> - Not pushed, no PR, `v0.5.0` not tagged or deployed.
+> - Sprint 4 (merged) and Sprint 3 blocks above still say "in review"/"not released".
+
 **Goal:** the human-in-the-loop external-AI workflow is safe and easy to use, and every page
 feels finished.
 

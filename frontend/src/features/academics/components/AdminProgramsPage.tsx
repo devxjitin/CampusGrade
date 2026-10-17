@@ -3,7 +3,7 @@
 // Ported from frontend-legacy/src/pages/AdminCourses.jsx (route: /admin/programs)
 import { useMemo, useState } from "react";
 import { BookOpen, Edit2, GraduationCap, Layers, Plus, Trash2, Users } from "lucide-react";
-import { Dialog, EntityCard, EntityCardGrid, PageHeader, useConfirm } from "@/components/ui";
+import { Dialog, EmptyState, EntityCard, EntityCardGrid, ErrorState, LoadingState, PageHeader, useConfirm } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { courseHooks, type AcademicRecord } from "@/features/academics/queries";
 import { getCachedUser } from "@/lib/session";
@@ -32,7 +32,7 @@ export default function AdminCoursesPage() {
   const toast = useToast();
   const confirm = useConfirm();
 
-  const { data: courses = [], isLoading } = courseHooks.useList();
+  const { data: courses = [], isLoading, isError, refetch } = courseHooks.useList();
   const createMutation = courseHooks.useCreate();
   const updateMutation = courseHooks.useUpdate();
   const deleteMutation = courseHooks.useDelete();
@@ -157,10 +157,12 @@ export default function AdminCoursesPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="card p-8 text-center text-sm text-gray-500">Loading...</div>
+      {isError ? (
+        <ErrorState title="Could not load courses" onRetry={() => refetch()} />
+      ) : isLoading ? (
+        <LoadingState label="Loading…" />
       ) : filteredCourses.length === 0 ? (
-        <div className="card p-8 text-center text-sm text-gray-500">No programs found.</div>
+        <EmptyState title="No programs found" description="Add one to get started." />
       ) : (
         <EntityCardGrid>
           {filteredCourses.map((course) => (

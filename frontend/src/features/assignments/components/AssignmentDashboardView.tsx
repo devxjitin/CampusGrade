@@ -17,6 +17,7 @@ import { useAssignmentDashboard } from "./dashboard/useAssignmentDashboard";
 import { AssignmentList } from "./dashboard/AssignmentList";
 import { StudentSubjectsPanel } from "./dashboard/StudentSubjectsPanel";
 import { DashboardHeader } from "./dashboard/DashboardHeader";
+import { LoadingState } from "@/components/ui";
 
 export default function AssignmentDashboardView({ initialView = "overview" }: { initialView?: string }) {
   const {
@@ -86,7 +87,7 @@ export default function AssignmentDashboardView({ initialView = "overview" }: { 
       {isStudentSubjectsPage ? (
         <StudentSubjectsPanel loading={loading} subjects={studentSubjects} openItem={openItem} />
       ) : isAnalyticsPage ? (
-        loading ? <div className="card p-10 text-center text-slate-500">Loading analytics…</div> : <AssignmentAnalytics assignments={assignments} />
+        loading ? <LoadingState label="Loading analytics…" /> : <AssignmentAnalytics assignments={assignments} />
       ) : (
         <>
           {overdueEvaluationAlerts.length > 0 && (

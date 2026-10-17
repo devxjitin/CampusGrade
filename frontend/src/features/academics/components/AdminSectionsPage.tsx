@@ -3,7 +3,7 @@
 // Ported from frontend-legacy/src/pages/AdminSections.jsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Edit2, GraduationCap, Plus, Trash2, Users } from "lucide-react";
-import { EntityCard, EntityCardGrid, PageHeader, useConfirm } from "@/components/ui";
+import { EmptyState, EntityCard, EntityCardGrid, ErrorState, LoadingState, PageHeader, useConfirm } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { batchHooks, courseHooks, sectionHooks, type AcademicRecord } from "@/features/academics/queries";
 import { getCachedUser } from "@/lib/session";
@@ -45,7 +45,7 @@ export default function AdminSectionsPage() {
     return () => window.removeEventListener(ACADEMIC_SESSION_CHANGED_EVENT, onSessionChanged);
   }, []);
 
-  const { data: sections = [], isLoading } = sectionHooks.useList(sessionId ? { session_id: sessionId } : undefined);
+  const { data: sections = [], isLoading, isError, refetch } = sectionHooks.useList(sessionId ? { session_id: sessionId } : undefined);
   const { data: courses = [] } = courseHooks.useList();
   const { data: batches = [] } = batchHooks.useList();
   const createMutation = sectionHooks.useCreate();
@@ -246,10 +246,12 @@ export default function AdminSectionsPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="card p-8 text-center text-sm text-gray-500">Loading...</div>
+      {isError ? (
+        <ErrorState title="Could not load sections" onRetry={() => refetch()} />
+      ) : isLoading ? (
+        <LoadingState label="Loading…" />
       ) : filteredSections.length === 0 ? (
-        <div className="card p-8 text-center text-sm text-gray-500">No sections found.</div>
+        <EmptyState title="No sections found" description="Add one to get started." />
       ) : (
         <EntityCardGrid>
           {filteredSections.map((section) => (

@@ -197,6 +197,12 @@ jobs:
           docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml -f compose.ci.yaml run --rm -T \
             -e BOOTSTRAP_ADMIN_EMAIL="${RESET_EMAIL}" -e BOOTSTRAP_ADMIN_PASSWORD="${RESET_PASSWORD}" \
             api python bootstrap_admin.py
+          # Teacher, students and two assignments for the evaluation and accessibility specs.
+          SEED_PASSWORD="E2e-$(openssl rand -hex 12)"
+          echo "::add-mask::${SEED_PASSWORD}"
+          echo "E2E_SEED_PASSWORD=${SEED_PASSWORD}" >> "$GITHUB_ENV"
+          docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml -f compose.ci.yaml run --rm -T \
+            -e E2E_SEED_PASSWORD="${SEED_PASSWORD}" api python seed_e2e.py
 
       - uses: actions/setup-node@v4
         with:

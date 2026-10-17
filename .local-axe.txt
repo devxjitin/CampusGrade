@@ -1,6 +1,0 @@
-
-Running 2 tests using 2 workers
-
-[1/2] [chromium] › e2e\accessibility.spec.ts:103:7 › teacher flows: axe and 360 px
-[2/2] [chromium] › e2e\accessibility.spec.ts:103:7 › student flows: axe and 360 px
-  2 passed (23.0s)

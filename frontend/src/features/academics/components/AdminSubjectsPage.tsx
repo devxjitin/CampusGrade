@@ -3,7 +3,7 @@
 // Ported from frontend-legacy/src/pages/AdminSubjects.jsx
 import { useEffect, useMemo, useState } from "react";
 import { Edit2, GraduationCap, Plus, Trash2, Users } from "lucide-react";
-import { EntityCard, EntityCardGrid, PageHeader, useConfirm } from "@/components/ui";
+import { EmptyState, EntityCard, EntityCardGrid, ErrorState, LoadingState, PageHeader, useConfirm } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { subjectHooks, courseHooks, batchHooks, type AcademicRecord } from "@/features/academics/queries";
 import { getCachedUser } from "@/lib/session";
@@ -48,7 +48,7 @@ export default function AdminSubjectsPage() {
     return () => window.removeEventListener(ACADEMIC_SESSION_CHANGED_EVENT, onSessionChanged);
   }, []);
 
-  const { data: subjects = [], isLoading } = subjectHooks.useList(sessionId ? { session_id: sessionId } : undefined);
+  const { data: subjects = [], isLoading, isError, refetch } = subjectHooks.useList(sessionId ? { session_id: sessionId } : undefined);
   const { data: programs = [] } = courseHooks.useList();
   const { data: batches = [] } = batchHooks.useList();
   const createMutation = subjectHooks.useCreate();
@@ -199,10 +199,12 @@ export default function AdminSubjectsPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="card p-8 text-center text-sm text-gray-500">Loading...</div>
+      {isError ? (
+        <ErrorState title="Could not load subjects" onRetry={() => refetch()} />
+      ) : isLoading ? (
+        <LoadingState label="Loading…" />
       ) : filteredSubjects.length === 0 ? (
-        <div className="card p-8 text-center text-sm text-gray-500">No subjects found.</div>
+        <EmptyState title="No subjects found" description="Add one to get started." />
       ) : (
         <EntityCardGrid>
           {filteredSubjects.map((subject) => (

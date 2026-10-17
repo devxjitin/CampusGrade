@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Bell, ExternalLink, GitCommit, Trash2, LockKeyhole, Users } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { PageHeader, useConfirm } from "@/components/ui";
+import { LoadingState, PageHeader, useConfirm } from "@/components/ui";
 import { deleteAdminAssignment, getAdminAssignmentDetail, performAdminAssignmentAction } from "@/features/assignments/api";
 import { useToast } from "@/components/Toast";
 import { formatDateTime } from "@/lib/datetime";
@@ -35,7 +35,7 @@ export default function AdminAssignmentDetailPage() {
   if (!data) {
     return (
     <>
-        <div className="card p-10 text-center text-slate-500">Loading assignment…</div>
+        <LoadingState label="Loading assignment…" />
     </>
     );
   }

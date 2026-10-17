@@ -3,7 +3,7 @@
 // Ported from frontend-legacy/src/pages/AdminBatches.jsx
 import { useEffect, useMemo, useState } from "react";
 import { Archive, BookOpen, Edit2, GraduationCap, Plus, Trash2, Users } from "lucide-react";
-import { EntityCard, EntityCardGrid, PageHeader, useConfirm } from "@/components/ui";
+import { EmptyState, EntityCard, EntityCardGrid, ErrorState, LoadingState, PageHeader, useConfirm } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { batchHooks, courseHooks, type AcademicRecord } from "@/features/academics/queries";
 import { getCachedUser } from "@/lib/session";
@@ -41,7 +41,7 @@ export default function AdminBatchesPage() {
     return () => window.removeEventListener(ACADEMIC_SESSION_CHANGED_EVENT, onSessionChanged);
   }, []);
 
-  const { data: batches = [], isLoading } = batchHooks.useList(sessionId ? { session_id: sessionId } : undefined);
+  const { data: batches = [], isLoading, isError, refetch } = batchHooks.useList(sessionId ? { session_id: sessionId } : undefined);
   const { data: courses = [] } = courseHooks.useList();
   const createMutation = batchHooks.useCreate();
   const updateMutation = batchHooks.useUpdate();
@@ -231,10 +231,12 @@ export default function AdminBatchesPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="card p-8 text-center text-sm text-gray-500">Loading...</div>
+      {isError ? (
+        <ErrorState title="Could not load batches" onRetry={() => refetch()} />
+      ) : isLoading ? (
+        <LoadingState label="Loading…" />
       ) : filteredBatches.length === 0 ? (
-        <div className="card p-8 text-center text-sm text-gray-500">No batches found.</div>
+        <EmptyState title="No batches found" description="Add one to get started." />
       ) : (
         <EntityCardGrid>
           {filteredBatches.map((batch) => (
