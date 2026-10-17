@@ -58,7 +58,7 @@ const Analytics = ({ data, admin }: { data: AnyRecord | null; admin: boolean }) 
               <strong className="sm:col-span-2">{row.teacher_name || row.subject}</strong>
               <span className="text-sm text-slate-500">{row.assignments} assignments</span>
               <span className="text-sm text-slate-500">{row.submissions ?? row.submitted} submitted</span>
-              <span className={`text-sm font-semibold ${row.overdue || row.pending_grades ? "text-amber-600" : "text-emerald-600"}`}>
+              <span className={`text-sm font-semibold ${row.overdue || row.pending_grades ? "text-amber-700" : "text-emerald-700"}`}>
                 {row.overdue ?? row.published ?? 0} {admin ? "overdue" : "results"}
               </span>
             </div>

@@ -77,7 +77,7 @@ export const SidebarContent = ({
         {!iconOnly && (
           <div className="ml-3 min-w-0">
             <p className="truncate text-base font-bold text-primary-600">CampusGrade</p>
-            <p className="truncate text-[11px] font-medium text-slate-400">{roleLabel(role)} workspace</p>
+            <p className="truncate text-[11px] font-medium text-slate-600">{roleLabel(role)} workspace</p>
           </div>
         )}
       </div>
@@ -86,7 +86,7 @@ export const SidebarContent = ({
         {sections.map((section) => (
           <section key={section.title} className="mb-5">
             {!iconOnly && (
-              <h2 className="mb-1.5 px-6 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{section.title}</h2>
+              <h2 className="mb-1.5 px-6 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600">{section.title}</h2>
             )}
             <div className="space-y-0.5 px-2">
               {section.items.map((item) => {
@@ -137,7 +137,8 @@ export const SidebarContent = ({
           type="button"
           onClick={() => setProfileOpen((open) => !open)}
           title={iconOnly ? effectiveUserName : undefined}
-          aria-label="Open account menu"
+          aria-label={iconOnly ? "Open account menu" : undefined}
+          aria-haspopup="menu"
           aria-expanded={profileOpen}
           className={`flex min-h-11 w-full items-center rounded-xl p-1.5 text-left hover:bg-slate-100 ${iconOnly ? "justify-center" : "gap-2.5"}`}
         >

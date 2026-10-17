@@ -75,7 +75,7 @@ export const DashboardHeader = ({
             </button>
             <div className="min-w-0">
               <Breadcrumbs items={breadcrumbItems} />
-               <p className="mt-0.5 truncate text-xs text-slate-400 sm:hidden">{pageLabel}</p>
+               <p className="mt-0.5 truncate text-xs text-slate-600 sm:hidden">{pageLabel}</p>
             </div>
           </div>
 
@@ -86,7 +86,7 @@ export const DashboardHeader = ({
                 title="This only changes what you're viewing — it doesn't change which session is current. Use Session rollover to advance the current session."
               >
                 <CalendarRange className="h-4 w-4 text-slate-400" />
-                <span className="text-slate-400">Viewing:</span>
+                <span className="text-slate-600">Viewing:</span>
                 <select
                   value={selectedSessionId}
                   onChange={(event) => handleSessionChange(event.target.value)}

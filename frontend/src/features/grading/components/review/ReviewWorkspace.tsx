@@ -138,7 +138,7 @@ export const ReviewWorkspace = ({ model }: { model: NonNullable<ReturnType<typeo
                                 ))}
                               </div>
                             ) : (
-                              <p className="mt-3 text-sm text-emerald-600">No basic duplicate flags found.</p>
+                              <p className="mt-3 text-sm text-emerald-700">No basic duplicate flags found.</p>
                             )}
                           </div>
                         </div>

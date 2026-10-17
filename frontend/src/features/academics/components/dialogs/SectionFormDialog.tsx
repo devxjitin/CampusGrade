@@ -82,7 +82,7 @@ export const SectionFormDialog = ({
                 ))}
               </select>
               {form.course_id && batches.length === 0 && (
-                <p className="mt-1 text-xs text-amber-600">No batches found for the selected program. Add a batch first.</p>
+                <p className="mt-1 text-xs text-amber-700">No batches found for the selected program. Add a batch first.</p>
               )}
             </div>
 

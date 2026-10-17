@@ -207,7 +207,7 @@ function LoginForm() {
         {VisualPanel}
         {FormPanel}
       </div>
-      <p className="pointer-events-none absolute bottom-4 right-5 z-20 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400/80 sm:bottom-6 sm:right-8">
+      <p className="pointer-events-none absolute bottom-4 right-5 z-20 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600 sm:bottom-6 sm:right-8">
         Developed by StarkMind Team
       </p>
     </main>

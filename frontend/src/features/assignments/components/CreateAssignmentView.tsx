@@ -86,7 +86,7 @@ export default function CreateAssignmentView() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="font-bold">Grading rubric</h2>
-                <p className={`text-sm ${rubricTotal === Number(form.total_marks) ? "text-emerald-600" : "text-rose-600"}`}>
+                <p className={`text-sm ${rubricTotal === Number(form.total_marks) ? "text-emerald-700" : "text-rose-600"}`}>
                   {rubricTotal} of {form.total_marks} marks allocated
                 </p>
               </div>
@@ -182,7 +182,7 @@ export default function CreateAssignmentView() {
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-3 text-sm font-semibold text-emerald-600">{isScheduled ? "Ready to schedule" : "Ready to publish live"}</p>
+                  <p className="mt-3 text-sm font-semibold text-emerald-700">{isScheduled ? "Ready to schedule" : "Ready to publish live"}</p>
                 )}
               </div>
               <div className="rounded-xl border border-slate-200 p-4 text-sm">

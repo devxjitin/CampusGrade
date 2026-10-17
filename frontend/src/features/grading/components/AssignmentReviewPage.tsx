@@ -173,13 +173,13 @@ export default function AssignmentReviewPage() {
                       {status === "pending_teacher" ? "awaiting analysis" : status === "draft" ? "evaluation saved" : status}
                     </span>
                   </div>
-                  <p className="mt-1 truncate text-xs text-slate-500">{row.student.roll_no || row.student.email}</p>
+                  <p className="mt-1 truncate text-xs text-slate-600">{row.student.roll_no || row.student.email}</p>
                   {row.is_low_score && (
                     <p className="mt-1 text-xs font-bold text-red-700">
                       Below 50% · {row.score_percentage}%
                     </p>
                   )}
-                  {row.version?.is_late && <p className="mt-1 text-xs font-semibold text-amber-600">Late submission</p>}
+                  {row.version?.is_late && <p className="mt-1 text-xs font-semibold text-amber-700">Late submission</p>}
                 </button>
               );
             })}

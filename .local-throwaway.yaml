@@ -1,0 +1,7 @@
+volumes:
+  postgres_data:
+    name: cgtest_postgres
+  storage_data:
+    name: cgtest_storage
+  caddy_data:
+    name: cgtest_caddy

@@ -179,7 +179,7 @@ export default function ProfilePage() {
                 <div className="card rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="flex items-center gap-2 text-sm font-bold text-gray-900">
-                      <Code2 className="h-5 w-5 text-amber-600" />
+                      <Code2 className="h-5 w-5 text-amber-700" />
                       LeetCode profile
                     </h3>
                     <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${formData.leetcode_username ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>

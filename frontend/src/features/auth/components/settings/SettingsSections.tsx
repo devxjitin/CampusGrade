@@ -49,7 +49,7 @@ export const PasswordSettingsSection = ({ requiredChange = false, password, setP
 }) => (
   <section className="card p-6" aria-labelledby="password-heading">
     <div className="flex items-start gap-3">
-      <span className="rounded-xl bg-emerald-50 p-2.5 text-emerald-600"><ShieldCheck className="h-5 w-5" /></span>
+      <span className="rounded-xl bg-emerald-50 p-2.5 text-emerald-700"><ShieldCheck className="h-5 w-5" /></span>
       <div><h2 id="password-heading" className="text-lg font-bold text-slate-900">{requiredChange ? "Set your private password" : "Password security"}</h2><p className="mt-1 text-sm text-slate-500">Changing your password signs out every device.</p></div>
     </div>
     <form onSubmit={onSubmit} className="mt-5 space-y-4">

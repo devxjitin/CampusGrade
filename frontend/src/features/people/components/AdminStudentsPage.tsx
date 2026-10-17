@@ -169,7 +169,7 @@ export default function AdminStudentsPage() {
                           <button
                             onClick={() => handleResetPassword(student)}
                             disabled={resettingPasswordId === getStudentId(student)}
-                            className="text-amber-600 hover:text-amber-900 disabled:opacity-50"
+                            className="text-amber-700 hover:text-amber-900 disabled:opacity-50"
                             title="Reset password"
                           >
                             <KeyRound className="h-4 w-4" />
