@@ -17,6 +17,7 @@ CampusGrade: an assignment, repository-analysis, and grading platform for one in
 
 - Dev (hot reload, no HTTPS): `scripts\init-secrets.ps1` once, then `docker compose -f compose.yaml -f compose.dev.yaml up --build` → app `http://localhost:3000`, API `http://localhost:5001`.
 - Prod-like: `scripts\deploy.ps1 -Version <tag>` pulls images from GHCR, migrates, starts the stack behind Caddy at `https://campusgrade.localhost`, smoke-tests, and rolls back on failure. `-NoPull` deploys locally built images (tag them `ghcr.io/devxjitin/campusgrade-{api,web}:<tag>`).
+- Backups: the `backup` service (`docker/backup/`) writes a nightly pg_dump + bucket copy to `BACKUP_DIR` (set in `.env.prod`; 14 daily / 8 weekly kept). `scriptsestore.ps1 -From <backup> [-ScratchDb name]` restores one; `deploy.ps1` backs up before migrating; `scriptsollback.ps1` redeploys the previous version (the schema is not downgraded). `scripts/test-backup-restore.sh` is the CI round-trip test.
 - First admin: `scripts\bootstrap-admin.ps1`. Trust Caddy's local CA once: `scripts\trust-caddy-ca.ps1`.
 - Compose files: `compose.yaml` (base), `compose.dev.yaml`, `compose.prod.yaml` (hardened, pinned images). Secrets are files in `secrets/` (git-ignored), mounted at `/run/secrets/*` and read by `backend/config.py`; never put secrets in env vars, images or committed files.
 
