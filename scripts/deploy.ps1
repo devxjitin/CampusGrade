@@ -39,6 +39,9 @@ function Test-Prerequisites {
       throw "Missing secrets\$name.txt. Run scripts\init-secrets.ps1 first."
     }
   }
+  # Added in v0.4.0: an existing install has no SMTP password yet. Empty means "no password".
+  $smtpSecret = Join-Path $root "secrets\smtp_password.txt"
+  if (-not (Test-Path $smtpSecret)) { [System.IO.File]::WriteAllText($smtpSecret, "", (New-Object System.Text.UTF8Encoding($false))) }
   if (-not (Test-Path $EnvFile)) {
     Write-Host "No $EnvFile found; copying .env.prod.example (edit it for a custom domain)."
     Copy-Item ".env.prod.example" $EnvFile

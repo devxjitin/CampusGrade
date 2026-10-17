@@ -5,6 +5,7 @@ from core.policy import require_roles
 from fastapi import APIRouter, Depends, HTTPException
 from models.assignment import SqlAssignment, SqlAssignmentAnnouncement, SqlAssignmentThread, SqlAssignmentThreadMessage
 from schemas.assignment import AnnouncementInput, ThreadInput, ThreadMessageInput, ThreadStatusInput
+from services.notification_email import enqueue_notification_email
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -75,6 +76,10 @@ async def reply_thread(thread_id: str, body: ThreadMessageInput, user=Depends(re
     thread.updated_at = _now()
     recipient = assignment.created_by if user["role"] == "student" else thread.student_id
     await _notification(db, recipient, "Assignment discussion reply", f"New reply: {thread.subject}", "assignment_reply", f"/assignments/{assignment.id}")
+    await enqueue_notification_email(
+        db, recipient, "email_discussions", "New reply on your assignment discussion",
+        [f"There is a new reply in \"{thread.subject}\" on {assignment.title}."], f"/assignments/{assignment.id}",
+    )
     await db.commit()
     return {"message": "Reply sent", "thread": await _serialize_thread(db, thread)}
 

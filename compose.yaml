@@ -23,7 +23,15 @@ x-api-env: &api-env
   # server-side-encryption header. (Leave the default on real AWS S3.)
   PRIVATE_S3_SSE: ""
   REPOSITORY_SYNC_INTERVAL_SECONDS: ${REPOSITORY_SYNC_INTERVAL_SECONDS:-120}
-  # Secrets (SECRET_KEY, DATABASE_URL, GITHUB_TOKEN, PRIVATE_S3_SECRET_KEY) are
+  # Email, sent only by the worker. Empty SMTP_HOST disables sending (messages are logged).
+  # The password is the smtp_password secret.
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_FROM: ${SMTP_FROM:-CampusGrade <no-reply@campusgrade.localhost>}
+  SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+  APP_BASE_URL: ${APP_BASE_URL:-https://campusgrade.localhost}
+  # Secrets (SECRET_KEY, DATABASE_URL, GITHUB_TOKEN, PRIVATE_S3_SECRET_KEY, SMTP_PASSWORD) are
   # read from /run/secrets by backend/config.py, never from the environment.
 
 x-api-secrets: &api-secrets
@@ -31,6 +39,7 @@ x-api-secrets: &api-secrets
   - database_url
   - github_token
   - private_s3_secret_key
+  - smtp_password
 
 secrets:
   secret_key:
@@ -43,6 +52,8 @@ secrets:
     file: ./secrets/private_s3_secret_key.txt
   github_token:
     file: ./secrets/github_token.txt
+  smtp_password:
+    file: ./secrets/smtp_password.txt
 
 networks:
   # No outside access: the database and object storage live here only.

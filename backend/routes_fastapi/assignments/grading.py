@@ -10,6 +10,7 @@ from fastapi.responses import Response
 from models.assignment import SqlAssignment, SqlAssignmentGrade, SqlAssignmentGradeRevision, SqlAssignmentSubmission
 from models.sql_models import SqlUser
 from schemas.assignment import GradeInput, WithdrawGradeInput
+from services.notification_email import enqueue_notification_email
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -124,6 +125,10 @@ async def _publish_grade(db: AsyncSession, assignment, grade, actor_id):
     grade.revision += 1
     db.add(SqlAssignmentGradeRevision(id=str(uuid.uuid4()), grade_id=grade.id, action="published", snapshot=_snapshot_grade(grade), actor_id=actor_id))
     await _notification(db, grade.student_id, "Assignment grade published", f"Your grade for {assignment.title} is now available.")
+    await enqueue_notification_email(
+        db, grade.student_id, "email_assignment_grades", "Your grade is available",
+        [f"Your grade for {assignment.title} has been published."], f"/assignments/{assignment.id}",
+    )
 
 
 async def _refresh_assignment_completion(db: AsyncSession, assignment, actor_id=None):

@@ -10,8 +10,19 @@ x-api-dev-env: &api-dev-env
   # No reverse proxy in dev: downloads/uploads stream through the API.
   PRIVATE_S3_PUBLIC_ENDPOINT: ""
   ALLOWED_ORIGINS: http://localhost:3000
+  # Mail goes to Mailpit (inbox UI at http://localhost:8025), never to a real address.
+  SMTP_HOST: mailpit
+  SMTP_PORT: "1025"
+  SMTP_STARTTLS: "false"
+  APP_BASE_URL: http://localhost:3000
 
 services:
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    networks: [backend, egress]
+    ports:
+      - "127.0.0.1:8025:8025"
+
   postgres:
     ports:
       - "127.0.0.1:5433:5432"

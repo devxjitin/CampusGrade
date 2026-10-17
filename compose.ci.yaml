@@ -1,0 +1,33 @@
+# CI overlay for the production stack: Mailpit catches outgoing mail so the e2e suite can read
+# it through Mailpit's API (http://127.0.0.1:8025/api/v1). Never used for a real deployment.
+#
+#   docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml -f compose.ci.yaml up -d --wait
+x-ci-mail: &ci-mail
+  SMTP_HOST: mailpit
+  SMTP_PORT: "1025"
+  SMTP_STARTTLS: "false"
+
+services:
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    # `egress` is an ordinary network, so the published port works (the `backend` network is internal).
+    networks: [backend, egress]
+    ports:
+      - "127.0.0.1:8025:8025"
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    environment:
+      <<: *ci-mail
+    depends_on:
+      mailpit: { condition: service_healthy }
+
+  worker:
+    environment:
+      <<: *ci-mail
+    depends_on:
+      mailpit: { condition: service_healthy }

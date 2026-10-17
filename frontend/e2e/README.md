@@ -7,6 +7,8 @@ Browser tests run against a real, seeded stack, never mocks.
 - `login.spec.ts`: one test per role (log in, land on the dashboard, see the nav items that role should see), unauthenticated redirect, role-gated admin pages, persistent shell.
 - `session.spec.ts`: the access cookie expires but the refresh cookie is valid, so the user stays signed in (regression for the "logged out after 15 minutes idle" bug).
 
+- `password-reset.spec.ts`: forgot password, read the email through Mailpit's API (`E2E_MAILPIT_URL`, default `http://127.0.0.1:8025`), reset, old session rejected, link single-use, sign in with the new password. Uses its own account (`E2E_RESET_EMAIL` / `E2E_RESET_PASSWORD`) because it changes that account's password; CI creates it and adds Mailpit with `compose.ci.yaml`.
+
 Tests skip themselves when their credentials are not set, so a partial setup still runs what it can.
 
 ## Running in CI

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui";
 import { useToast } from "@/components/Toast";
-import { NotificationSettingsSection, PasswordSettingsSection, SessionsSettingsSection } from "./settings/SettingsSections";
+import { EmailNotificationSettingsSection, NotificationSettingsSection, PasswordSettingsSection, SessionsSettingsSection } from "./settings/SettingsSections";
 import { changePassword, getPreferences, getSessions, revokeOtherSessions, revokeSession, updatePreferences } from "@/features/auth/api";
 import { getAssignmentMonitoringSettings, updateAssignmentMonitoringSettings } from "@/features/reporting/api";
 import { clearSession, getCachedUser, isAdminRole } from "@/lib/session";
@@ -225,6 +225,7 @@ export default function SettingsPage() {
         <div className="grid gap-6 lg:grid-cols-2">
           <PasswordSettingsSection password={password} setPassword={setPassword} saving={savingPassword} onSubmit={submitPassword} />
           <NotificationSettingsSection role={role} loading={loading} preferences={preferences} savePreference={savePreference} />
+          <EmailNotificationSettingsSection loading={loading} preferences={preferences} savePreference={savePreference} />
         </div>
 
         <SessionsSettingsSection loading={loading} sessions={sessions} revokeOthers={revokeOthers} revoke={revoke} />

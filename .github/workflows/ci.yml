@@ -167,7 +167,7 @@ jobs:
           cp .env.prod.example .env.prod
 
       - name: Start the production stack
-        run: docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml up -d --wait
+        run: docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml -f compose.ci.yaml up -d --wait
 
       - name: Smoke test through the HTTPS proxy
         run: |
@@ -184,8 +184,18 @@ jobs:
           echo "::add-mask::${E2E_PASSWORD}"
           echo "E2E_SUPER_ADMIN_PASSWORD=${E2E_PASSWORD}" >> "$GITHUB_ENV"
           echo "E2E_SUPER_ADMIN_EMAIL=${ADMIN_EMAIL}" >> "$GITHUB_ENV"
-          docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml run --rm -T \
+          docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml -f compose.ci.yaml run --rm -T \
             -e BOOTSTRAP_ADMIN_EMAIL="${ADMIN_EMAIL}" -e BOOTSTRAP_ADMIN_PASSWORD="${E2E_PASSWORD}" \
+            api python bootstrap_admin.py
+          # A second account for the password-reset spec: it changes its own password and signs
+          # out its own sessions, which must not disturb the other specs' logins.
+          RESET_EMAIL="e2e-reset@campusgrade.dev"
+          RESET_PASSWORD="E2e-$(openssl rand -hex 12)"
+          echo "::add-mask::${RESET_PASSWORD}"
+          echo "E2E_RESET_EMAIL=${RESET_EMAIL}" >> "$GITHUB_ENV"
+          echo "E2E_RESET_PASSWORD=${RESET_PASSWORD}" >> "$GITHUB_ENV"
+          docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml -f compose.ci.yaml run --rm -T \
+            -e BOOTSTRAP_ADMIN_EMAIL="${RESET_EMAIL}" -e BOOTSTRAP_ADMIN_PASSWORD="${RESET_PASSWORD}" \
             api python bootstrap_admin.py
 
       - uses: actions/setup-node@v4
@@ -229,8 +239,8 @@ jobs:
 
       - name: Container logs (on failure)
         if: failure()
-        run: docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml logs --no-color --tail=200
+        run: docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml -f compose.ci.yaml logs --no-color --tail=200
 
       - name: Stop the stack
         if: always()
-        run: docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml down -v
+        run: docker compose --env-file .env.prod -f compose.yaml -f compose.prod.yaml -f compose.ci.yaml down -v
