@@ -5,6 +5,7 @@ from config import get_settings
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.pool import NullPool
 
 logger = logging.getLogger("CampusGrade.SQL")
 
@@ -33,10 +34,11 @@ def _async_database_url(url: str) -> str:
 
 if DATABASE_URL:
     try:
-        async_engine = create_async_engine(
-            _async_database_url(DATABASE_URL),
-            pool_pre_ping=True,
-        )
+        # Tests re-import this module for every test, each with its own event loop, while
+        # modules like core.db keep the first engine. Pooled asyncpg connections are bound
+        # to the loop that opened them, so tests use a pool-less engine (APP_ENV=test).
+        _pool_options = {"poolclass": NullPool} if get_settings().app_env == "test" else {"pool_pre_ping": True}
+        async_engine = create_async_engine(_async_database_url(DATABASE_URL), **_pool_options)
         async_session_factory = async_sessionmaker(
             async_engine,
             class_=AsyncSession,

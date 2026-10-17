@@ -18,7 +18,7 @@ CampusGrade: an assignment, repository-analysis, and grading platform for one in
 ### Backend (from repo root)
 
 - Install deps: `uv sync` (`pyproject.toml`/`uv.lock` at repo root, `.venv` at repo root)
-- Run all tests: `uv run pytest backend/tests` (set `SECRET_KEY` to any ≥32-char non-trivial value). Tests import backend modules directly (`from app import ...`). Tests marked with the `database_url` fixture start a throwaway Postgres via testcontainers and need Docker; on some Docker Desktop setups they time out connecting (pre-existing, environment-specific).
+- Run all tests: `uv run pytest backend/tests` (set `SECRET_KEY` to any ≥32-char non-trivial value). Tests import backend modules directly (`from app import ...`). Database-backed tests (`requires_docker`, the `database_url` fixture) start a throwaway Postgres via testcontainers, or use `TEST_DATABASE_URL=postgresql+psycopg://...` pointing at an empty disposable database (it is migrated for you). CI runs them on Linux; the Windows event loop prints noisy `proactor_events` errors, so for a CI-faithful run use a Linux container on the same Docker network as the test database.
 - Single test: `uv run pytest backend/tests/test_readiness.py::test_ready_returns_200_when_database_and_storage_are_ready`
 - Lint/types: `uv run ruff check <files>` (CI checks an explicit clean-file list, see `pyproject.toml`) and `uv run mypy`.
 - Migrations (Alembic; config `backend/alembic.ini`, scripts `backend/migrations/`): `cd backend && alembic upgrade head`; new one: `alembic revision -m "description"`. In Docker they run as the one-shot `migrate` service, never in the API entrypoint. Migrations must be backward compatible with the previous app version (expand → migrate → contract).
