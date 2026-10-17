@@ -9,7 +9,7 @@ from core.db import db_session
 from core.policy import Permission, require, require_roles, require_user
 from core.principal import Role
 from core.scoping import scope_to_programs
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
 from models.assignment import (
     SqlAssignment,
@@ -46,6 +46,7 @@ from schemas.assignment import (
     ThreadStatusInput,
     WithdrawGradeInput,
 )
+from services import jobs
 from services.assignment_external_evaluation import (
     build_student_source,
     duplicate_evidence_for,
@@ -55,8 +56,8 @@ from services.assignment_external_evaluation import (
 )
 from services.assignment_storage import get_assignment_storage
 from services.github_repository_service import (
+    ANALYZE_JOB_TYPE,
     GitHubRepositoryError,
-    enqueue_repository_analysis,
     preview_repository,
     read_repository_file,
     sync_submission_repository,
@@ -1346,7 +1347,6 @@ async def submit_repository(
     assignment_id: str,
     body: RepositorySubmitRequest,
     request: Request,
-    background_tasks: BackgroundTasks,
     student=Depends(require_roles("student")),
     db: AsyncSession = Depends(db_session),
 ):
@@ -1437,6 +1437,7 @@ async def submit_repository(
         action_url=f"/assignments/{assignment.id}/review",
         dedupe_key=f"assignment-repository-submitted:{version.id}",
     )
+    await jobs.enqueue(db, ANALYZE_JOB_TYPE, {"version_id": version.id}, max_attempts=4)
     try:
         await db.commit()
     except IntegrityError as exc:
@@ -1450,14 +1451,11 @@ async def submit_repository(
         {"assignment_id": assignment.id, "commit_sha": version.commit_sha},
         request.client.host if request.client else None,
     )
-    enqueue_repository_analysis(version.id, background_tasks)
     return {"message": "Repository linked and initial synchronization started", "submission": await _submission_payload(db, assignment, student["_id"])}
 
 
 @router.post("/student/{assignment_id}/repository/sync")
-async def sync_student_repository(
-    assignment_id: str, background_tasks: BackgroundTasks, student=Depends(require_roles("student")), db: AsyncSession = Depends(db_session)
-):
+async def sync_student_repository(assignment_id: str, student=Depends(require_roles("student")), db: AsyncSession = Depends(db_session)):
     assignment = await _student_assignment(db, assignment_id, student)
     submission = (await db.scalars(select(SqlAssignmentSubmission).filter_by(assignment_id=assignment.id, student_id=student["_id"]))).first()
     if not submission:
@@ -1480,7 +1478,7 @@ async def sync_student_repository(
     if submission.last_sync_checked_at and (_now() - submission.last_sync_checked_at).total_seconds() < 30:
         raise HTTPException(429, "Wait 30 seconds before checking again")
     submission_id = submission.id
-    result = await sync_submission_repository(db, submission_id, source="student", force=True, background_tasks=background_tasks)
+    result = await sync_submission_repository(db, submission_id, source="student", force=True)
     return {"message": "Repository check completed", "sync": result}
 
 
@@ -1623,10 +1621,7 @@ async def reset_student_repository(
 
 
 @router.post("/teacher/{assignment_id}/repositories/fetch-all")
-async def fetch_all_assignment_repositories(
-    assignment_id: str, background_tasks: BackgroundTasks, request: Request, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)
-):
-    del background_tasks, request
+async def fetch_all_assignment_repositories(assignment_id: str, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)):
     assignment = (await db.scalars(select(SqlAssignment).filter(SqlAssignment.id == assignment_id, SqlAssignment.created_by == teacher["_id"]))).first()
     if not assignment:
         raise HTTPException(404, "Assignment not found")
@@ -2792,8 +2787,8 @@ async def update_thread_status(thread_id: str, body: ThreadStatusInput, teacher=
 
 
 @router.post("/teacher/{assignment_id}/ai-suggestions/{student_id}")
-def request_ai_suggestion(assignment_id: str, student_id: str, background_tasks: BackgroundTasks, teacher=Depends(require_roles("teacher"))):
-    del assignment_id, student_id, background_tasks, teacher
+def request_ai_suggestion(assignment_id: str, student_id: str, teacher=Depends(require_roles("teacher"))):
+    del assignment_id, student_id, teacher
     raise HTTPException(410, "In-app AI suggestions were replaced by the bulk external-AI evaluation workflow")
 
 

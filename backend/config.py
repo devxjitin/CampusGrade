@@ -143,9 +143,6 @@ class Settings(BaseSettings):
     def allowed_origins(self) -> list[str]:
         return [origin.strip() for origin in self.allowed_origins_raw.split(",") if origin.strip()]
 
-    # --- redis (jobs queue today; dropped in Sprint 14) ---
-    redis_url: str = "redis://localhost:6379/0"
-    redis_required: bool = False
 
     # --- private object storage ---
     private_storage_backend: str = "local"

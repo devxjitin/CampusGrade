@@ -22,7 +22,6 @@ x-api-env: &api-env
   # The local S3-compatible store has no KMS, so it rejects the AWS-only
   # server-side-encryption header. (Leave the default on real AWS S3.)
   PRIVATE_S3_SSE: ""
-  REDIS_REQUIRED: "false"
   REPOSITORY_SYNC_INTERVAL_SECONDS: ${REPOSITORY_SYNC_INTERVAL_SECONDS:-120}
   # Secrets (SECRET_KEY, DATABASE_URL, GITHUB_TOKEN, PRIVATE_S3_SECRET_KEY) are
   # read from /run/secrets by backend/config.py, never from the environment.

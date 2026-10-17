@@ -37,6 +37,13 @@ async def enqueue(
     return job
 
 
+def enqueue_sync(db, job_type: str, payload: dict | None = None, *, max_attempts: int = 5) -> Job:
+    """`enqueue` for helpers that still run on a sync Session (via `AsyncSession.run_sync`)."""
+    job = Job(type=job_type, payload=payload or {}, max_attempts=max_attempts, run_after=utcnow())
+    db.add(job)
+    return job
+
+
 async def claim_next(db: AsyncSession, worker_id: str, job_types: list[str] | None = None) -> Job | None:
     """Claim one due job; the caller must commit to keep the lock record."""
     query = (

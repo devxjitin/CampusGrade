@@ -102,7 +102,6 @@ def app_env(database_url: str, monkeypatch: pytest.MonkeyPatch) -> Iterator[None
     monkeypatch.setenv("ALLOWED_ORIGINS", "http://localhost:3000")
     monkeypatch.setenv("PRIVATE_STORAGE_BACKEND", "local")
     monkeypatch.setenv("PRIVATE_STORAGE_PATH", "/tmp/campusgrade-test-storage")
-    monkeypatch.setenv("REDIS_REQUIRED", "false")
     monkeypatch.setenv("APP_ENV", "test")
     # `get_settings()` is cached for the process; without this a value cached by an
     # earlier test (e.g. an empty DATABASE_URL) would shadow the variables above.

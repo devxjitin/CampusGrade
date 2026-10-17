@@ -95,3 +95,10 @@ def test_stale_running_job_is_requeued(database_url):
 @pytest.mark.parametrize("attempts", [0, 1])
 def test_backoff_never_negative(attempts):
     assert jobs.backoff_seconds(attempts) >= 30
+
+
+def test_repository_analysis_handler_is_registered():
+    from services.github_repository_service import ANALYZE_JOB_TYPE
+    from worker.handlers import HANDLERS
+
+    assert ANALYZE_JOB_TYPE in HANDLERS

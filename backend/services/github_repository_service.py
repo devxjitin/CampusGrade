@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 import hashlib
 import io
@@ -28,6 +27,7 @@ from models.database import async_session_factory
 from models.notification import SqlNotification
 from models.sql_models import utcnow
 
+from services import jobs
 from services.assignment_storage import get_assignment_storage
 
 GITHUB_REPO_RE = re.compile(r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?/?$")
@@ -65,6 +65,7 @@ CODE_SUFFIXES = {
 }
 CODE_SIMILARITY_THRESHOLD = 0.70
 MAX_CODE_FINGERPRINTS = 50_000
+ANALYZE_JOB_TYPE = "repository.analyze"
 REPOSITORY_SYNC_INTERVAL_SECONDS = max(30, get_settings().repository_sync_interval_seconds)
 
 
@@ -581,20 +582,16 @@ def _sync_submission_repository(db, submission_id: str, *, source: str = "automa
         submission.sync_status = "syncing"
         submission.last_submitted_at = now
         version_id = version.id
+        jobs.enqueue_sync(db, ANALYZE_JOB_TYPE, {"version_id": version_id}, max_attempts=4)
         db.commit()
     finally:
         pass
     return {"status": "syncing", "version_id": version_id}
 
 
-async def sync_submission_repository(db, submission_id: str, *, source: str = "automatic", force: bool = False, background_tasks=None) -> dict:
-    result = await db.run_sync(lambda sync_db: _sync_submission_repository(sync_db, submission_id, source=source, force=force))
-    version_id = result.get("version_id")
-    if version_id:
-        queued = enqueue_repository_analysis(version_id, background_tasks)
-        if queued == "unavailable":
-            await asyncio.to_thread(analyze_repository_version, version_id)
-    return result
+async def sync_submission_repository(db, submission_id: str, *, source: str = "automatic", force: bool = False) -> dict:
+    """Detect the latest commit; a new version is queued as an analysis job in the same transaction."""
+    return await db.run_sync(lambda sync_db: _sync_submission_repository(sync_db, submission_id, source=source, force=force))
 
 
 def _due_repository_ids(db, limit: int = 50) -> list[str]:
@@ -734,27 +731,9 @@ async def _analyze_repository_version_async(version_id: str) -> None:
         await db.run_sync(lambda sync_db: _analyze_repository_version(sync_db, version_id))
 
 
-def analyze_repository_version(version_id: str) -> None:
-    """RQ/background-task entrypoint backed by the single async engine."""
-    asyncio.run(_analyze_repository_version_async(version_id))
-
-
-def enqueue_repository_analysis(version_id: str, background_tasks=None) -> str:
-    try:
-        from redis import Redis
-        from rq import Queue, Retry
-
-        connection = Redis.from_url(get_settings().redis_url)
-        connection.ping()
-        Queue("assignment-analysis", connection=connection).enqueue(
-            analyze_repository_version, version_id, job_timeout=300, retry=Retry(max=3, interval=[10, 30, 60])
-        )
-        return "queued"
-    except Exception:
-        if background_tasks is not None:
-            background_tasks.add_task(analyze_repository_version, version_id)
-            return "background"
-        return "unavailable"
+async def analyze_repository_version(version_id: str) -> None:
+    """Job handler body for ``repository.analyze`` (runs on the worker)."""
+    await _analyze_repository_version_async(version_id)
 
 
 def read_repository_file(version: SqlAssignmentSubmissionVersion, requested_path: str) -> tuple[bytes, str]:

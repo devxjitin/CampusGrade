@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 import re
@@ -10,26 +9,20 @@ from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
 from config import get_settings
 from config import is_weak_secret as _is_weak_secret  # noqa: F401 - re-exported for backend/tests/test_security.py
-from core import redis as redis_core
 from core.csrf import register_csrf_middleware
 from core.errors import register_error_handlers
 from core.logging_setup import configure_logging, set_request_id
-from core.redis import close_redis, init_redis
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from models import database
-from models.database import async_session_factory, get_database_status, init_database, is_database_available
-from models.settings_store import write_audit_log
+from models.database import get_database_status, init_database, is_database_available
 from routes_fastapi.admin import router as admin_router
 from routes_fastapi.admin_settings import router as admin_settings_router
-from routes_fastapi.assignment_routes import publish_ready_assignment_results
 from routes_fastapi.assignment_routes import router as assignment_router
 from routes_fastapi.auth_routes import router as auth_router
 from routes_fastapi.notification_routes import router as notification_router
 from routes_fastapi.user_routes import router as user_router
 from services.object_storage import get_private_storage
-from services.session_rollover import notify_admins_if_rollover_due
-from services.session_service import purge_stale_sessions
 
 settings = get_settings()
 APP_NAME = "CampusGrade"
@@ -76,62 +69,7 @@ async def lifespan(app_instance: FastAPI):
     await initialize_database()
     verify_private_storage()
     app_instance.state.private_storage_ready = True
-    await init_redis()
-    stop = asyncio.Event()
-
-    async def publish_assignments() -> int:
-        if async_session_factory is None:
-            return 0
-        async with async_session_factory() as db:
-            released = await db.run_sync(publish_ready_assignment_results)
-            for assignment in released:
-                await write_audit_log(db, "system", "assignment.results_published_automatically", assignment.id, {"release_mode": assignment.result_release_mode})
-            await db.commit()
-            return len(released)
-
-    async def check_rollover_due() -> int:
-        # Never flips the current session on its own — see
-        # the original academic-sessions plan Part 4 Step 4. This only
-        # nudges admins (once, via SqlNotification's dedupe_key) that the
-        # current session's end_date has passed and Session rollover is
-        # waiting for a confirm click.
-        if async_session_factory is None:
-            return 0
-        async with async_session_factory() as db:
-            count = await db.run_sync(notify_admins_if_rollover_due)
-            await db.commit()
-            return count
-
-    async def scheduler():
-        cleanup_tick = 0
-        while not stop.is_set():
-            try:
-                released = await publish_assignments()
-                if released:
-                    logger.info("Published %s assignment result set(s)", released)
-                if cleanup_tick == 0:
-                    if async_session_factory is not None:
-                        async with async_session_factory() as db:
-                            await purge_stale_sessions(db)
-                            await db.commit()
-                    notified = await check_rollover_due()
-                    if notified:
-                        logger.info("Notified %s admin(s) that session rollover is due", notified)
-                cleanup_tick = (cleanup_tick + 1) % 240
-            except Exception:
-                logger.exception("CampusGrade scheduled processing failed")
-            try:
-                await asyncio.wait_for(stop.wait(), timeout=15)
-            except asyncio.TimeoutError:
-                pass
-
-    task = asyncio.create_task(scheduler())
-    try:
-        yield
-    finally:
-        stop.set()
-        await task
-        await close_redis()
+    yield
 
 
 app = FastAPI(title="CampusGrade API", version="1.0.0", lifespan=lifespan)
@@ -166,15 +104,11 @@ async def ready():
         raise HTTPException(503, {"database_revision": revision})
     if not getattr(app.state, "private_storage_ready", False):
         raise HTTPException(503, "Private storage is unavailable")
-    if settings.redis_required:
-        if redis_core.redis_pool is None:
-            raise HTTPException(503, "Redis is unavailable")
-        await redis_core.redis_pool.ping()
     return {
         "status": "ready",
         "app": settings.app_id,
         "database_revision": revision["current"],
-        "dependencies": {"storage": "ready", "redis": "connected" if redis_core.redis_pool else "optional"},
+        "dependencies": {"storage": "ready"},
     }
 
 
