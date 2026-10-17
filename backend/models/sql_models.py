@@ -236,6 +236,10 @@ class SqlStudentSubjectEnrollment(Base):
     # Nullable so pre-existing rows created before session tagging remain valid;
     # every new enrollment should set this from the current session.
     session_id: Mapped[str | None] = mapped_column(ForeignKey("academic_sessions.id", ondelete="SET NULL"), nullable=True, index=True)
+    # Set when the rollover engine auto-enrolled the student, so an undo removes only those rows.
+    # No foreign key on purpose: the baseline migration builds this table from the live models
+    # before rollover_runs exists, and a stale tag is harmless.
+    rollover_run_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     enrolled_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     student: Mapped[SqlUser] = relationship()
     subject: Mapped[SqlSubject] = relationship(back_populates="enrollments")

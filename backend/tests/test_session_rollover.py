@@ -223,3 +223,177 @@ def test_database_allows_only_one_current_session(client, rollover_world):
                 await db.commit()
 
     client.portal.call(add_second_current)
+
+
+def _execute_rollover(client, from_session_id):
+    from models.database import async_session_factory
+    from models.sql_models import SqlAcademicSession
+    from services import session_rollover
+
+    async def run():
+        async with async_session_factory() as db:
+            from_session = await db.get(SqlAcademicSession, from_session_id)
+            result = await session_rollover.execute(db, from_session, None)
+            await db.commit()
+            return result
+
+    return client.portal.call(run)
+
+
+def _undo_rollover(client, run_id):
+    from models.database import async_session_factory
+    from services import session_rollover
+
+    async def run():
+        async with async_session_factory() as db:
+            result = await session_rollover.undo(db, run_id)
+            await db.commit()
+            return result
+
+    return client.portal.call(run)
+
+
+@requires_docker
+def test_undo_restores_cached_fields_and_keeps_manual_enrollments(client, seed_user, rollover_world):
+    from models.database import async_session_factory
+    from models.sql_models import SqlAcademicSession, SqlStudentSessionRecord, SqlStudentSubjectEnrollment, SqlUser
+    from sqlalchemy import select
+
+    world = rollover_world
+    active = seed_user(role="student", email=f"undo-active-{world['tag']}@example.edu", year=1, semester=1, batch_id=world["batch_new"])
+    repeating = seed_user(role="student", email=f"undo-repeat-{world['tag']}@example.edu")
+    for student, status in ((active, "active"), (repeating, "repeating")):
+        _add_record(client, student["id"], world["from_session"], batch_id=world["batch_new"], study_year=1, semester=1, status=status)
+
+    result = _execute_rollover(client, world["from_session"])
+    to_id = result["to_session_id"]
+
+    async def snapshot():
+        async with async_session_factory() as db:
+            user = await db.get(SqlUser, active["id"], populate_existing=True)
+            enrollments = (await db.scalars(select(SqlStudentSubjectEnrollment).where(SqlStudentSubjectEnrollment.session_id == to_id))).all()
+            return (user.year, user.semester), {(row.student_id, row.rollover_run_id) for row in enrollments}
+
+    cached, enrolled = client.portal.call(snapshot)
+    assert cached == (1, 2)  # promoted to the even semester
+    assert enrolled == {(active["id"], result["run_id"])}
+
+    async def add_manual_enrollment():
+        async with async_session_factory() as db:
+            db.add(SqlStudentSubjectEnrollment(id=str(uuid.uuid4()), student_id=repeating["id"], subject_id=world["subject"], session_id=to_id))
+            await db.commit()
+
+    client.portal.call(add_manual_enrollment)
+    _undo_rollover(client, result["run_id"])
+
+    async def after():
+        async with async_session_factory() as db:
+            user = await db.get(SqlUser, active["id"], populate_existing=True)
+            enrollments = (await db.scalars(select(SqlStudentSubjectEnrollment).where(SqlStudentSubjectEnrollment.session_id == to_id))).all()
+            records = (await db.scalars(select(SqlStudentSessionRecord).where(SqlStudentSessionRecord.session_id == to_id))).all()
+            from_session = await db.get(SqlAcademicSession, world["from_session"], populate_existing=True)
+            return (user.year, user.semester), {row.student_id for row in enrollments}, len(records), from_session.is_current
+
+    cached, enrolled, record_count, from_is_current = client.portal.call(after)
+    assert cached == (1, 1)  # cached fields are back to the outgoing session's values
+    assert enrolled == {repeating["id"]}  # only the hand-added enrollment survives
+    assert record_count == 0 and from_is_current is True
+
+
+@requires_docker
+def test_undo_is_refused_when_newer_run_exists_or_session_is_no_longer_current(client, seed_user, rollover_world):
+    from fastapi import HTTPException
+    from models.database import async_session_factory
+    from models.sql_models import SqlAcademicSession, SqlRolloverRun
+    from services import session_rollover
+    from sqlalchemy import delete, update
+
+    world = rollover_world
+    student = seed_user(role="student", email=f"undo-guard-{world['tag']}@example.edu")
+    _add_record(client, student["id"], world["from_session"], batch_id=world["batch_new"], study_year=1, semester=1, status="active")
+    result = _execute_rollover(client, world["from_session"])
+    newer_id = str(uuid.uuid4())
+
+    async def attempt():
+        async with async_session_factory() as db:
+            with pytest.raises(HTTPException) as refused:
+                await session_rollover.undo(db, result["run_id"])
+            return refused.value.status_code
+
+    async def set_state(newer_run, to_is_current):
+        async with async_session_factory() as db:
+            await db.execute(delete(SqlRolloverRun).where(SqlRolloverRun.id == newer_id))
+            if newer_run:
+                db.add(
+                    SqlRolloverRun(
+                        id=newer_id, from_session_id=world["from_session"], to_session_id=result["to_session_id"], counts={},
+                        executed_at=datetime.datetime.now() + datetime.timedelta(hours=1),
+                    )
+                )
+            await db.flush()
+            await db.execute(update(SqlAcademicSession).where(SqlAcademicSession.id == result["to_session_id"]).values(is_current=to_is_current))
+            await db.execute(update(SqlAcademicSession).where(SqlAcademicSession.id == world["from_session"]).values(is_current=not to_is_current))
+            await db.commit()
+
+    client.portal.call(set_state, True, True)
+    assert client.portal.call(attempt) == 409  # a more recent rollover must be undone first
+    client.portal.call(set_state, False, False)
+    assert client.portal.call(attempt) == 409  # the created session is no longer current
+
+
+@requires_docker
+def test_rollover_query_count_does_not_grow_with_students(client, rollover_world):
+    from models.database import async_session_factory
+    from models.sql_models import SqlAcademicSession, SqlStudentSessionRecord, SqlUser
+    from services import session_rollover
+    from sqlalchemy import delete, event
+
+    world = rollover_world
+    ids = [str(uuid.uuid4()) for _ in range(150)]
+
+    async def seed():
+        async with async_session_factory() as db:
+            db.add_all(
+                SqlUser(id=sid, name=f"Bulk {n}", email=f"bulk-{world['tag']}-{n}@example.edu", password="x", role="student", is_active=True)
+                for n, sid in enumerate(ids)
+            )
+            await db.flush()
+            db.add_all(
+                SqlStudentSessionRecord(
+                    id=str(uuid.uuid4()), student_id=sid, session_id=world["from_session"], batch_id=world["batch_new"], study_year=1, semester=1, status="active"
+                )
+                for sid in ids
+            )
+            await db.commit()
+
+    async def run():
+        statements: list[str] = []
+
+        def count(conn, cursor, statement, parameters, context, executemany):
+            statements.append(statement)
+
+        async with async_session_factory() as db:
+            engine = db.bind.sync_engine
+            from_session = await db.get(SqlAcademicSession, world["from_session"])
+            event.listen(engine, "before_cursor_execute", count)
+            try:
+                result = await session_rollover.execute(db, from_session, None)
+                await db.commit()
+            finally:
+                event.remove(engine, "before_cursor_execute", count)
+            return result, len(statements)
+
+    async def cleanup():
+        async with async_session_factory() as db:
+            await db.execute(delete(SqlUser).where(SqlUser.id.in_(ids)))
+            await db.commit()
+
+    client.portal.call(seed)
+    try:
+        result, statement_count = client.portal.call(run)
+    finally:
+        client.portal.call(cleanup)
+
+    assert result["promoted"] == 150
+    # With one statement per student this would be well over 300.
+    assert statement_count < 60, statement_count
