@@ -26,6 +26,7 @@ from worker.periodic import run_due_periodic
 logger = logging.getLogger("CampusGrade.Worker")
 
 JOB_TIMEOUT_SECONDS = 600
+STALE_GRACE_SECONDS = 60  # extra time before another worker may take over a running job
 POLL_INTERVAL_SECONDS = 2.0
 HEARTBEAT_FILE = Path(tempfile.gettempdir()) / "campusgrade-worker-heartbeat"
 HEARTBEAT_INTERVAL_SECONDS = 10
@@ -97,7 +98,7 @@ async def recover_stale() -> None:
     if factory is None:
         return
     async with factory() as db:
-        recovered = await jobs.requeue_stale(db, datetime.timedelta(seconds=JOB_TIMEOUT_SECONDS + 60))
+        recovered = await jobs.requeue_stale(db, datetime.timedelta(seconds=JOB_TIMEOUT_SECONDS + STALE_GRACE_SECONDS))
         await db.commit()
         if recovered:
             logger.warning("Recovered %s job(s) from a dead worker", recovered)
