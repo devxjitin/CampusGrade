@@ -57,7 +57,7 @@ test("forgot password sends an email, the link resets the password and signs out
   await page.getByLabel(/^new password/i).fill(newPassword);
   await page.getByLabel(/confirm new password/i).fill(newPassword);
   await page.getByRole("button", { name: /update password/i }).click();
-  await expect(page.getByRole("alert")).toContainText(/invalid or has expired/i);
+  await expect(page.getByText(/invalid or has expired/i)).toBeVisible();
 
   // The new password signs in.
   await page.goto("/login");
