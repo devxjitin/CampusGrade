@@ -344,6 +344,42 @@ lint-clean on the whole backend; no backend file over 800 lines.
 
 ## Sprint 4 — Accounts and email (weeks 7–8) → `v0.4.0`
 
+> **Status: implemented on branch `sprint-4`, in review (not merged, not released).**
+>
+> **Done**
+> - S4-01: `services/email_service.py` (SMTP, text + HTML, HTML-escaped). With no `SMTP_HOST` the
+>   worker logs instead of sending. Only the worker sends (`email.password_reset`,
+>   `email.notification` handlers).
+> - S4-02/S4-03: `POST /auth/forgot-password` (always 200, 5 per minute per IP) and
+>   `POST /auth/reset-password`. The token is `<id>.<hmac>`, stored hashed, single use, 30 minutes;
+>   a newer request invalidates older links; a reset bumps `session_version`, revokes all sessions
+>   and writes the audit log. Both routes are CSRF-exempt and listed as public in the
+>   authorization-matrix test.
+> - S4-04: emails for published grades and discussion replies, plus the `deadline_reminders`
+>   periodic task (unsubmitted students, due within 24 h, once per student and assignment).
+> - S4-05: `email_assignment_grades`, `email_assignment_deadlines`, `email_discussions` in the
+>   existing preferences model, default on, checked when the job runs.
+> - S4-06/S4-07: "Forgot password?" link, `/forgot-password`, `/reset-password` (live
+>   requirements checklist), Settings → Email notifications.
+> - S4-08: Mailpit in `compose.dev.yaml` and in `compose.ci.yaml` (CI stack); prod takes
+>   `SMTP_HOST/PORT/USER/FROM/STARTTLS` and `APP_BASE_URL` from `.env.prod` and the password from
+>   the `smtp_password` secret (`init-secrets.ps1` and both deploy scripts create an empty one).
+> - S4-09: `frontend/e2e/password-reset.spec.ts` (forgot → Mailpit API → reset → old session 401 →
+>   link single-use → sign in). CI creates a dedicated account for it.
+>
+> **Verified locally:** 236 backend tests pass (including new reset, email and reminder tests),
+> ruff and mypy are clean, eslint/tsc/vitest pass, `npm run build` passes, `docker compose config`
+> resolves with the CI overlay.
+>
+> **Not verified**
+> - The Playwright reset spec has not run yet (it runs in CI against the prod stack with Mailpit).
+> - No email has been sent through a real SMTP provider; only a faked SMTP and Mailpit-shaped config.
+> - The demo script end to end in a browser, and the "teacher publishes results → student email" step.
+>
+> **Noted, not changed:** the existing Settings → In-app notifications toggles use keys
+> (`assignment_updates`, `grade_updates`, ...) that the API does not accept, so saving them fails.
+> Pre-existing; worth fixing in Sprint 5.
+
 **Goal:** users can recover their own accounts and get notified without logging in.
 
 **Working feature delivered:** "Forgot password" works end to end by email, and students

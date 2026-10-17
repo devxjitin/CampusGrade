@@ -64,6 +64,15 @@ if ($GithubToken) {
   Write-Host "kept     github_token.txt"
 }
 
+# The SMTP password is optional too (leave it empty until SMTP_HOST is set in .env.prod).
+$smtpPath = Join-Path $dir "smtp_password.txt"
+if (-not (Test-Path $smtpPath)) {
+  [System.IO.File]::WriteAllText($smtpPath, "", (New-Object System.Text.UTF8Encoding($false)))
+  Write-Host "created  smtp_password.txt (empty - fill it in when you configure SMTP)"
+} else {
+  Write-Host "kept     smtp_password.txt"
+}
+
 Write-Host ""
 Write-Host "Secrets are in $dir (git-ignored). Back this folder up somewhere safe:"
 Write-Host "losing secret_key signs every user out; losing the database password locks you out of the data."

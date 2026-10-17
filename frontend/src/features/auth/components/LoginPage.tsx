@@ -2,6 +2,7 @@
 
 // Ported from frontend-legacy/src/pages/Login.jsx
 import { Suspense, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, CheckCircle2, Eye, EyeOff, LoaderCircle, Lock, Mail, ShieldCheck, Sparkles } from "lucide-react";
 import { login } from "@/features/auth/api";
@@ -120,6 +121,11 @@ function LoginForm() {
             </span>
             {capsLock && <span className="mt-2 block text-xs font-semibold text-amber-700">Caps Lock is on</span>}
           </label>
+          <div className="-mt-2 text-right">
+            <Link href="/forgot-password" className="text-sm font-bold text-primary-600 hover:underline">
+              Forgot password?
+            </Link>
+          </div>
           <button
             disabled={loading}
             className="mt-1 flex min-h-12 w-full items-center justify-center rounded-xl bg-slate-950 px-5 text-sm font-bold text-white shadow-lg shadow-slate-300 transition duration-200 hover:-translate-y-0.5 hover:bg-primary-600 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-primary-200 disabled:translate-y-0 disabled:cursor-wait disabled:opacity-70"

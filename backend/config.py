@@ -159,6 +159,20 @@ class Settings(BaseSettings):
     repository_sync_interval_seconds: int = 120
 
 
+    # --- email (Sprint 4) ---
+    # Sent only by the worker. With no `smtp_host` email is disabled: jobs succeed and the
+    # message is logged instead, so dev and test runs never fail for want of a mail server.
+    # `smtp_password` is a Docker secret (/run/secrets/smtp_password) in production.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str = "CampusGrade <no-reply@campusgrade.localhost>"
+    smtp_starttls: bool = True
+    # Public URL of the web app, used for links in emails (no trailing slash).
+    app_base_url: str = "http://localhost:3000"
+    password_reset_minutes: int = 30
+
     # --- sessions ---
     revoked_session_retention_days: int = 7
 

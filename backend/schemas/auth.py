@@ -33,3 +33,12 @@ class TokenPayload(BaseModel):
     session_version: int = Field(ge=0)
     iat: datetime | int | None = None
     exp: datetime | int | None = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(min_length=1, max_length=254)
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=200)
+    new_password: str = Field(min_length=1, max_length=256)

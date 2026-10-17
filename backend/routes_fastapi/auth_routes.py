@@ -5,9 +5,9 @@ from config import get_settings
 from core.db import db_session
 from core.principal import Principal, require_principal
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from schemas.auth import LoginRequest, LoginResponse
+from schemas.auth import ForgotPasswordRequest, LoginRequest, LoginResponse, ResetPasswordRequest
 from schemas.common import MessageResponse
-from services import rate_limiter
+from services import password_reset_service, rate_limiter
 from services.auth_service import AuthService
 from services.identity_service import get_user_by_id
 from services.session_service import REFRESH_DAYS, create_session, revoke_session, rotate_session
@@ -38,6 +38,14 @@ async def _enforce_login_rate_limit(request: Request):
 
 async def _enforce_refresh_rate_limit(request: Request):
     await _enforce_rate_limit(request, "refresh", 30, "Too many session refreshes. Please try again shortly.")
+
+
+async def _enforce_forgot_password_rate_limit(request: Request):
+    await _enforce_rate_limit(request, "forgot-password", 5, "Too many reset requests. Please try again shortly.")
+
+
+async def _enforce_reset_password_rate_limit(request: Request):
+    await _enforce_rate_limit(request, "reset-password", 10, "Too many attempts. Please try again shortly.")
 
 
 def _build_user_response(user):
@@ -128,6 +136,29 @@ async def login(body: LoginRequest, request: Request, response: Response, role: 
     # it from here and sends it as an `Authorization` header, which
     # `get_bearer_token` still accepts as a fallback. Removed in Sprint 10.
     return {"message": "Login successful", "token": token, "user": _build_user_response(user), "session_id": device_session.id}
+
+
+@router.post("/auth/forgot-password", response_model=MessageResponse)
+async def forgot_password(body: ForgotPasswordRequest, request: Request, db: AsyncSession = Depends(db_session)):
+    """Always answers 200 with the same text, so the response never reveals whether an email has an account."""
+    await _enforce_forgot_password_rate_limit(request)
+    email = sanitize_string(body.email, 254).lower().strip()
+    client_ip = request.client.host if request.client else None
+    await password_reset_service.request_reset(db, email, client_ip)
+    return {"message": "If that email belongs to an account, a reset link has been sent."}
+
+
+@router.post("/auth/reset-password", response_model=MessageResponse)
+async def reset_password(body: ResetPasswordRequest, request: Request, db: AsyncSession = Depends(db_session)):
+    await _enforce_reset_password_rate_limit(request)
+    client_ip = request.client.host if request.client else None
+    try:
+        await password_reset_service.reset_password(db, body.token.strip(), body.new_password, client_ip)
+    except password_reset_service.InvalidResetToken:
+        raise HTTPException(status_code=400, detail="This reset link is invalid or has expired. Request a new one.") from None
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"message": "Password updated. You can now sign in."}
 
 
 @router.post("/auth/refresh", response_model=LoginResponse)

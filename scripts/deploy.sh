@@ -13,6 +13,8 @@ STATE_FILE=".deployed-version"
 for name in secret_key postgres_password database_url private_s3_secret_key github_token; do
   [ -f "secrets/$name.txt" ] || { echo "Missing secrets/$name.txt (run scripts/init-secrets.ps1 or create the files)." >&2; exit 1; }
 done
+# Added in v0.4.0: an existing install has no SMTP password yet. Empty means "no password".
+[ -f secrets/smtp_password.txt ] || : > secrets/smtp_password.txt
 [ -f "$ENV_FILE" ] || { echo "No $ENV_FILE; copying .env.prod.example"; cp .env.prod.example "$ENV_FILE"; }
 
 site="$(sed -n 's/^[[:space:]]*SITE_ADDRESS[[:space:]]*=[[:space:]]*//p' "$ENV_FILE" | head -n1)"

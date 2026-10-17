@@ -5,7 +5,7 @@ set -eu
 cd "$(dirname "$0")/.."
 ENV_FILE="${ENV_FILE:-.env.prod}"
 export CAMPUSGRADE_VERSION="${CAMPUSGRADE_VERSION:-ci}"
-compose() { docker compose --env-file "$ENV_FILE" -f compose.yaml -f compose.prod.yaml "$@"; }
+compose() { docker compose --env-file "$ENV_FILE" -f compose.yaml -f compose.prod.yaml -f compose.ci.yaml "$@"; }
 sql() { compose exec -T postgres psql -U campusgrade -d campusgrade_db -tAc "$1"; }
 s3() { compose run --rm -T --entrypoint python3 backup -c "$1"; }
 

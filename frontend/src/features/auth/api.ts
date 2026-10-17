@@ -21,6 +21,13 @@ export const logout = async () => {
   return data;
 };
 
+// ─── Password recovery (no session needed) ────────────────────────────
+
+export const forgotPassword = (email: string) => request.post<"/auth/forgot-password">("/auth/forgot-password", { email });
+
+export const resetPassword = (token: string, newPassword: string) =>
+  request.post<"/auth/reset-password">("/auth/reset-password", { token, new_password: newPassword });
+
 // ─── Profile ──────────────────────────────────────────────────────────
 
 export const getProfile = () => request.get<"/profile">("/profile");

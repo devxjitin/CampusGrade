@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
@@ -73,6 +74,59 @@ async def sync_repositories() -> int:
     return await sync_due_repositories()
 
 
+DEADLINE_WINDOW = datetime.timedelta(hours=24)
+
+
+async def deadline_reminders() -> int:
+    """In-app notification plus email for students who have not submitted and whose assignment
+    is due within 24 hours. `dedupe_key` makes each (assignment, student) reminder fire once."""
+    from models.assignment import SqlAssignment
+    from models.notification import SqlNotification
+    from routes_fastapi.assignments.common import _assignment_students, _submission_has_content, _submission_map
+    from services.notification_email import enqueue_notification_email
+
+    now = utcnow()
+    sent = 0
+    async with database.async_session_factory() as db:
+        assignments = (
+            await db.scalars(
+                select(SqlAssignment).where(
+                    SqlAssignment.status == "published",
+                    SqlAssignment.due_at.is_not(None),
+                    SqlAssignment.due_at > now,
+                    SqlAssignment.due_at <= now + DEADLINE_WINDOW,
+                    SqlAssignment.opens_at.is_(None) | (SqlAssignment.opens_at <= now),
+                )
+            )
+        ).all()
+        for assignment in assignments:
+            submissions = await _submission_map(db, assignment.id)
+            for student in await _assignment_students(db, assignment):
+                submission = submissions.get(student.id)
+                if submission is not None and _submission_has_content(submission):
+                    continue
+                key = f"deadline24h:{assignment.id}:{student.id}"
+                if (await db.scalars(select(SqlNotification.id).filter_by(user_id=student.id, dedupe_key=key))).first():
+                    continue
+                db.add(
+                    SqlNotification(
+                        id=str(uuid.uuid4()), user_id=student.id, type="assignment_deadline", title="Assignment due soon",
+                        message=f"{assignment.title} is due within 24 hours.", metadata_json={},
+                        action_url=f"/assignments/{assignment.id}", dedupe_key=key,
+                    )
+                )
+                await enqueue_notification_email(
+                    db, student.id, "email_assignment_deadlines", "Assignment due within 24 hours",
+                    [f"{assignment.title} is due on {assignment.due_at:%d %b %Y at %H:%M} UTC and you have not submitted yet."],
+                    f"/assignments/{assignment.id}",
+                )
+                sent += 1
+        await db.commit()
+    if sent:
+        logger.info("Queued %s deadline reminder(s)", sent)
+    return sent
+
+
 async def purge_rate_limits() -> int:
     from services.rate_limiter import purge_expired
 
@@ -85,6 +139,7 @@ def periodic_tasks() -> list[PeriodicTask]:
         PeriodicTask("publish_results", 15, publish_results),
         PeriodicTask("purge_sessions", 3600, purge_sessions),
         PeriodicTask("rollover_notice", 3600, rollover_notice),
+        PeriodicTask("deadline_reminders", 900, deadline_reminders),
         PeriodicTask("purge_rate_limits", 3600, purge_rate_limits),
         PeriodicTask("sync_repositories", sync_interval, sync_repositories),
     ]

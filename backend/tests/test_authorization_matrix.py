@@ -39,7 +39,15 @@ from sqlalchemy import select
 def test_every_application_route_has_an_explicit_authentication_gate() -> None:
     from app import app
 
-    public = {("GET", "/health"), ("GET", "/ready"), ("POST", "/login"), ("POST", "/auth/refresh")}
+    public = {
+        ("GET", "/health"),
+        ("GET", "/ready"),
+        ("POST", "/login"),
+        ("POST", "/auth/refresh"),
+        # Password recovery is for people who cannot sign in (Sprint 4); both are rate limited.
+        ("POST", "/auth/forgot-password"),
+        ("POST", "/auth/reset-password"),
+    }
     auth_dependencies = {"get_current_user", "require_principal"}
     uncovered = []
     for route in app.routes:

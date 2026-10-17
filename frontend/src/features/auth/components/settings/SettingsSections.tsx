@@ -1,7 +1,7 @@
 "use client";
 
 import type { Dispatch, FormEvent, SetStateAction } from "react";
-import { Bell, KeyRound, Laptop, LockKeyhole, ShieldCheck, Trash2 } from "lucide-react";
+import { Bell, KeyRound, Mail, Laptop, LockKeyhole, ShieldCheck, Trash2 } from "lucide-react";
 import { isAdminRole } from "@/lib/session";
 import { formatDateTime } from "@/lib/datetime";
 
@@ -25,6 +25,20 @@ const rolePreferences: Record<string, Array<[string, string, string]>> = {
   teacher: [["submission_updates", "Submission updates", "Student submissions and repository sync changes."], ["grading_reminders", "Grading reminders", "Pending and overdue grading alerts."]],
   admin: [["system_updates", "System updates", "Administrative and platform activity."], ["grading_reminders", "Grading reminders", "University-wide grading alerts."]],
 };
+
+const emailPreferences: Array<[string, string, string]> = [
+  ["email_assignment_grades", "Results published", "An email when a grade for one of your assignments is published."],
+  ["email_assignment_deadlines", "Deadline reminders", "An email 24 hours before an assignment is due, if you have not submitted."],
+  ["email_discussions", "Discussion replies", "An email when someone replies in one of your assignment discussions."],
+];
+
+export const EmailNotificationSettingsSection = ({ loading, preferences, savePreference }: { loading: boolean; preferences: Record<string, boolean>; savePreference: (key: string, enabled: boolean) => void }) => (
+  <section className="card p-6" aria-labelledby="email-notifications-heading">
+    <div className="flex items-start gap-3"><span className="rounded-xl bg-sky-50 p-2.5 text-sky-600"><Mail className="h-5 w-5" /></span><div><h2 id="email-notifications-heading" className="text-lg font-bold text-slate-900">Email notifications</h2><p className="mt-1 text-sm text-slate-500">Choose which updates are also sent to your email address.</p></div></div>
+    <div className="mt-5 divide-y divide-slate-100">{emailPreferences.map(([key, title, description]) => <label key={key} className="flex cursor-pointer items-center justify-between gap-4 py-3"><span><span className="block text-sm font-semibold text-slate-900">{title}</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">{description}</span></span><input aria-label={`Email: ${title}`} type="checkbox" disabled={loading} checked={preferences[key] !== false} onChange={(event) => savePreference(key, event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500" /></label>)}</div>
+    <p className="mt-4 flex items-center gap-2 text-xs text-slate-500"><LockKeyhole className="h-3.5 w-3.5" />Password reset and security emails are always sent.</p>
+  </section>
+);
 
 export const PasswordSettingsSection = ({ requiredChange = false, password, setPassword, saving, onSubmit }: {
   requiredChange?: boolean;
