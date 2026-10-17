@@ -7,18 +7,17 @@ from core.principal import Principal, require_principal
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from schemas.auth import LoginRequest, LoginResponse
 from schemas.common import MessageResponse
+from services import rate_limiter
 from services.auth_service import AuthService
 from services.identity_service import get_user_by_id
 from services.session_service import REFRESH_DAYS, create_session, revoke_session, rotate_session
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.rate_limit import SlidingWindowRateLimiter
 from utils.validators import sanitize_string
 
 from routes_fastapi.deps import ACCESS_COOKIE_NAME, get_current_user, issue_token
 
 logger = logging.getLogger("CampusGrade.Auth")
 router = APIRouter(tags=["auth"])
-login_limiter = SlidingWindowRateLimiter(limit=10, window_seconds=60)
 auth_service = AuthService()
 
 # Sprint 6, the original implementation plan.
@@ -26,15 +25,19 @@ ACCESS_TOKEN_MINUTES = 15
 CSRF_COOKIE_NAME = "campusgrade_csrf"
 
 
-def _enforce_login_rate_limit(request: Request):
+async def _enforce_rate_limit(request: Request, scope: str, limit: int, message: str):
     client_ip = request.client.host if request.client else "unknown"
-    allowed, retry_after = login_limiter.allow(client_ip)
+    allowed, retry_after = await rate_limiter.hit(f"{scope}:{client_ip}", limit, 60)
     if not allowed:
-        raise HTTPException(
-            status_code=429,
-            detail="Too many login attempts. Please try again shortly.",
-            headers={"Retry-After": str(retry_after)},
-        )
+        raise HTTPException(status_code=429, detail=message, headers={"Retry-After": str(retry_after)})
+
+
+async def _enforce_login_rate_limit(request: Request):
+    await _enforce_rate_limit(request, "login", 10, "Too many login attempts. Please try again shortly.")
+
+
+async def _enforce_refresh_rate_limit(request: Request):
+    await _enforce_rate_limit(request, "refresh", 30, "Too many session refreshes. Please try again shortly.")
 
 
 def _build_user_response(user):
@@ -99,7 +102,7 @@ def _clear_csrf_cookie(response: Response):
 
 @router.post("/login", response_model=LoginResponse)
 async def login(body: LoginRequest, request: Request, response: Response, role: str | None = None, db: AsyncSession = Depends(db_session)):
-    _enforce_login_rate_limit(request)
+    await _enforce_login_rate_limit(request)
 
     identifier = sanitize_string(str(body.email), 254).lower().strip()
     password = body.password
@@ -129,6 +132,7 @@ async def login(body: LoginRequest, request: Request, response: Response, role: 
 
 @router.post("/auth/refresh", response_model=LoginResponse)
 async def refresh_session(request: Request, response: Response, db: AsyncSession = Depends(db_session)):
+    await _enforce_refresh_rate_limit(request)
     rotated = await rotate_session(db, request.cookies.get("campusgrade_refresh", ""), request)
     if not rotated:
         _clear_refresh_cookie(response)

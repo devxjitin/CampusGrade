@@ -113,7 +113,7 @@ def app_env(database_url: str, monkeypatch: pytest.MonkeyPatch) -> Iterator[None
 
 
 @pytest.fixture
-def client(app_env: None) -> Iterator["TestClient"]:  # noqa: F821,UP037 - TestClient is imported lazily below, string annotation is intentional
+def client(app_env: None, database_url: str) -> Iterator["TestClient"]:  # noqa: F821,UP037 - TestClient is imported lazily below, string annotation is intentional
     """A TestClient wired to a real, migrated Postgres database.
 
     Importing `app` is deferred to fixture time (not module import time) so
@@ -138,6 +138,14 @@ def client(app_env: None) -> Iterator["TestClient"]:  # noqa: F821,UP037 - TestC
             return False
         path = getattr(sys.modules.get(name), "__file__", None) or ""
         return os.path.abspath(path).startswith(backend_dir + os.sep)
+
+    # Rate-limit counters live in the database now, so reset them between tests.
+    from sqlalchemy import create_engine, text
+
+    reset_engine = create_engine(database_url)
+    with reset_engine.begin() as connection:
+        connection.execute(text("DELETE FROM rate_limit_counters"))
+    reset_engine.dispose()
 
     saved = {name: sys.modules[name] for name in list(sys.modules) if _is_app_module(name)}
     for name in saved:

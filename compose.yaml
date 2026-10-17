@@ -152,9 +152,13 @@ services:
     secrets: *api-secrets
     networks: [backend, egress]
     stop_grace_period: 30s
-    # The image's HTTP check does not apply; replaced by a heartbeat check in S2-10.
+    # The image's HTTP check does not apply; the worker touches a heartbeat file instead.
     healthcheck:
-      disable: true
+      test: ["CMD", "python", "-c", "import os,sys,tempfile,time; p=os.path.join(tempfile.gettempdir(),'campusgrade-worker-heartbeat'); sys.exit(0 if time.time()-os.path.getmtime(p)<60 else 1)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
     depends_on:
       migrate: { condition: service_completed_successfully }
       storage-init: { condition: service_completed_successfully }

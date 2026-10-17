@@ -1,7 +1,7 @@
 """Aggregated admin-domain router with stable public paths."""
 from fastapi import APIRouter
 
-from routes_fastapi.admin import academic_sessions, admins, batches, courses, sections, session_rollover, subjects, users
+from routes_fastapi.admin import academic_sessions, admins, batches, courses, jobs, sections, session_rollover, subjects, users
 
 router = APIRouter()
 router.include_router(users.router)
@@ -12,5 +12,6 @@ router.include_router(sections.router)
 router.include_router(subjects.router)
 router.include_router(academic_sessions.router)
 router.include_router(session_rollover.router)
+router.include_router(jobs.router)
 
 __all__ = ["router"]

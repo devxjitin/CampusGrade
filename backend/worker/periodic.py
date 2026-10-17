@@ -73,12 +73,19 @@ async def sync_repositories() -> int:
     return await sync_due_repositories()
 
 
+async def purge_rate_limits() -> int:
+    from services.rate_limiter import purge_expired
+
+    return await purge_expired()
+
+
 def periodic_tasks() -> list[PeriodicTask]:
     sync_interval = max(30, get_settings().repository_sync_interval_seconds // 4)
     return [
         PeriodicTask("publish_results", 15, publish_results),
         PeriodicTask("purge_sessions", 3600, purge_sessions),
         PeriodicTask("rollover_notice", 3600, rollover_notice),
+        PeriodicTask("purge_rate_limits", 3600, purge_rate_limits),
         PeriodicTask("sync_repositories", sync_interval, sync_repositories),
     ]
 

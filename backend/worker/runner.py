@@ -8,7 +8,11 @@ import logging
 import os
 import signal
 import socket
+import tempfile
+import threading
+import time
 import uuid
+from pathlib import Path
 
 from config import get_settings
 from core.logging_setup import configure_logging
@@ -23,6 +27,29 @@ logger = logging.getLogger("CampusGrade.Worker")
 
 JOB_TIMEOUT_SECONDS = 600
 POLL_INTERVAL_SECONDS = 2.0
+HEARTBEAT_FILE = Path(tempfile.gettempdir()) / "campusgrade-worker-heartbeat"
+HEARTBEAT_INTERVAL_SECONDS = 10
+HEARTBEAT_MAX_AGE_SECONDS = 60
+
+
+def start_heartbeat(stop: threading.Event) -> threading.Thread:
+    """Touch the heartbeat file from a thread so a long, loop-blocking job does not look dead.
+
+    The compose health check fails when the file is older than HEARTBEAT_MAX_AGE_SECONDS,
+    i.e. when the process hangs entirely or exits.
+    """
+
+    def beat() -> None:
+        while not stop.is_set():
+            try:
+                HEARTBEAT_FILE.write_text(str(time.time()))
+            except OSError:
+                logger.warning("Could not write heartbeat file %s", HEARTBEAT_FILE)
+            stop.wait(HEARTBEAT_INTERVAL_SECONDS)
+
+    thread = threading.Thread(target=beat, name="worker-heartbeat", daemon=True)
+    thread.start()
+    return thread
 
 
 def new_worker_id() -> str:
@@ -92,6 +119,8 @@ async def main() -> None:
             signal.signal(sig, lambda *_: loop.call_soon_threadsafe(stop.set))
 
     worker_id = new_worker_id()
+    heartbeat_stop = threading.Event()
+    start_heartbeat(heartbeat_stop)
     logger.info("Worker %s started", worker_id)
     while not stop.is_set():
         try:
@@ -106,4 +135,5 @@ async def main() -> None:
                 await asyncio.wait_for(stop.wait(), timeout=POLL_INTERVAL_SECONDS)
             except asyncio.TimeoutError:
                 pass
+    heartbeat_stop.set()
     logger.info("Worker %s stopped", worker_id)
