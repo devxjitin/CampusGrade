@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import json
 import uuid
@@ -39,7 +40,7 @@ async def repository_preview(
     assignment = await _student_assignment(db, assignment_id, student)
     await _assert_student_submission_allowed(db, assignment, student["_id"])
     try:
-        preview = preview_repository(body.repository_url, student.get("github_username") or "")
+        preview = await asyncio.to_thread(preview_repository, body.repository_url, student.get("github_username") or "")
     except GitHubRepositoryError as exc:
         raise HTTPException(400, str(exc)) from exc
     preview["assignment_id"], preview["student_id"], preview["exp"] = (
@@ -202,7 +203,7 @@ async def student_repository_detail(assignment_id: str, student=Depends(require_
     version = (await db.scalars(select(SqlAssignmentSubmissionVersion).filter_by(id=version_id))).first() if version_id else None
     if not version or version.analysis_status != "ready" or not version.manifest_key:
         raise HTTPException(409, "The latest synchronized snapshot is not ready")
-    manifest = json.loads(get_assignment_storage().get_bytes(version.manifest_key))
+    manifest = json.loads(await get_assignment_storage().aget_bytes(version.manifest_key))
     return {"version": _serialize_student_version(version), "manifest": manifest, "readme_markdown": version.readme_markdown}
 
 
@@ -215,7 +216,7 @@ async def student_repository_file(assignment_id: str, path: str, student=Depends
     if not version:
         raise HTTPException(404, "Repository snapshot not found")
     try:
-        content, media_type = read_repository_file(version, path)
+        content, media_type = await asyncio.to_thread(read_repository_file, version, path)
     except FileNotFoundError as exc:
         raise HTTPException(404, str(exc)) from exc
     except ValueError as exc:
@@ -455,7 +456,7 @@ async def _version_for_assignment(db: AsyncSession, assignment, version_id):
 async def repository_detail(assignment_id: str, version_id: str, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)):
     assignment = await _teacher_assignment(db, assignment_id, teacher)
     version = await _version_for_assignment(db, assignment, version_id)
-    manifest = json.loads(get_assignment_storage().get_bytes(version.manifest_key)) if version.manifest_key and version.analysis_status == "ready" else []
+    manifest = json.loads(await get_assignment_storage().aget_bytes(version.manifest_key)) if version.manifest_key and version.analysis_status == "ready" else []
     return {"version": _serialize_version(version), "manifest": manifest}
 
 
@@ -464,7 +465,7 @@ async def repository_file(assignment_id: str, version_id: str, path: str, teache
     assignment = await _teacher_assignment(db, assignment_id, teacher)
     version = await _version_for_assignment(db, assignment, version_id)
     try:
-        data, content_type = read_repository_file(version, path)
+        data, content_type = await asyncio.to_thread(read_repository_file, version, path)
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(400, str(exc)) from exc
     return Response(content=data, media_type=content_type)

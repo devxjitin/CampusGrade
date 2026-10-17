@@ -43,6 +43,26 @@
 		}
 	}
 
+	# Presigned object-storage requests only: /storage/<bucket>/<key> with a SigV4
+	# signature in the query string. Anything else (bucket listing, unsigned or
+	# other-method requests) is refused here, before it reaches the store. The
+	# prefix is stripped; the Host header is kept, as the signature covers it.
+	@presigned {
+		method GET HEAD PUT
+		path_regexp ^/storage/[^/]+/.+
+		query X-Amz-Signature=*
+	}
+	handle @presigned {
+		request_body {
+			max_size 30MB
+		}
+		uri strip_prefix /storage
+		reverse_proxy storage:9000
+	}
+	handle /storage/* {
+		respond "Forbidden" 403
+	}
+
 	handle {
 		reverse_proxy web:3000
 	}

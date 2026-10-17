@@ -1,4 +1,6 @@
+import asyncio
 import datetime
+import re
 import uuid
 
 from core.db import db_session
@@ -7,6 +9,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from models.assignment import SqlAssignment, SqlAssignmentResource
 from models.settings_store import write_audit_log
+from pydantic import BaseModel, Field
 from schemas.assignment import AssignmentCreate, AssignmentUpdate
 from services.assignment_storage import get_assignment_storage
 from sqlalchemy import func, select
@@ -124,7 +127,7 @@ async def delete_or_archive_assignment(assignment_id: str, request: Request, tea
     await db.commit()
     for key in keys:
         try:
-            get_assignment_storage().delete(key)
+            await get_assignment_storage().adelete(key)
         except Exception:
             pass
     await write_audit_log(db, teacher["_id"], "assignment.deleted", assignment_id, {}, request.client.host if request.client else None)
@@ -149,7 +152,7 @@ async def upload_attachment(
         raise HTTPException(400, "Maximum 10 attachments")
     resource_id = str(uuid.uuid4())
     key = f"attachments/{row.id}/{resource_id}/{file.filename}"
-    storage.put_bytes(key, content, file.content_type or "application/octet-stream")
+    await storage.aput_bytes(key, content, file.content_type or "application/octet-stream")
     resource = SqlAssignmentResource(
         id=resource_id,
         assignment_id=row.id,
@@ -159,6 +162,82 @@ async def upload_attachment(
         filename=file.filename,
         content_type=file.content_type,
         size_bytes=len(content),
+        position=100,
+    )
+    db.add(resource)
+    await _notify_assignment_updated(db, row)
+    await db.commit()
+    return {"resource": _serialize_resource(resource)}
+
+
+class AttachmentPresignInput(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    content_type: str
+    size_bytes: int = Field(gt=0)
+
+
+class AttachmentCompleteInput(BaseModel):
+    resource_id: str = Field(min_length=36, max_length=36)
+    filename: str = Field(min_length=1, max_length=255)
+    content_type: str
+
+
+def _attachment_key(assignment_id: str, resource_id: str, filename: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", filename).strip("._") or "attachment"
+    return f"attachments/{assignment_id}/{resource_id}/{safe[:150]}"
+
+
+async def _assert_can_add_attachment(db: AsyncSession, row) -> None:
+    if await _assignment_has_submission_content(db, row.id):
+        raise HTTPException(409, "Resources are locked after the first submission")
+    attachment_count = await db.scalar(select(func.count(SqlAssignmentResource.id)).filter_by(assignment_id=row.id, kind="attachment"))
+    if attachment_count >= 10:
+        raise HTTPException(400, "Maximum 10 attachments")
+
+
+@router.post("/teacher/{assignment_id}/attachments/presign")
+async def presign_attachment_upload(
+    assignment_id: str, body: AttachmentPresignInput, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)
+):
+    """Direct-to-storage upload. `upload_url` is null when the backend cannot presign
+    (local dev storage); the client then falls back to the multipart endpoint."""
+    if body.size_bytes > MAX_ATTACHMENT_BYTES:
+        raise HTTPException(413, "Attachment exceeds 25 MB")
+    if body.content_type not in ALLOWED_ATTACHMENT_TYPES:
+        raise HTTPException(400, "Unsupported attachment type")
+    row = await _teacher_assignment(db, assignment_id, teacher)
+    await _assert_can_add_attachment(db, row)
+    resource_id = str(uuid.uuid4())
+    key = _attachment_key(row.id, resource_id, body.filename)
+    url = await asyncio.to_thread(get_assignment_storage().presign_put, key, content_type=body.content_type)
+    return {"resource_id": resource_id, "upload_url": url, "headers": {"Content-Type": body.content_type}}
+
+
+@router.post("/teacher/{assignment_id}/attachments/complete")
+async def complete_attachment_upload(
+    assignment_id: str, body: AttachmentCompleteInput, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)
+):
+    if body.content_type not in ALLOWED_ATTACHMENT_TYPES:
+        raise HTTPException(400, "Unsupported attachment type")
+    row = await _teacher_assignment(db, assignment_id, teacher, lock=True)
+    await _assert_can_add_attachment(db, row)
+    key = _attachment_key(row.id, body.resource_id, body.filename)
+    storage = get_assignment_storage()
+    size = await storage.asize(key)
+    if size is None:
+        raise HTTPException(400, "Upload not found; try again")
+    if size > MAX_ATTACHMENT_BYTES:
+        await storage.adelete(key)
+        raise HTTPException(413, "Attachment exceeds 25 MB")
+    resource = SqlAssignmentResource(
+        id=body.resource_id,
+        assignment_id=row.id,
+        kind="attachment",
+        label=body.filename,
+        storage_key=key,
+        filename=body.filename,
+        content_type=body.content_type,
+        size_bytes=size,
         position=100,
     )
     db.add(resource)
@@ -180,7 +259,7 @@ async def delete_attachment(assignment_id: str, resource_id: str, teacher=Depend
     await _notify_assignment_updated(db, row)
     await db.commit()
     if key:
-        get_assignment_storage().delete(key)
+        await get_assignment_storage().adelete(key)
     return {"message": "Attachment deleted"}
 
 
@@ -210,11 +289,29 @@ async def download_student_resource(assignment_id: str, resource_id: str, studen
     resource = (await db.scalars(select(SqlAssignmentResource).filter_by(id=resource_id, assignment_id=assignment.id, kind="attachment"))).first()
     if not resource or not resource.storage_key:
         raise HTTPException(404, "Attachment not found")
-    data = get_assignment_storage().get_bytes(resource.storage_key)
+    data = await get_assignment_storage().aget_bytes(resource.storage_key)
     safe_name = (resource.filename or "attachment").replace('"', "")
     return Response(
         content=data, media_type=resource.content_type or "application/octet-stream", headers={"Content-Disposition": f'attachment; filename="{safe_name}"'}
     )
+
+
+@router.get("/student/{assignment_id}/resources/{resource_id}/url")
+async def student_resource_download_url(assignment_id: str, resource_id: str, student=Depends(require_roles("student")), db: AsyncSession = Depends(db_session)):
+    """Five-minute presigned link served straight from object storage. `url` is null
+    when the backend cannot presign; use the streaming endpoint then."""
+    assignment = await _student_assignment(db, assignment_id, student)
+    resource = (await db.scalars(select(SqlAssignmentResource).filter_by(id=resource_id, assignment_id=assignment.id, kind="attachment"))).first()
+    if not resource or not resource.storage_key:
+        raise HTTPException(404, "Attachment not found")
+    url = await asyncio.to_thread(
+        get_assignment_storage().presign_get,
+        resource.storage_key,
+        filename=resource.filename or "attachment",
+        content_type=resource.content_type or "application/octet-stream",
+        expires=300,
+    )
+    return {"url": url}
 
 
 @router.get("/student-tools/dashboard")

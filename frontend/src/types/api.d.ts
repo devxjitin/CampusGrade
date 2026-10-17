@@ -301,7 +301,7 @@ export interface paths {
         };
         /**
          * Get Users
-         * @description Async port of admin_routes.py::get_users — read-only, no shared-helper
+         * @description Async port of admin_helpers.py::get_users — read-only, no shared-helper
          *     coupling, safe to port on its own. See CHANGELOG.md Sprint 2.
          */
         get: operations["get_users_admin_users_get"];
@@ -323,7 +323,7 @@ export interface paths {
         get?: never;
         /**
          * Update Admin User
-         * @description Async port of admin_routes.py::update_admin_user — the last of the 10
+         * @description Async port of admin_helpers.py::update_admin_user — the last of the 10
          *     genuinely-coupled functions in this file. Deliberately deferred earlier
          *     this session because of its size and the number of interacting checks;
          *     ported now that every dependency it needs (`_lock_user_safety_context_async`,
@@ -338,7 +338,7 @@ export interface paths {
         post?: never;
         /**
          * Delete User
-         * @description Async port of admin_routes.py::delete_user. Same row-locking safety
+         * @description Async port of admin_helpers.py::delete_user. Same row-locking safety
          *     context as toggle_user_status; a delete that would remove the last
          *     active admin, or an admin deleting themselves, is rejected before the
          *     delete is even issued.
@@ -348,7 +348,7 @@ export interface paths {
         head?: never;
         /**
          * Toggle User Status
-         * @description Async port of admin_routes.py::toggle_user_status. Uses the async
+         * @description Async port of admin_helpers.py::toggle_user_status. Uses the async
          *     row-locking safety context above; `_assert_admin_continuity` is pure
          *     logic (no DB access) so it's imported and reused directly from the sync
          *     module rather than duplicated.
@@ -371,7 +371,7 @@ export interface paths {
         head?: never;
         /**
          * Reset User Password
-         * @description Async port of admin_routes.py::reset_user_password. No admin-continuity
+         * @description Async port of admin_helpers.py::reset_user_password. No admin-continuity
          *     logic involved (resetting a password doesn't remove an admin), so this
          *     one only needed a plain lookup, not the row-locking safety context.
          */
@@ -389,7 +389,7 @@ export interface paths {
         put?: never;
         /**
          * Add Teacher
-         * @description Async port of admin_routes.py::add_teacher. `_build_teacher_assignments_async`
+         * @description Async port of admin_helpers.py::add_teacher. `_build_teacher_assignments_async`
          *     above replaces the sync helper; no coupling to `mirror_teacher_allocations`
          *     (that's only called from update_teacher_assignments/update_admin_user,
          *     still not ported — see CHANGELOG.md).
@@ -412,7 +412,7 @@ export interface paths {
         put?: never;
         /**
          * Import Teachers
-         * @description Async port of admin_routes.py::import_teachers. Self-contained bulk
+         * @description Async port of admin_helpers.py::import_teachers. Self-contained bulk
          *     CSV/Excel import — no academic_calendar coupling (unlike add_student,
          *     which is still blocked, see CHANGELOG.md).
          */
@@ -434,7 +434,7 @@ export interface paths {
         put?: never;
         /**
          * Import Students
-         * @description Async port of admin_routes.py::import_students. Self-contained bulk
+         * @description Async port of admin_helpers.py::import_students. Self-contained bulk
          *     CSV/Excel import — unlike add_student, this route never touches
          *     academic_calendar.py (no session-record/auto-enrollment logic here), so
          *     it wasn't blocked the way add_student is.
@@ -457,12 +457,12 @@ export interface paths {
         put?: never;
         /**
          * Add Student
-         * @description Async port of admin_routes.py::add_student. This was the one function
+         * @description Async port of admin_helpers.py::add_student. This was the one function
          *     in this file genuinely blocked on `services/academic_calendar.py`'s
          *     `resolve_current_session`/`derive_study_year_semester` — unblocked this
          *     session by adding `resolve_current_session_async` alongside the existing
          *     sync version (see services/academic_calendar.py; the sync version is
-         *     untouched and still serves `assignment_routes.py`/`admin_routes.py`).
+         *     untouched and still serves `routes_fastapi/assignments/`/`admin_helpers.py`).
          */
         post: operations["add_student_admin_add_student_post"];
         delete?: never;
@@ -486,7 +486,7 @@ export interface paths {
         head?: never;
         /**
          * Update Teacher Assignments
-         * @description Async port of admin_routes.py::update_teacher_assignments. Unblocked
+         * @description Async port of admin_helpers.py::update_teacher_assignments. Unblocked
          *     this session by `mirror_teacher_allocations_async` (see
          *     services/academic_calendar.py).
          */
@@ -983,6 +983,44 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assignments/teacher/{assignment_id}/attachments/presign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Presign Attachment Upload
+         * @description Direct-to-storage upload. `upload_url` is null when the backend cannot presign
+         *     (local dev storage); the client then falls back to the multipart endpoint.
+         */
+        post: operations["presign_attachment_upload_assignments_teacher__assignment_id__attachments_presign_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assignments/teacher/{assignment_id}/attachments/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete Attachment Upload */
+        post: operations["complete_attachment_upload_assignments_teacher__assignment_id__attachments_complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assignments/teacher/{assignment_id}/attachments/{resource_id}": {
         parameters: {
             query?: never;
@@ -1043,6 +1081,78 @@ export interface paths {
         };
         /** Download Student Resource */
         get: operations["download_student_resource_assignments_student__assignment_id__resources__resource_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assignments/student/{assignment_id}/resources/{resource_id}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Student Resource Download Url
+         * @description Five-minute presigned link served straight from object storage. `url` is null
+         *     when the backend cannot presign; use the streaming endpoint then.
+         */
+        get: operations["student_resource_download_url_assignments_student__assignment_id__resources__resource_id__url_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assignments/student-tools/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Student Assignment Dashboard */
+        get: operations["student_assignment_dashboard_assignments_student_tools_dashboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assignments/student-tools/subjects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Student Assignment Subjects */
+        get: operations["student_assignment_subjects_assignments_student_tools_subjects_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assignments/teacher-tools/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Teacher Assignment Analytics */
+        get: operations["teacher_assignment_analytics_assignments_teacher_tools_analytics_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1309,6 +1419,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assignments/teacher-tools/external-ai-prompt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Generate External Ai Prompt */
+        post: operations["generate_external_ai_prompt_assignments_teacher_tools_external_ai_prompt_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assignments/teacher-tools/external-ai-proposal/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import External Ai Proposal */
+        post: operations["import_external_ai_proposal_assignments_teacher_tools_external_ai_proposal_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assignments/teacher/{assignment_id}/grades/{student_id}": {
         parameters: {
             query?: never;
@@ -1386,57 +1530,6 @@ export interface paths {
         };
         /** Gradebook Csv */
         get: operations["gradebook_csv_assignments_teacher__assignment_id__gradebook_csv_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/assignments/student-tools/dashboard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Student Assignment Dashboard */
-        get: operations["student_assignment_dashboard_assignments_student_tools_dashboard_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/assignments/student-tools/subjects": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Student Assignment Subjects */
-        get: operations["student_assignment_subjects_assignments_student_tools_subjects_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/assignments/teacher-tools/analytics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Teacher Assignment Analytics */
-        get: operations["teacher_assignment_analytics_assignments_teacher_tools_analytics_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1530,40 +1623,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/assignments/teacher-tools/external-ai-prompt": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Generate External Ai Prompt */
-        post: operations["generate_external_ai_prompt_assignments_teacher_tools_external_ai_prompt_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/assignments/teacher-tools/external-ai-proposal/import": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Import External Ai Proposal */
-        post: operations["import_external_ai_proposal_assignments_teacher_tools_external_ai_proposal_import_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/assignments/teacher-tools/threads/{thread_id}": {
         parameters: {
             query?: never;
@@ -1579,23 +1638,6 @@ export interface paths {
         head?: never;
         /** Update Thread Status */
         patch: operations["update_thread_status_assignments_teacher_tools_threads__thread_id__patch"];
-        trace?: never;
-    };
-    "/assignments/teacher/{assignment_id}/ai-suggestions/{student_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Request Ai Suggestion */
-        post: operations["request_ai_suggestion_assignments_teacher__assignment_id__ai_suggestions__student_id__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
         trace?: never;
     };
     "/assignments/admin-tools/dashboard": {
@@ -2011,6 +2053,24 @@ export interface components {
         AssignmentsUpdate: {
             /** Assignments */
             assignments: components["schemas"]["TeacherAssignment"][];
+        };
+        /** AttachmentCompleteInput */
+        AttachmentCompleteInput: {
+            /** Resource Id */
+            resource_id: string;
+            /** Filename */
+            filename: string;
+            /** Content Type */
+            content_type: string;
+        };
+        /** AttachmentPresignInput */
+        AttachmentPresignInput: {
+            /** Filename */
+            filename: string;
+            /** Content Type */
+            content_type: string;
+            /** Size Bytes */
+            size_bytes: number;
         };
         /** AuthUserResponse */
         AuthUserResponse: {
@@ -4711,6 +4771,76 @@ export interface operations {
             };
         };
     };
+    presign_attachment_upload_assignments_teacher__assignment_id__attachments_presign_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachmentPresignInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_attachment_upload_assignments_teacher__assignment_id__attachments_complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachmentCompleteInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     delete_attachment_assignments_teacher__assignment_id__attachments__resource_id__delete: {
         parameters: {
             query?: never;
@@ -4822,6 +4952,98 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    student_resource_download_url_assignments_student__assignment_id__resources__resource_id__url_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+                resource_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    student_assignment_dashboard_assignments_student_tools_dashboard_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    student_assignment_subjects_assignments_student_tools_subjects_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    teacher_assignment_analytics_assignments_teacher_tools_analytics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };
@@ -5308,6 +5530,72 @@ export interface operations {
             };
         };
     };
+    generate_external_ai_prompt_assignments_teacher_tools_external_ai_prompt_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/x-www-form-urlencoded": components["schemas"]["Body_generate_external_ai_prompt_assignments_teacher_tools_external_ai_prompt_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_external_ai_proposal_assignments_teacher_tools_external_ai_proposal_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalAIAssignmentProposalImport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     save_grade_assignments_teacher__assignment_id__grades__student_id__put: {
         parameters: {
             query?: never;
@@ -5474,66 +5762,6 @@ export interface operations {
             };
         };
     };
-    student_assignment_dashboard_assignments_student_tools_dashboard_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    student_assignment_subjects_assignments_student_tools_subjects_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    teacher_assignment_analytics_assignments_teacher_tools_analytics_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
     create_announcement_assignments_teacher__assignment_id__announcements_post: {
         parameters: {
             query?: never;
@@ -5679,72 +5907,6 @@ export interface operations {
             };
         };
     };
-    generate_external_ai_prompt_assignments_teacher_tools_external_ai_prompt_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/x-www-form-urlencoded": components["schemas"]["Body_generate_external_ai_prompt_assignments_teacher_tools_external_ai_prompt_post"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    import_external_ai_proposal_assignments_teacher_tools_external_ai_proposal_import_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ExternalAIAssignmentProposalImport"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     update_thread_status_assignments_teacher_tools_threads__thread_id__patch: {
         parameters: {
             query?: never;
@@ -5759,38 +5921,6 @@ export interface operations {
                 "application/json": components["schemas"]["ThreadStatusInput"];
             };
         };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    request_ai_suggestion_assignments_teacher__assignment_id__ai_suggestions__student_id__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                assignment_id: string;
-                student_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

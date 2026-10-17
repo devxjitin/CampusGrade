@@ -327,7 +327,7 @@ async def admin_repository_detail(
     if principal.role is Role.PROGRAM_ADMIN and assignment.target_course_id not in principal.program_ids:
         raise HTTPException(404, "Assignment not found")
     version = await _version_for_assignment(db, assignment, version_id)
-    manifest = json.loads(get_assignment_storage().get_bytes(version.manifest_key)) if version.manifest_key and version.analysis_status == "ready" else []
+    manifest = json.loads(await get_assignment_storage().aget_bytes(version.manifest_key)) if version.manifest_key and version.analysis_status == "ready" else []
     return {"version": _serialize_version(version), "manifest": manifest}
 
 
@@ -352,7 +352,7 @@ async def admin_delete_assignment(
     cleanup_failures = 0
     for key in set(keys):
         try:
-            get_assignment_storage().delete(key)
+            await get_assignment_storage().adelete(key)
         except Exception:
             cleanup_failures += 1
     await write_audit_log(

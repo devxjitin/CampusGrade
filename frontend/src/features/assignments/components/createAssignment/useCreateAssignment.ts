@@ -30,6 +30,7 @@ export const useCreateAssignment = () => {
   const [saving, setSaving] = useState(false);
   const [attachments, setAttachments] = useState<AnyRecord[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<{ name: string; percent: number } | null>(null);
   const [tagsInput, setTagsInput] = useState("");
   const [learningOutcomesInput, setLearningOutcomesInput] = useState("");
   const [requiredFilesInput, setRequiredFilesInput] = useState("");
@@ -322,7 +323,14 @@ export const useCreateAssignment = () => {
         result = await createAssignment(payload());
         assignmentId = result.assignment.id;
       }
-      for (const file of pendingFiles) await uploadAssignmentAttachment(assignmentId!, file);
+      try {
+        for (const file of pendingFiles) {
+          setUploadProgress({ name: file.name, percent: 0 });
+          await uploadAssignmentAttachment(assignmentId!, file, (percent) => setUploadProgress({ name: file.name, percent }));
+        }
+      } finally {
+        setUploadProgress(null);
+      }
       setPendingFiles([]);
       toast.success(editing ? "Assignment updated. Students have been notified." : isScheduled ? "Assignment scheduled" : "Assignment published live");
       if (!editing) router.replace("/assignments");
@@ -348,6 +356,8 @@ export const useCreateAssignment = () => {
     attachments,
     setAttachments,
     pendingFiles,
+    uploadProgress,
+    setUploadProgress,
     setPendingFiles,
     tagsInput,
     setTagsInput,

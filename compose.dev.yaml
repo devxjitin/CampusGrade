@@ -7,6 +7,8 @@
 x-api-dev-env: &api-dev-env
   APP_ENV: development
   COOKIE_SECURE: "false"
+  # No reverse proxy in dev: downloads/uploads stream through the API.
+  PRIVATE_S3_PUBLIC_ENDPOINT: ""
   ALLOWED_ORIGINS: http://localhost:3000
 
 services:

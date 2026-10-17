@@ -30,13 +30,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from models.settings_store import write_audit_log
 from models.sql_models import SqlAdminProgramScope, SqlCourse, SqlUser
 from pydantic import BaseModel, EmailStr, Field, field_validator
+from services.admin_helpers import _generate_temporary_password, _normalize_person_name, _normalize_user_email
 from services.identity_service import sync_profile
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from utils.security_utils import encrypt_password
-
-from services.admin_helpers import _generate_temporary_password, _normalize_person_name, _normalize_user_email
 
 router = APIRouter(prefix="/admins", tags=["admin-admins"])
 

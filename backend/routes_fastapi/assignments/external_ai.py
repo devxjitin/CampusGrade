@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import json
 import uuid
@@ -67,8 +68,9 @@ async def export_external_evaluation(assignment_id: str, request: Request, teach
             excluded.append({"student_id": student.id, "name": student.name, "roll_no": student.roll_no, "reason": "Already evaluated"})
             continue
         try:
-            manifest = json.loads(storage.get_bytes(version.manifest_key))
-            source, included, omitted = build_student_source(version, manifest, storage.get_bytes(version.archive_key))
+            manifest = json.loads(await storage.aget_bytes(version.manifest_key))
+            archive = await storage.aget_bytes(version.archive_key)
+            source, included, omitted = await asyncio.to_thread(build_student_source, version, manifest, archive)
         except Exception:
             excluded.append(
                 {"student_id": student.id, "name": student.name, "roll_no": student.roll_no, "reason": "Immutable repository snapshot is unavailable"}

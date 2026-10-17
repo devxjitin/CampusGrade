@@ -8,12 +8,12 @@ from core.scoping import scope_to_programs
 from fastapi import APIRouter, Depends, HTTPException
 from models.sql_models import SqlBatch, SqlCourse, SqlSection, SqlStudentSessionRecord, SqlUser
 from schemas.academic import SectionCreate, SectionUpdate
+from services.admin_helpers import _build_batch_label, _normalize_section_name
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from routes_fastapi.admin.courses import compute_teacher_allocation_counts_async
-from services.admin_helpers import _build_batch_label, _normalize_section_name
 
 router = APIRouter(tags=["admin-sections"])
 

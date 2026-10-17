@@ -8,11 +8,10 @@ from core.policy import Permission, require
 from fastapi import APIRouter, Depends, HTTPException
 from models.sql_models import SqlBatch, SqlCourse, SqlStudentProfile, SqlSubject, SqlUser
 from schemas.academic import CourseCreate, CourseUpdate
+from services.admin_helpers import _normalize_course_code, _normalize_course_year, _normalize_program_name
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from services.admin_helpers import _normalize_course_code, _normalize_course_year, _normalize_program_name
 
 router = APIRouter(tags=["admin-programs"])
 

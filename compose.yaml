@@ -183,7 +183,9 @@ services:
     volumes:
       - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
-    networks: [frontend]
+    # backend: presigned /storage/* requests go straight to the object store.
+    networks: [frontend, backend]
     depends_on:
       - web
       - api
+      - storage

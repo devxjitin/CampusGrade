@@ -19,6 +19,7 @@ from models.sql_models import (
     SqlUser,
 )
 from schemas.user import AdminUserUpdate, AssignmentsUpdate, StudentCreate, TeacherCreate, TemporaryCredentialResponse, UserStatusUpdate
+from services import admin_helpers as legacy
 from services.identity_service import sync_profile
 from services.session_service import revoke_all_sessions
 from sqlalchemy import func, or_, select
@@ -26,10 +27,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from utils.security_utils import encrypt_password
 
-from services import admin_helpers as legacy
 from routes_fastapi.admin_settings import read_assignment_monitoring_settings
-from routes_fastapi.assignments.workflow import _assignment_stats
 from routes_fastapi.assignments.common import _submission_has_content
+from routes_fastapi.assignments.workflow import _assignment_stats
 
 router = APIRouter(tags=["admin-users"])
 
