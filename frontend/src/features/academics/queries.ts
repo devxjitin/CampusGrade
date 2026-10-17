@@ -5,7 +5,7 @@
 // small factory instead of five near-duplicate hook files. This is the
 // reference pattern for wrapping the rest of the split-out feature api.ts
 // files in TanStack Query as more pages are migrated off raw axios calls
-// (see IMPLEMENTATION_PLAN.md Sprint 7, item 5, and MIGRATION_PLAN.md Phase 4).
+// (see the original implementation plan Sprint 7, item 5, and the original migration plan Phase 4).
 //
 // Sprint 7: moved from src/hooks/useAcademicStructure.ts into
 // src/features/academics/queries.ts (feature-folder reorg); the query-key

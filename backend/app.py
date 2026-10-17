@@ -91,7 +91,7 @@ async def lifespan(app_instance: FastAPI):
 
     async def check_rollover_due() -> int:
         # Never flips the current session on its own — see
-        # PLAN_ACADEMIC_SESSIONS_AND_BATCHES.md Part 4 Step 4. This only
+        # the original academic-sessions plan Part 4 Step 4. This only
         # nudges admins (once, via SqlNotification's dedupe_key) that the
         # current session's end_date has passed and Session rollover is
         # waiting for a confirm click.

@@ -6,7 +6,7 @@ the current session so the unique constraint change below does not orphan
 them; the per-(student, subject) uniqueness is relaxed to per-(student,
 subject, session) so a student can retake a subject in a later session.
 
-See PLAN_ACADEMIC_SESSIONS_AND_BATCHES.md Part 5 / Phase 2.
+See the original academic-sessions plan Part 5 / Phase 2.
 """
 
 from alembic import op

@@ -21,7 +21,7 @@ ACCESS_COOKIE_NAME = "campusgrade_access"
 
 
 def get_bearer_token(request: Request):
-    """Sprint 6, IMPLEMENTATION_PLAN.md: read the access token from the
+    """Sprint 6, the original implementation plan: read the access token from the
     httpOnly `campusgrade_access` cookie first — that's what `/login`/
     `/auth/refresh` set from this sprint on — and fall back to the
     `Authorization` header for one sprint so a frontend that hasn't been
@@ -106,7 +106,7 @@ class Permission(str, Enum):
 
 
 ROLE_PERMISSIONS = {
-    # Sprint 5, IMPLEMENTATION_PLAN.md: "admin" split into "super_admin"/
+    # Sprint 5, the original implementation plan: "admin" split into "super_admin"/
     # "program_admin". This legacy `Permission`/`require_permission` pair has
     # no real caller left (confirmed by grep in Sprint 3 — every actual route
     # uses `require_roles`, now `core.policy.require`) but is kept

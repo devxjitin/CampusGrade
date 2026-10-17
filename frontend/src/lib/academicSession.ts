@@ -1,7 +1,7 @@
 // Shared helpers for the admin-only academic-session switcher in the
 // topbar (DashboardLayout) — the selected session id is stored client-side
 // and read by admin report views (AssignmentDashboardView's AdminMonitoring)
-// to scope the dashboard's date range. See PLAN_CAMPUSGRADE_CHANGES.md §7.
+// to scope the dashboard's date range. See the original changes plan §7.
 const STORAGE_KEY = "campusgrade_academic_session_id";
 export const ACADEMIC_SESSION_CHANGED_EVENT = "campusgrade:academic-session-changed";
 

@@ -2,7 +2,7 @@
 academic_sessions with lifecycle columns, and backfill a student_session_record
 for every existing student against the current academic session.
 
-See PLAN_ACADEMIC_SESSIONS_AND_BATCHES.md Part 1 / Part 5 / Phase 1.
+See the original academic-sessions plan Part 1 / Part 5 / Phase 1.
 """
 
 import uuid

@@ -12,7 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // Sprint 0 (IMPLEMENTATION_PLAN.md): Playwright/Vitest config and specs
+    // Sprint 0 (the original implementation plan): Playwright/Vitest config and specs
     // run under Node/Playwright's own runtime, not the Next.js app — they
     // don't follow next/react lint conventions (no React import needed,
     // different globals) and are linted by their own tools instead.

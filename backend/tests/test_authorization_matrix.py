@@ -1,4 +1,4 @@
-"""Sprint 5, IMPLEMENTATION_PLAN.md — the authorization matrix, roles live.
+"""Sprint 5, the original implementation plan — the authorization matrix, roles live.
 
 Started in Sprint 3 as shadow-mode-only tests over a 3-role matrix
 (`admin`/`teacher`/`student`, `shadow_check` logging mismatches without

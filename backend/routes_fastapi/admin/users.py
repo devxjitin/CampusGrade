@@ -103,7 +103,7 @@ async def _lock_user_safety_context_async(db: AsyncSession, user_id: str):
     doing the same thing. Kept as an exact behavioral mirror of the sync
     version rather than reusing it directly, since the sync version takes a
     sync `Session`."""
-    # Sprint 5, IMPLEMENTATION_PLAN.md: "super_admin", not "admin" — see the
+    # Sprint 5, the original implementation plan: "super_admin", not "admin" — see the
     # note on `admin_routes.py::_lock_user_safety_context`.
     active_admins = (
         await db.scalars(select(SqlUser).where(SqlUser.role == "super_admin", SqlUser.is_active.is_(True)).order_by(SqlUser.id).with_for_update())

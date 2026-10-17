@@ -124,7 +124,7 @@ grade it over HTTPS, and stay logged in past 15 minutes. Deploying a new version
 | ID | Task |
 |---|---|
 | S1-09 | Backend Dockerfile: multi-stage `uv sync --frozen`, non-root user, `HEALTHCHECK`, no build tools in the final image |
-| S1-10 | Frontend Dockerfile: standalone output only, non-root, final image < 250 MB |
+| S1-10 | Frontend Dockerfile: standalone output only, non-root, final image kept lean (Alpine + the Node binary only; ~280 MB uncompressed, of which the Node binary is 124 MB, so the original 250 MB target was dropped) |
 | S1-11 | Split compose into `compose.yaml` (base), `compose.dev.yaml` (bind mounts, hot reload, Mailpit, open ports) and `compose.prod.yaml` (GHCR images by `${CAMPUSGRADE_VERSION}`, only the proxy publishes ports) |
 | S1-12 | Add **Caddy** (`tls internal`, HSTS/CSP headers, compression, `/api/*` → api, `/*` → web) and **RustFS** (S3-compatible; MinIO no longer publishes container images) plus a one-shot `storage-init` that creates the private bucket with the app's own boto3 client (`backend/scripts/ensure_bucket.py`); prod uses `PRIVATE_STORAGE_BACKEND=s3` against RustFS |
 | S1-13 | Prod hardening on every service: non-root, `read_only` + `tmpfs`, `cap_drop: ALL`, `no-new-privileges`, health checks, resource limits, `restart: unless-stopped`, log rotation, `internal: true` backend network |

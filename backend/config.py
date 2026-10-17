@@ -1,4 +1,4 @@
-"""Typed application configuration (Sprint 1, IMPLEMENTATION_PLAN.md).
+"""Typed application configuration (Sprint 1, the original implementation plan).
 
 Replaces ~32 scattered `os.getenv(...)` calls across the backend with one
 object, validated once at import. The app should refuse to start on a bad
@@ -6,12 +6,12 @@ value rather than fail confusingly on the first request that needs it —
 `_secret()` in `app.py` already did this for `SECRET_KEY`; this extends the
 same idea to every setting.
 
-Placement note (deviation from IMPLEMENTATION_PLAN.md Sprint 1): the plan
+Placement note (deviation from the original implementation plan Sprint 1): the plan
 sketches this as `backend/app/config.py`. `backend/app.py` (the existing
 FastAPI entrypoint module) would collide with a new `app/` package — you
 cannot have both `app.py` and `app/` importable from the same root. Renaming
 `app.py` into `app/main.py` is a real, disclosed piece of the target layout
-(see ARCHITECTURE.md §5.1), but it belongs with the domain-split sprints
+(see the original architecture doc §5.1), but it belongs with the domain-split sprints
 (Sprint 10+) where the rest of the package layout actually changes — doing
 it half-finished now would just mean renaming it again later. So this
 module lives at `backend/config.py` and the new core helpers live under the
@@ -128,7 +128,7 @@ class Settings(BaseSettings):
     # should read.
     allowed_origins_raw: str = Field(default="http://localhost:5174,http://localhost:3000", alias="ALLOWED_ORIGINS")
     cookie_secure: bool = False
-    # Sprint 6, IMPLEMENTATION_PLAN.md: the access token moves into an
+    # Sprint 6, the original implementation plan: the access token moves into an
     # httpOnly cookie this sprint, but the `Authorization` header is still
     # accepted for one sprint so the not-yet-updated frontend keeps working
     # (see `routes_fastapi/deps.py::get_bearer_token`) and CSRF is enforced
@@ -171,7 +171,7 @@ class Settings(BaseSettings):
     assignment_max_text_bytes: int = 1024 * 1024
     repository_sync_interval_seconds: int = 120
 
-    # --- external AI (Azure OpenAI today; see ARCHITECTURE.md §6) ---
+    # --- external AI (Azure OpenAI today; see the original architecture doc §6) ---
     azure_openai_endpoint: str | None = None
     azure_openai_api_key: str | None = None
     azure_openai_deployment: str | None = None

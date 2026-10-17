@@ -49,7 +49,7 @@ exclude = ["backend/migrations/versions"]
 # CI (.github/workflows/ci.yml) runs `ruff check` against an explicit file
 # list, not the whole `backend` tree — most of the pre-existing tree (7 test
 # files that predate Sprint 0, routes_fastapi/, models/, services/, ai/,
-# utils/, scripts/) has ~650 pre-existing findings; see IMPLEMENTATION_PLAN.md
+# utils/, scripts/) has ~650 pre-existing findings; see the original implementation plan
 # Sprint 0 notes. Fixing those in bulk now would be a drive-by change with no
 # test coverage behind it.
 #
@@ -76,7 +76,7 @@ exclude = ["backend/migrations/versions"]
 #   backend/routes_fastapi/assignment_routes.py              (Sprint 2 — all 50 routes; 14 helpers keep a sync original + async twin, see CHANGELOG.md)
 #
 # Every sprint that ports a legacy file into a clean home per
-# IMPLEMENTATION_PLAN.md must leave that file ruff-clean and add it to this
+# the original implementation plan must leave that file ruff-clean and add it to this
 # list and to ci.yml in the same PR. By the end of the plan this comment
 # should be deleted and CI should just run `ruff check backend`.
 

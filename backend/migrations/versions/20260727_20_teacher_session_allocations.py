@@ -5,7 +5,7 @@ reads from; this table is a session-aware mirror the rollover engine can
 carry forward, and a future release can migrate reads onto. Backfills one
 row per existing teacher allocation entry against the current session.
 
-See PLAN_ACADEMIC_SESSIONS_AND_BATCHES.md Phase 6.
+See the original academic-sessions plan Phase 6.
 """
 
 import uuid

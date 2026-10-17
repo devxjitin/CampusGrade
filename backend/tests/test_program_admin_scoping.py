@@ -1,4 +1,4 @@
-"""Sprint 5, IMPLEMENTATION_PLAN.md "Done when": a program admin scoped to
+"""Sprint 5, the original implementation plan "Done when": a program admin scoped to
 one program gets an empty list for another program's batches — asserted
 against real rows in a real (migrated) Postgres database, not just a status
 code. Docker-gated like every other real-database test in this project;

@@ -1,4 +1,4 @@
-"""Four roles go live (Sprint 5, IMPLEMENTATION_PLAN.md).
+"""Four roles go live (Sprint 5, the original implementation plan).
 
 Every existing `admin` becomes a `super_admin` — deliberate, so nobody loses
 access on deploy day. `program_admin` accounts are created afterwards by

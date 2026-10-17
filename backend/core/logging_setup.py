@@ -1,4 +1,4 @@
-"""Structured JSON logging (Sprint 1, IMPLEMENTATION_PLAN.md).
+"""Structured JSON logging (Sprint 1, the original implementation plan).
 
 One line of JSON per log record, with `request_id` attached wherever it's
 available, so a single request's log lines can be grepped out of a shared

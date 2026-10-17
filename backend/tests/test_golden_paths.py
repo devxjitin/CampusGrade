@@ -1,4 +1,4 @@
-"""Characterisation tests (Sprint 0 of IMPLEMENTATION_PLAN.md).
+"""Characterisation tests (Sprint 0 of the original implementation plan).
 
 These lock in *current* behaviour — right or wrong — against a real,
 migrated Postgres database. Every later refactor sprint (async DB layer,

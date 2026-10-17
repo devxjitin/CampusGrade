@@ -1,6 +1,6 @@
 """Rename courses to programs and remove single-school lookup tables.
 
-Sprint 8 of IMPLEMENTATION_PLAN.md. Foreign-key *column names* such as
+Sprint 8 of the original implementation plan. Foreign-key *column names* such as
 ``course_id`` intentionally remain unchanged until the Sprint 9 contract
 migration, but their referenced table follows PostgreSQL's table rename.
 

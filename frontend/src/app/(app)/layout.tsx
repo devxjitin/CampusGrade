@@ -3,7 +3,7 @@
 import AuthGate from "@/components/AuthGate";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 
-// Sprint 7 (IMPLEMENTATION_PLAN.md "Frontend shell rebuild"): this route
+// Sprint 7 (the original implementation plan "Frontend shell rebuild"): this route
 // group replaces the old `(dashboard)/layout.tsx`, which only wrapped
 // `AuthGate` — every one of its 21 pages then imported and rendered
 // `DashboardLayout` itself, so the sidebar chrome and the notification/

@@ -1,4 +1,4 @@
-"""Sprint 6, IMPLEMENTATION_PLAN.md — cookie session, CSRF.
+"""Sprint 6, the original implementation plan — cookie session, CSRF.
 
 Docker-gated like every other real-database test in this project (`client`/
 `seed_user`/`login` come from `tests/conftest.py`, and this exercises the

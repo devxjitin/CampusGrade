@@ -108,7 +108,7 @@ const CONTACT_PATTERN = /^\+?[0-9\s()-]{10,15}$/;
 // Sentinel for "admit into a new intake year" — the app resolves (or
 // creates) the matching batch server-side instead of the admin having to
 // know which batch id is "this year's". See
-// PLAN_ACADEMIC_SESSIONS_AND_BATCHES.md Part 3.
+// the original academic-sessions plan Part 3.
 export const NEW_BATCH_SENTINEL = "__new_admission_year__";
 
 export const getAddStudentFieldErrors = ({

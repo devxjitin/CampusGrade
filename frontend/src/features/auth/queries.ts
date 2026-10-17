@@ -1,7 +1,7 @@
 // TanStack Query layer for session/profile/preferences.
-// Sprint 7 (IMPLEMENTATION_PLAN.md "Frontend shell rebuild"), item 5.
+// Sprint 7 (the original implementation plan "Frontend shell rebuild"), item 5.
 //
-// Known gap (see SPRINT_STATUS.md): only the query-key factory plus a
+// Known gap (see the original sprint status): only the query-key factory plus a
 // couple of representative read hooks are wired here so far — most call
 // sites in this feature still call src/features/auth/api.ts functions
 // directly from useEffect/useState (unchanged behaviour from before this

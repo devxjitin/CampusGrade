@@ -1,6 +1,6 @@
 "use client";
 
-// New page for CampusGrade's academic-session switcher (PLAN_CAMPUSGRADE_CHANGES.md §7).
+// New page for CampusGrade's academic-session switcher (the original changes plan §7).
 // Lets an admin create/edit sessions like "2025-2026 (Odd)" and mark one as
 // current; the topbar dropdown in DashboardLayout reads this same list.
 import { useEffect, useMemo, useState } from "react";

@@ -6,7 +6,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 class UserCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     email: EmailStr
-    # Sprint 5, IMPLEMENTATION_PLAN.md: "admin" split into "super_admin"/
+    # Sprint 5, the original implementation plan: "admin" split into "super_admin"/
     # "program_admin" (see migration `canvasgrade_022`).
     role: str = Field(pattern="^(super_admin|program_admin|teacher|student)$")
     teacher_id: str | None = Field(default=None, max_length=50)
@@ -26,7 +26,7 @@ class StudentCreate(UserCreate):
     semester: int | None = Field(default=None, ge=1, le=24)
     # Alternative to batch_id: admin picks the course + the year the student
     # is joining, and the server resolves (or creates) the matching batch —
-    # see PLAN_ACADEMIC_SESSIONS_AND_BATCHES.md Part 3. Ignored if batch_id
+    # see the original academic-sessions plan Part 3. Ignored if batch_id
     # is also supplied.
     admission_year: int | None = Field(default=None, ge=1900, le=3000)
 

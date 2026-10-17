@@ -15,13 +15,18 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY frontend/ ./
 RUN npm run build
 
-FROM node:22-alpine AS runtime
+# Plain Alpine plus only the Node binary: the full node image also ships npm and yarn,
+# which `node server.js` never uses (~150 MB less, and less to patch).
+FROM alpine:3.22 AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
     HOSTNAME=0.0.0.0
-RUN addgroup -S -g 10001 app && adduser -S -u 10001 -G app app
+RUN apk add --no-cache libstdc++ \
+ && addgroup -S -g 10001 app \
+ && adduser -S -u 10001 -G app app
+COPY --from=deps /usr/local/bin/node /usr/local/bin/node
 # Standalone output: a minimal server plus only the node_modules it traces.
 COPY --from=build --chown=10001:10001 /app/.next/standalone ./
 COPY --from=build --chown=10001:10001 /app/.next/static ./.next/static

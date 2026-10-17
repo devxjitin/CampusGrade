@@ -1,5 +1,5 @@
 // UI-ONLY convenience mirror of the backend's real permission matrix
-// (`backend/core/policy.py::PERMISSIONS`). Sprint 7 (IMPLEMENTATION_PLAN.md
+// (`backend/core/policy.py::PERMISSIONS`). Sprint 7 (the original implementation plan
 // "Frontend shell rebuild"), item 7.
 //
 // IMPORTANT: this is for UI decisions only (show/hide a button, grey out an

@@ -1,6 +1,6 @@
 // Shared axios instance + interceptors (Sprint 6 cookie/CSRF handling).
 //
-// Sprint 7 (IMPLEMENTATION_PLAN.md "Frontend shell rebuild"): this file used
+// Sprint 7 (the original implementation plan "Frontend shell rebuild"): this file used
 // to be the top of src/lib/api.ts, which also held all 108 feature request
 // functions in one file. Those functions now live in src/features/*/api.ts;
 // this file keeps only the transport plumbing every feature api.ts imports:
@@ -22,7 +22,7 @@
 // unknown> / primitives) rather than against the real Pydantic schemas.
 // Once the backend is reachable, run `npm run gen:types` (openapi-typescript
 // against /openapi.json) and progressively replace `unknown`/`any` here with
-// the generated types from src/types/api.d.ts — see MIGRATION_PLAN.md §6.
+// the generated types from src/types/api.d.ts — see the original migration plan §6.
 
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from "axios";
 import { clearSession, type SessionUser } from "./session";

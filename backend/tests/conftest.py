@@ -1,7 +1,7 @@
 """Shared fixtures for integration tests.
 
 `database_url` spins up a throwaway Postgres container (Sprint 0 of
-IMPLEMENTATION_PLAN.md), runs every Alembic migration against it, and yields
+the original implementation plan), runs every Alembic migration against it, and yields
 a connection URL a test can point the app at. This is what lets later
 sprints refactor the database layer with confidence: a route's behaviour is
 checked against a real Postgres instance, not mocked out.

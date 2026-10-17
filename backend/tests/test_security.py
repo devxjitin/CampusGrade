@@ -21,7 +21,7 @@ class PasswordSecurityTests(unittest.TestCase):
         self.assertFalse(_is_weak_secret("R7q!C2m#K9v$L4x@N8p%T3w^Y6d&F1h*"))
 
     def test_passwords_are_one_way_argon2_hashes(self):
-        """Sprint 4, IMPLEMENTATION_PLAN.md: new hashes are argon2id, not bcrypt."""
+        """Sprint 4, the original implementation plan: new hashes are argon2id, not bcrypt."""
         stored = security_utils.hash_password("CorrectHorse@2026")
 
         self.assertTrue(security_utils.is_argon2_hash(stored))
@@ -131,7 +131,7 @@ class AuthorizationPolicyTests(unittest.TestCase):
 
 
 class CookieAuthTests(unittest.TestCase):
-    """Sprint 6, IMPLEMENTATION_PLAN.md: `get_bearer_token` reads the
+    """Sprint 6, the original implementation plan: `get_bearer_token` reads the
     httpOnly access cookie first, falls back to the `Authorization` header,
     and `AUTH_COOKIE_MODE=false` (config.py) skips the cookie entirely —
     the plan's documented rollback. None of this needs Docker/a database;

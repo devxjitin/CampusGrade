@@ -1,4 +1,4 @@
-"""Split the users god-table into profile tables (Sprint 4, IMPLEMENTATION_PLAN.md).
+"""Split the users god-table into profile tables (Sprint 4, the original implementation plan).
 
 Expand phase only: `user_profiles`, `student_profiles`, `teacher_profiles`,
 and `admin_program_scopes` are created and backfilled from the existing
@@ -19,7 +19,7 @@ Two audit queries the plan asks to be run against production data *before*
 this migration ships (see Sprint 4's "Risk" section) are reproduced as a
 Python helper below (`find_migration_blockers`) rather than left as loose
 SQL in a comment, so CI or a operator can actually invoke them. This sandbox
-has no production data to run them against — see SPRINT_STATUS.md.
+has no production data to run them against — see the original sprint status.
 """
 
 from __future__ import annotations

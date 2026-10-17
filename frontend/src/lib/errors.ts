@@ -1,5 +1,5 @@
 // Maps the backend's `code` field (core/errors.py, Sprint 1 of
-// IMPLEMENTATION_PLAN.md) to a friendly, translatable message. This is
+// the original implementation plan) to a friendly, translatable message. This is
 // additive — `error.response.data.message`, which every existing page
 // already reads (see the interceptor in api.ts), keeps working exactly as
 // before whether or not a code is present. New code should prefer
