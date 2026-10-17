@@ -220,7 +220,7 @@ automatically, with no "Update repository" click. A Super Admin can see and retr
 
 **Demo script:** deploy `v0.2.0` → student pushes a commit → within the sync interval the
 teacher sees the new commit with no click → `docker compose kill worker` mid-analysis →
-it restarts and the job is retried and succeeds → a broken repo URL shows as `dead` on
+start it again (`docker compose up -d worker`; Docker only auto-restarts crashes, not manual kills) and the job is retried and succeeds → a broken repo URL shows as `dead` on
 the Jobs page → Retry.
 
 **Exit criteria:** no background code left in the API process; golden-path tests pass with

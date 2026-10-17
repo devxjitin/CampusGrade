@@ -43,6 +43,16 @@ services:
     ports:
       - "127.0.0.1:5001:5001"
 
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: campusgrade-api:local
+    environment:
+      <<: *api-dev-env
+    volumes:
+      - ./backend:/app
+
   web:
     image: node:22-alpine
     working_dir: /app

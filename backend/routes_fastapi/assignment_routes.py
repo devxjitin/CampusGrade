@@ -9,7 +9,7 @@ from core.db import db_session
 from core.policy import Permission, require, require_roles, require_user
 from core.principal import Role
 from core.scoping import scope_to_programs
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import Response
 from models.assignment import (
     SqlAssignment,
@@ -26,6 +26,7 @@ from models.assignment import (
     SqlAssignmentThread,
     SqlAssignmentThreadMessage,
 )
+from models.job import Job
 from models.notification import SqlNotification
 from models.settings_store import write_audit_log
 from models.sql_models import SqlBatch, SqlCourse, SqlSection, SqlSubject, SqlUser, utcnow
@@ -46,6 +47,7 @@ from schemas.assignment import (
     ThreadStatusInput,
     WithdrawGradeInput,
 )
+from services import jobs
 from services.assignment_external_evaluation import (
     build_student_source,
     duplicate_evidence_for,
@@ -55,8 +57,8 @@ from services.assignment_external_evaluation import (
 )
 from services.assignment_storage import get_assignment_storage
 from services.github_repository_service import (
+    ANALYZE_JOB_TYPE,
     GitHubRepositoryError,
-    enqueue_repository_analysis,
     preview_repository,
     read_repository_file,
     sync_submission_repository,
@@ -84,32 +86,6 @@ ALLOWED_ATTACHMENT_TYPES = {
     "image/jpeg",
     "image/webp",
 }
-
-
-# ---------------------------------------------------------------------------
-# Sprint 2 (the original implementation plan): async port. This file is unusual versus
-# the rest of Sprint 2's ports because several of its private helpers have
-# real *sync* callers outside this file that cannot be converted in the same
-# pass:
-#   - `_teacher_assignment`, `_assignment_students`, `_evaluation_workflow`,
-#     `publish_ready_assignment_results` are imported and called with a sync
-#     `Session` by `backend/tests/test_audit_fixes.py` (directly, and via the
-#     Docker-gated `test_concurrent_*` tests).
-#   - `_assignment_stats` and `_submission_has_content` are imported and
-#     called with a sync `Session` by `routes_fastapi/admin/users.py`'s
-#     still-sync `assignment_student_profile`/`admin_user_details`.
-#   - `publish_ready_assignment_results` is also called synchronously from
-#     `app.py`'s lifespan scheduler via `asyncio.to_thread(...)` — it must
-#     keep working as a plain blocking function called with a sync `Session`.
-# Rather than rewrite those call sites (out of scope for this sprint), every
-# helper transitively reachable from `publish_ready_assignment_results` gets
-# the same "sync original + async twin" bridge pattern already used in
-# `services/academic_calendar.py`: the sync function is left completely
-# unchanged, and a same-behavior `_async` twin is added for the (async)
-# route layer to call. Helpers with no sync caller outside this file were
-# converted to `async def` directly, with no twin, per the pattern used for
-# `services/session_rollover.py`.
-# ---------------------------------------------------------------------------
 
 
 def _now():
@@ -201,24 +177,7 @@ def _closed(assignment):
     return _phase(assignment) == "closed"
 
 
-def _notification(db, user_id, title, message, notification_type="assignment", action_url=None, dedupe_key=None):
-    if dedupe_key and db.query(SqlNotification.id).filter_by(user_id=user_id, dedupe_key=dedupe_key).first():
-        return
-    db.add(
-        SqlNotification(
-            id=str(uuid.uuid4()),
-            user_id=user_id,
-            type=notification_type,
-            title=title,
-            message=message,
-            metadata_json={},
-            action_url=action_url,
-            dedupe_key=dedupe_key,
-        )
-    )
-
-
-async def _notification_async(db: AsyncSession, user_id, title, message, notification_type="assignment", action_url=None, dedupe_key=None):
+async def _notification(db: AsyncSession, user_id, title, message, notification_type="assignment", action_url=None, dedupe_key=None):
     if dedupe_key:
         existing = (await db.scalars(select(SqlNotification.id).filter_by(user_id=user_id, dedupe_key=dedupe_key))).first()
         if existing:
@@ -237,11 +196,7 @@ async def _notification_async(db: AsyncSession, user_id, title, message, notific
     )
 
 
-def _rubric(db, assignment_id):
-    return db.query(SqlAssignmentRubric).filter_by(assignment_id=assignment_id).order_by(SqlAssignmentRubric.position).all()
-
-
-async def _rubric_async(db: AsyncSession, assignment_id):
+async def _rubric(db: AsyncSession, assignment_id):
     return (await db.scalars(select(SqlAssignmentRubric).filter_by(assignment_id=assignment_id).order_by(SqlAssignmentRubric.position))).all()
 
 
@@ -308,10 +263,10 @@ async def _serialize_assignment(db: AsyncSession, assignment, include_detail=Tru
         "created_at": _utc_response(assignment.created_at),
         "updated_at": _utc_response(assignment.updated_at),
     }
-    data.update(await _assignment_stats_async(db, assignment))
-    data["evaluation_workflow"] = await _evaluation_workflow_async(db, assignment)
+    data.update(await _assignment_stats(db, assignment))
+    data["evaluation_workflow"] = await _evaluation_workflow(db, assignment)
     if include_detail:
-        rubric_rows = await _rubric_async(db, assignment.id)
+        rubric_rows = await _rubric(db, assignment.id)
         data["rubric"] = [
             {"id": item.id, "title": item.title, "description": item.description, "max_marks": item.max_marks, "position": item.position}
             for item in rubric_rows
@@ -326,20 +281,7 @@ async def _serialize_assignment(db: AsyncSession, assignment, include_detail=Tru
     return data
 
 
-def _teacher_assignment(db, assignment_id, user, *, lock=False):
-    if user.get("role") != "teacher":
-        raise HTTPException(403, "Teacher access required")
-    query = db.query(SqlAssignment).filter(SqlAssignment.id == assignment_id)
-    query = query.filter(SqlAssignment.created_by == user["_id"])
-    if lock:
-        query = query.with_for_update()
-    row = query.first()
-    if not row:
-        raise HTTPException(404, "Assignment not found")
-    return row
-
-
-async def _teacher_assignment_async(db: AsyncSession, assignment_id, user, *, lock=False):
+async def _teacher_assignment(db: AsyncSession, assignment_id, user, *, lock=False):
     if user.get("role") != "teacher":
         raise HTTPException(403, "Teacher access required")
     query = select(SqlAssignment).filter(SqlAssignment.id == assignment_id, SqlAssignment.created_by == user["_id"])
@@ -408,18 +350,7 @@ def _eligible(assignment, user):
     )
 
 
-def _eligible_students(db, assignment):
-    query = db.query(SqlUser).filter(SqlUser.role == "student")
-    if assignment.target_course_id:
-        query = query.filter(SqlUser.course_id == assignment.target_course_id)
-    if assignment.target_batch_id:
-        query = query.filter(SqlUser.batch_id == assignment.target_batch_id)
-    if assignment.target_section_id:
-        query = query.filter(SqlUser.section_id == assignment.target_section_id)
-    return query.all()
-
-
-async def _eligible_students_async(db: AsyncSession, assignment):
+async def _eligible_students(db: AsyncSession, assignment):
     query = select(SqlUser).filter(SqlUser.role == "student")
     if assignment.target_course_id:
         query = query.filter(SqlUser.course_id == assignment.target_course_id)
@@ -430,32 +361,15 @@ async def _eligible_students_async(db: AsyncSession, assignment):
     return (await db.scalars(query)).all()
 
 
-def _evaluation_participants(db, assignment):
-    return db.query(SqlAssignmentEvaluationParticipant).filter_by(assignment_id=assignment.id).all()
-
-
-async def _evaluation_participants_async(db: AsyncSession, assignment):
+async def _evaluation_participants(db: AsyncSession, assignment):
     return (await db.scalars(select(SqlAssignmentEvaluationParticipant).filter_by(assignment_id=assignment.id))).all()
 
 
-def _assignment_students(db, assignment):
+async def _assignment_students(db: AsyncSession, assignment):
     """Use the live academic group until evaluation locks, then the frozen cohort."""
     if not assignment.evaluation_locked_at:
-        return _eligible_students(db, assignment)
-    participants = _evaluation_participants(db, assignment)
-    if not participants:
-        return []
-    ids = [row.student_id for row in participants]
-    students = db.query(SqlUser).filter(SqlUser.id.in_(ids)).all()
-    by_id = {row.id: row for row in students}
-    return [by_id[row.student_id] for row in participants if row.student_id in by_id]
-
-
-async def _assignment_students_async(db: AsyncSession, assignment):
-    """Async twin of `_assignment_students` — keep behavior identical."""
-    if not assignment.evaluation_locked_at:
-        return await _eligible_students_async(db, assignment)
-    participants = await _evaluation_participants_async(db, assignment)
+        return await _eligible_students(db, assignment)
+    participants = await _evaluation_participants(db, assignment)
     if not participants:
         return []
     ids = [row.student_id for row in participants]
@@ -473,32 +387,26 @@ async def _student_has_assignment_access(db: AsyncSession, assignment, user):
     return _eligible(assignment, user)
 
 
-def _submission_map(db, assignment_id):
-    return {row.student_id: row for row in db.query(SqlAssignmentSubmission).filter_by(assignment_id=assignment_id).all()}
-
-
-async def _submission_map_async(db: AsyncSession, assignment_id):
+async def _submission_map(db: AsyncSession, assignment_id):
     rows = (await db.scalars(select(SqlAssignmentSubmission).filter_by(assignment_id=assignment_id))).all()
     return {row.student_id: row for row in rows}
 
 
-def _lock_evaluation_cohort(db, assignment, *, actor_id=None, trigger: str, now=None):
-    """Freeze the current academic group and create deadline missing-zero drafts once.
-
-    Sync-only: called exclusively from `finalize_assignment_deadlines`, which
-    itself must stay sync (see the module docstring above). No route calls
-    this directly, so it needs no async twin."""
+async def _lock_evaluation_cohort(db: AsyncSession, assignment, *, actor_id=None, trigger: str, now=None):
+    """Freeze the current academic group and create deadline missing-zero drafts once."""
     now = now or _now()
     if assignment.evaluation_locked_at:
-        return _evaluation_participants(db, assignment)
-    students = _eligible_students(db, assignment)
-    submissions = _submission_map(db, assignment.id)
+        return await _evaluation_participants(db, assignment)
+    students = await _eligible_students(db, assignment)
+    submissions = await _submission_map(db, assignment.id)
     participants = []
     for student in students:
         submission = submissions.get(student.id)
         version_id = None
         if submission and submission.repository_url:
-            target = db.query(SqlAssignmentSubmissionVersion).filter_by(submission_id=submission.id, commit_sha=submission.latest_remote_sha).first()
+            target = (
+                await db.scalars(select(SqlAssignmentSubmissionVersion).filter_by(submission_id=submission.id, commit_sha=submission.latest_remote_sha))
+            ).first()
             version_id = target.id if target else submission.active_version_id
             submission.freeze_requested_at = now
             submission.freeze_reason = "deadline"
@@ -507,7 +415,9 @@ def _lock_evaluation_cohort(db, assignment, *, actor_id=None, trigger: str, now=
                 submission.frozen_version_id, submission.frozen_at, submission.active_version_id, submission.sync_status = target.id, now, target.id, "frozen"
             else:
                 submission.pending_version_id, submission.sync_status = version_id, "freeze_pending"
-        participant = db.query(SqlAssignmentEvaluationParticipant).filter_by(assignment_id=assignment.id, student_id=student.id).first()
+        participant = (
+            await db.scalars(select(SqlAssignmentEvaluationParticipant).filter_by(assignment_id=assignment.id, student_id=student.id))
+        ).first()
         if participant:
             participant.submission_version_id = participant.submission_version_id or version_id
             participant.status = "submitted" if participant.submission_version_id else "missing"
@@ -523,9 +433,9 @@ def _lock_evaluation_cohort(db, assignment, *, actor_id=None, trigger: str, now=
             db.add(participant)
         participants.append(participant)
         if trigger == "deadline" and not version_id:
-            grade = db.query(SqlAssignmentGrade).filter_by(assignment_id=assignment.id, student_id=student.id).first()
+            grade = (await db.scalars(select(SqlAssignmentGrade).filter_by(assignment_id=assignment.id, student_id=student.id))).first()
             if not grade:
-                rubric = _rubric(db, assignment.id)
+                rubric = await _rubric(db, assignment.id)
                 grade = SqlAssignmentGrade(
                     id=str(uuid.uuid4()),
                     assignment_id=assignment.id,
@@ -558,66 +468,15 @@ def _lock_evaluation_cohort(db, assignment, *, actor_id=None, trigger: str, now=
     return participants
 
 
-def _evaluation_workflow(db, assignment):
+async def _evaluation_workflow(db: AsyncSession, assignment):
     phase = _phase(assignment)
-    students = _assignment_students(db, assignment)
-    submissions = _submission_map(db, assignment.id)
+    students = await _assignment_students(db, assignment)
+    submissions = await _submission_map(db, assignment.id)
     submitted = sum(bool(submissions.get(student.id) and submissions[student.id].active_version_id) for student in students)
     total = len(students)
     all_submitted = bool(total) and submitted == total
     deadline_passed = phase == "closed"
-    participants = _evaluation_participants(db, assignment) if assignment.evaluation_locked_at else []
-    version_ids = [row.submission_version_id for row in participants if row.submission_version_id]
-    statuses = {}
-    if version_ids:
-        for row in db.query(SqlAssignmentSubmissionVersion).filter(SqlAssignmentSubmissionVersion.id.in_(version_ids)).all():
-            statuses[row.analysis_status] = statuses.get(row.analysis_status, 0) + 1
-    ready = statuses.get("ready", 0)
-    failed = statuses.get("failed", 0)
-    pending = len(version_ids) - ready - failed
-    if not assignment.evaluation_locked_at:
-        fetch_status = "eligible" if (all_submitted or deadline_passed) else "waiting_for_submissions"
-    elif not assignment.repository_fetch_started_at:
-        fetch_status = "not_started"
-    elif failed:
-        fetch_status = "failed"
-    elif pending:
-        fetch_status = "processing"
-    else:
-        fetch_status = "ready" if assignment.repository_fetch_completed_at else "processing"
-    return {
-        "eligible_count": total,
-        "submitted_count": submitted,
-        "missing_count": max(0, total - submitted),
-        "all_submitted": all_submitted,
-        "deadline_passed": deadline_passed,
-        "can_fetch": bool(total)
-        and not assignment.repository_fetch_completed_at
-        and (
-            (not assignment.evaluation_locked_at and (all_submitted or deadline_passed))
-            or (assignment.evaluation_locked_at and (not assignment.repository_fetch_started_at or failed))
-        ),
-        "can_evaluate": bool(assignment.repository_fetch_completed_at and not failed and not pending),
-        "fetch_status": fetch_status,
-        "ready_count": ready,
-        "failed_count": failed,
-        "pending_count": pending,
-        "roster_locked": bool(assignment.evaluation_locked_at),
-        "lock_trigger": assignment.evaluation_lock_trigger,
-        "repository_fetch_started_at": assignment.repository_fetch_started_at,
-        "repository_fetch_completed_at": assignment.repository_fetch_completed_at,
-    }
-
-
-async def _evaluation_workflow_async(db: AsyncSession, assignment):
-    phase = _phase(assignment)
-    students = await _assignment_students_async(db, assignment)
-    submissions = await _submission_map_async(db, assignment.id)
-    submitted = sum(bool(submissions.get(student.id) and submissions[student.id].active_version_id) for student in students)
-    total = len(students)
-    all_submitted = bool(total) and submitted == total
-    deadline_passed = phase == "closed"
-    participants = await _evaluation_participants_async(db, assignment) if assignment.evaluation_locked_at else []
+    participants = await _evaluation_participants(db, assignment) if assignment.evaluation_locked_at else []
     version_ids = [row.submission_version_id for row in participants if row.submission_version_id]
     statuses = {}
     if version_ids:
@@ -660,28 +519,7 @@ async def _evaluation_workflow_async(db: AsyncSession, assignment):
     }
 
 
-def _assert_evaluation_allowed(db, assignment, student_id=None):
-    if student_id:
-        submission = db.query(SqlAssignmentSubmission).filter_by(assignment_id=assignment.id, student_id=student_id).first()
-        if not submission or not submission.frozen_version_id:
-            raise HTTPException(409, "Start evaluation and wait for the frozen repository snapshot")
-        version = db.query(SqlAssignmentSubmissionVersion).filter_by(id=submission.frozen_version_id).first()
-        if not version or version.analysis_status != "ready":
-            raise HTTPException(409, "Wait for the frozen repository snapshot to finish processing")
-        return {"can_evaluate": True, "version_id": version.id}
-    workflow = _evaluation_workflow(db, assignment)
-    if workflow["can_evaluate"]:
-        return workflow
-    if not workflow["all_submitted"] and not workflow["deadline_passed"]:
-        raise HTTPException(409, f"Evaluation opens after all {workflow['eligible_count']} students submit or after the deadline")
-    if not workflow["roster_locked"]:
-        raise HTTPException(409, "Fetch all repositories to lock the evaluation cohort")
-    if workflow["fetch_status"] == "failed":
-        raise HTTPException(409, "Retry failed repository fetches before evaluation")
-    raise HTTPException(409, "Wait for every repository fetch and analysis to finish before evaluation")
-
-
-async def _assert_evaluation_allowed_async(db: AsyncSession, assignment, student_id=None):
+async def _assert_evaluation_allowed(db: AsyncSession, assignment, student_id=None):
     if student_id:
         submission = (await db.scalars(select(SqlAssignmentSubmission).filter_by(assignment_id=assignment.id, student_id=student_id))).first()
         if not submission or not submission.frozen_version_id:
@@ -690,7 +528,7 @@ async def _assert_evaluation_allowed_async(db: AsyncSession, assignment, student
         if not version or version.analysis_status != "ready":
             raise HTTPException(409, "Wait for the frozen repository snapshot to finish processing")
         return {"can_evaluate": True, "version_id": version.id}
-    workflow = await _evaluation_workflow_async(db, assignment)
+    workflow = await _evaluation_workflow(db, assignment)
     if workflow["can_evaluate"]:
         return workflow
     if not workflow["all_submitted"] and not workflow["deadline_passed"]:
@@ -727,53 +565,8 @@ def _overdue_ungraded_submission_count(assignment, submitted_student_ids, graded
     return len(set(submitted_student_ids) - set(graded_student_ids))
 
 
-def _assignment_stats(db, assignment):
-    eligible = _assignment_students(db, assignment)
-    eligible_ids = [student.id for student in eligible]
-    submissions = db.query(SqlAssignmentSubmission).filter_by(assignment_id=assignment.id).all()
-    submitted_ids = {submission.student_id for submission in submissions if submission.student_id in eligible_ids and _submission_has_content(submission)}
-    submission_count = len(submitted_ids)
-    grades = [grade for grade in db.query(SqlAssignmentGrade).filter_by(assignment_id=assignment.id).all() if grade.student_id in eligible_ids]
-    graded_ids = {grade.student_id for grade in grades}
-    published_count = sum(grade.status == "published" for grade in grades)
-    phase = _phase(assignment)
-    deadline_passed = phase == "closed"
-    overdue_ungraded_count = _overdue_ungraded_submission_count(
-        assignment,
-        submitted_ids,
-        graded_ids,
-    )
-    if assignment.status == "archived":
-        workflow = "archived"
-    elif phase in {"scheduled", "open"}:
-        workflow = phase
-    elif eligible_ids and published_count >= len(eligible_ids):
-        workflow = "completed"
-    elif published_count:
-        workflow = "results_partial"
-    else:
-        workflow = "awaiting_grading"
-    return {
-        "eligible_count": len(eligible),
-        "submission_count": submission_count,
-        "pending_submission_count": max(0, len(eligible_ids) - submission_count) if not deadline_passed else 0,
-        "closed_eligible_count": len(eligible_ids) if deadline_passed else 0,
-        "missed_count": max(0, len(eligible_ids) - submission_count) if deadline_passed else 0,
-        "submission_rate": round((submission_count / len(eligible_ids)) * 100, 2) if deadline_passed and eligible_ids else None,
-        "missed_rate": round(((len(eligible_ids) - submission_count) / len(eligible_ids)) * 100, 2) if deadline_passed and eligible_ids else None,
-        "graded_count": len(grades),
-        "published_grade_count": published_count,
-        "pending_grade_count": max(0, len(submitted_ids - graded_ids)) if deadline_passed else 0,
-        "evaluation_overdue": overdue_ungraded_count > 0,
-        "overdue_ungraded_submission_count": overdue_ungraded_count,
-        "workflow_status": workflow,
-        "edit_allowed": submission_count == 0,
-        "teacher_delete_allowed": submission_count == 0,
-    }
-
-
-async def _assignment_stats_async(db: AsyncSession, assignment):
-    eligible = await _assignment_students_async(db, assignment)
+async def _assignment_stats(db: AsyncSession, assignment):
+    eligible = await _assignment_students(db, assignment)
     eligible_ids = [student.id for student in eligible]
     submissions = (await db.scalars(select(SqlAssignmentSubmission).filter_by(assignment_id=assignment.id))).all()
     submitted_ids = {submission.student_id for submission in submissions if submission.student_id in eligible_ids and _submission_has_content(submission)}
@@ -819,8 +612,8 @@ async def _assignment_stats_async(db: AsyncSession, assignment):
 
 
 async def _notify_assignment_published(db: AsyncSession, assignment):
-    for student in await _eligible_students_async(db, assignment):
-        await _notification_async(
+    for student in await _eligible_students(db, assignment):
+        await _notification(
             db,
             student.id,
             "New assignment",
@@ -831,8 +624,8 @@ async def _notify_assignment_published(db: AsyncSession, assignment):
 
 
 async def _notify_assignment_updated(db: AsyncSession, assignment):
-    for student in await _eligible_students_async(db, assignment):
-        await _notification_async(
+    for student in await _eligible_students(db, assignment):
+        await _notification(
             db,
             student.id,
             "Assignment updated",
@@ -865,7 +658,7 @@ async def _teacher_dashboard_summary(db: AsyncSession, teacher, items):
                 course_ids.add(course_id)
             assignment = (await db.scalars(select(SqlAssignment).filter_by(id=item["id"]))).first()
             if assignment:
-                student_ids.update(student.id for student in await _eligible_students_async(db, assignment))
+                student_ids.update(student.id for student in await _eligible_students(db, assignment))
     return {
         "assignment_count": len(items),
         "active_assignment_count": sum(item["workflow_status"] in {"scheduled", "open", "awaiting_grading", "results_partial"} for item in items),
@@ -948,6 +741,27 @@ def _assignment_payload(assignment, body):
     assignment.allow_late, assignment.late_until = False, None
 
 
+async def _analysis_state(db: AsyncSession, version):
+    """Repository analysis status for the student/teacher UI, with retry info from the worker job."""
+    if version is None:
+        return None
+    state = {"version_id": version.id, "commit_sha": version.commit_sha, "status": version.analysis_status}
+    if version.analysis_status != "ready":
+        job = (
+            await db.scalars(
+                select(Job).where(Job.type == ANALYZE_JOB_TYPE, Job.payload["version_id"].as_string() == version.id).order_by(Job.id.desc()).limit(1)
+            )
+        ).first()
+        if job:
+            state.update(
+                job_status=job.status,
+                attempt=job.attempts,
+                max_attempts=job.max_attempts,
+                retry_at=_utc_response(job.run_after) if job.status == "failed" else None,
+            )
+    return state
+
+
 async def _submission_payload(db: AsyncSession, assignment, student_id, *, include_analysis=False):
     submission = (await db.scalars(select(SqlAssignmentSubmission).filter_by(assignment_id=assignment.id, student_id=student_id))).first()
     grade = (await db.scalars(select(SqlAssignmentGrade).filter_by(assignment_id=assignment.id, student_id=student_id))).first()
@@ -966,6 +780,8 @@ async def _submission_payload(db: AsyncSession, assignment, student_id, *, inclu
     repository_owner = (submission.repository_owner if submission else None) or (version.repository_owner if version else None)
     repository_name = (submission.repository_name if submission else None) or (version.repository_name if version else None)
     default_branch = (submission.default_branch if submission else None) or (version.default_branch if version else None)
+    pending_version = next((item for item in versions if submission and item.id == submission.pending_version_id), None)
+    analysis = await _analysis_state(db, pending_version or version)
     lock_reason = None
     if assignment.evaluation_locked_at:
         lock_reason = "evaluation_started"
@@ -992,6 +808,7 @@ async def _submission_payload(db: AsyncSession, assignment, student_id, *, inclu
         "repository": None
         if not repository_url
         else {"url": repository_url, "owner": repository_owner, "name": repository_name, "default_branch": default_branch, "immutable": True},
+        "analysis": analysis,
         "sync_state": None
         if not submission
         else {
@@ -1194,7 +1011,7 @@ async def create_assignment(
 
 @router.get("/teacher/{assignment_id}")
 async def teacher_assignment_detail(assignment_id: str, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)):
-    return {"assignment": await _serialize_assignment(db, await _teacher_assignment_async(db, assignment_id, teacher))}
+    return {"assignment": await _serialize_assignment(db, await _teacher_assignment(db, assignment_id, teacher))}
 
 
 @router.put("/teacher/{assignment_id}")
@@ -1220,7 +1037,7 @@ async def update_assignment(
 
 @router.delete("/teacher/{assignment_id}")
 async def delete_or_archive_assignment(assignment_id: str, request: Request, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)):
-    row = await _teacher_assignment_async(db, assignment_id, teacher, lock=True)
+    row = await _teacher_assignment(db, assignment_id, teacher, lock=True)
     if await _assignment_has_submission_content(db, row.id):
         raise HTTPException(409, "Only an administrator can delete an assignment after a student submits")
     keys = [item.storage_key for item in await _resources(db, row.id) if item.storage_key]
@@ -1245,7 +1062,7 @@ async def upload_attachment(
     if file.content_type not in ALLOWED_ATTACHMENT_TYPES:
         raise HTTPException(400, "Unsupported attachment type")
     storage = get_assignment_storage()
-    row = await _teacher_assignment_async(db, assignment_id, teacher, lock=True)
+    row = await _teacher_assignment(db, assignment_id, teacher, lock=True)
     if await _assignment_has_submission_content(db, row.id):
         raise HTTPException(409, "Resources are locked after the first submission")
     attachment_count = await db.scalar(select(func.count(SqlAssignmentResource.id)).filter_by(assignment_id=row.id, kind="attachment"))
@@ -1273,7 +1090,7 @@ async def upload_attachment(
 
 @router.delete("/teacher/{assignment_id}/attachments/{resource_id}")
 async def delete_attachment(assignment_id: str, resource_id: str, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)):
-    row = await _teacher_assignment_async(db, assignment_id, teacher, lock=True)
+    row = await _teacher_assignment(db, assignment_id, teacher, lock=True)
     if await _assignment_has_submission_content(db, row.id):
         raise HTTPException(409, "Resources are locked after the first submission")
     resource = (await db.scalars(select(SqlAssignmentResource).filter_by(id=resource_id, assignment_id=row.id, kind="attachment"))).first()
@@ -1346,7 +1163,6 @@ async def submit_repository(
     assignment_id: str,
     body: RepositorySubmitRequest,
     request: Request,
-    background_tasks: BackgroundTasks,
     student=Depends(require_roles("student")),
     db: AsyncSession = Depends(db_session),
 ):
@@ -1429,7 +1245,7 @@ async def submit_repository(
         )
         existing_grade.evaluation_metadata = None
         existing_grade.revision += 1
-    await _notification_async(
+    await _notification(
         db,
         assignment.created_by,
         "Repository awaiting analysis",
@@ -1437,6 +1253,7 @@ async def submit_repository(
         action_url=f"/assignments/{assignment.id}/review",
         dedupe_key=f"assignment-repository-submitted:{version.id}",
     )
+    await jobs.enqueue(db, ANALYZE_JOB_TYPE, {"version_id": version.id}, max_attempts=4)
     try:
         await db.commit()
     except IntegrityError as exc:
@@ -1450,14 +1267,11 @@ async def submit_repository(
         {"assignment_id": assignment.id, "commit_sha": version.commit_sha},
         request.client.host if request.client else None,
     )
-    enqueue_repository_analysis(version.id, background_tasks)
     return {"message": "Repository linked and initial synchronization started", "submission": await _submission_payload(db, assignment, student["_id"])}
 
 
 @router.post("/student/{assignment_id}/repository/sync")
-async def sync_student_repository(
-    assignment_id: str, background_tasks: BackgroundTasks, student=Depends(require_roles("student")), db: AsyncSession = Depends(db_session)
-):
+async def sync_student_repository(assignment_id: str, student=Depends(require_roles("student")), db: AsyncSession = Depends(db_session)):
     assignment = await _student_assignment(db, assignment_id, student)
     submission = (await db.scalars(select(SqlAssignmentSubmission).filter_by(assignment_id=assignment.id, student_id=student["_id"]))).first()
     if not submission:
@@ -1480,7 +1294,7 @@ async def sync_student_repository(
     if submission.last_sync_checked_at and (_now() - submission.last_sync_checked_at).total_seconds() < 30:
         raise HTTPException(429, "Wait 30 seconds before checking again")
     submission_id = submission.id
-    result = await sync_submission_repository(db, submission_id, source="student", force=True, background_tasks=background_tasks)
+    result = await sync_submission_repository(db, submission_id, source="student", force=True)
     return {"message": "Repository check completed", "sync": result}
 
 
@@ -1517,7 +1331,7 @@ async def student_repository_file(assignment_id: str, path: str, student=Depends
 
 @router.get("/teacher/{assignment_id}/roster")
 async def assignment_roster(assignment_id: str, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)):
-    assignment = await _teacher_assignment_async(db, assignment_id, teacher)
+    assignment = await _teacher_assignment(db, assignment_id, teacher)
     return await _assignment_roster_payload(db, assignment)
 
 
@@ -1525,7 +1339,7 @@ async def assignment_roster(assignment_id: str, teacher=Depends(require_roles("t
 async def start_student_evaluation(
     assignment_id: str, student_id: str, request: Request, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)
 ):
-    assignment = await _teacher_assignment_async(db, assignment_id, teacher)
+    assignment = await _teacher_assignment(db, assignment_id, teacher)
     submission = (await db.scalars(select(SqlAssignmentSubmission).filter_by(assignment_id=assignment.id, student_id=student_id).with_for_update())).first()
     if not submission or not submission.repository_url:
         raise HTTPException(409, "Student has no repository submission")
@@ -1573,7 +1387,7 @@ async def reset_student_repository(
     teacher=Depends(require_roles("teacher")),
     db: AsyncSession = Depends(db_session),
 ):
-    assignment = await _teacher_assignment_async(db, assignment_id, teacher)
+    assignment = await _teacher_assignment(db, assignment_id, teacher)
     if _phase(assignment) != "open":
         raise HTTPException(409, "Repository links cannot be reset after the deadline")
     submission = (await db.scalars(select(SqlAssignmentSubmission).filter_by(assignment_id=assignment.id, student_id=student_id).with_for_update())).first()
@@ -1603,7 +1417,7 @@ async def reset_student_repository(
         setattr(submission, field, None)
     submission.sync_failure_count, submission.sync_status, submission.status = 0, "unlinked", "reset"
     await db.commit()
-    await _notification_async(
+    await _notification(
         db,
         student_id,
         "Repository link reset",
@@ -1623,22 +1437,19 @@ async def reset_student_repository(
 
 
 @router.post("/teacher/{assignment_id}/repositories/fetch-all")
-async def fetch_all_assignment_repositories(
-    assignment_id: str, background_tasks: BackgroundTasks, request: Request, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)
-):
-    del background_tasks, request
+async def fetch_all_assignment_repositories(assignment_id: str, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)):
     assignment = (await db.scalars(select(SqlAssignment).filter(SqlAssignment.id == assignment_id, SqlAssignment.created_by == teacher["_id"]))).first()
     if not assignment:
         raise HTTPException(404, "Assignment not found")
     return {
         "message": "Repository synchronization is automatic and student-owned",
         "deprecated": True,
-        "evaluation_workflow": await _evaluation_workflow_async(db, assignment),
+        "evaluation_workflow": await _evaluation_workflow(db, assignment),
     }
 
 
 async def _assignment_roster_payload(db: AsyncSession, assignment):
-    students = sorted(await _assignment_students_async(db, assignment), key=lambda item: item.name or "")
+    students = sorted(await _assignment_students(db, assignment), key=lambda item: item.name or "")
     rows = []
     for student in students:
         payload = await _submission_payload(db, assignment, student.id, include_analysis=True)
@@ -1696,7 +1507,7 @@ async def _assignment_roster_payload(db: AsyncSession, assignment):
         key=lambda flag: flag["similarity"],
         reverse=True,
     )
-    stats = await _assignment_stats_async(db, assignment)
+    stats = await _assignment_stats(db, assignment)
     scored = [row for row in rows if row["grade"] and not row["grade"]["is_missing"]]
     missed_rows = [row for row in rows if row["grade"] and row["grade"]["is_missing"]]
     known_total = sum(float(row["grade"]["total_awarded"]) for row in scored)
@@ -1734,7 +1545,7 @@ async def _assignment_roster_payload(db: AsyncSession, assignment):
     )
     return {
         "assignment": assignment_payload,
-        "evaluation_workflow": await _evaluation_workflow_async(db, assignment),
+        "evaluation_workflow": await _evaluation_workflow(db, assignment),
         "roster": rows,
         "duplicate_flags": serialized_flags,
         "similarity_flags": similarity_flags,
@@ -1756,7 +1567,7 @@ async def _version_for_assignment(db: AsyncSession, assignment, version_id):
 
 @router.get("/teacher/{assignment_id}/repository/{version_id}")
 async def repository_detail(assignment_id: str, version_id: str, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)):
-    assignment = await _teacher_assignment_async(db, assignment_id, teacher)
+    assignment = await _teacher_assignment(db, assignment_id, teacher)
     version = await _version_for_assignment(db, assignment, version_id)
     manifest = json.loads(get_assignment_storage().get_bytes(version.manifest_key)) if version.manifest_key and version.analysis_status == "ready" else []
     return {"version": _serialize_version(version), "manifest": manifest}
@@ -1764,7 +1575,7 @@ async def repository_detail(assignment_id: str, version_id: str, teacher=Depends
 
 @router.get("/teacher/{assignment_id}/repository/{version_id}/file")
 async def repository_file(assignment_id: str, version_id: str, path: str, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)):
-    assignment = await _teacher_assignment_async(db, assignment_id, teacher)
+    assignment = await _teacher_assignment(db, assignment_id, teacher)
     version = await _version_for_assignment(db, assignment, version_id)
     try:
         data, content_type = read_repository_file(version, path)
@@ -1785,18 +1596,7 @@ def _decode_external_batch(token, secret_key):
     return payload
 
 
-def _external_duplicate_flags(db, assignment_id, version_id):
-    return (
-        db.query(SqlAssignmentDuplicateFlag)
-        .filter(
-            SqlAssignmentDuplicateFlag.assignment_id == assignment_id,
-            (SqlAssignmentDuplicateFlag.left_version_id == version_id) | (SqlAssignmentDuplicateFlag.right_version_id == version_id),
-        )
-        .all()
-    )
-
-
-async def _external_duplicate_flags_async(db: AsyncSession, assignment_id, version_id):
+async def _external_duplicate_flags(db: AsyncSession, assignment_id, version_id):
     return (
         await db.scalars(
             select(SqlAssignmentDuplicateFlag).filter(
@@ -1807,21 +1607,12 @@ async def _external_duplicate_flags_async(db: AsyncSession, assignment_id, versi
     ).all()
 
 
-def _similarity_mark_limit(db, assignment, version_id):
-    if not version_id:
-        return float(assignment.total_marks), False, False
-    flags = [flag for flag in _external_duplicate_flags(db, assignment.id, version_id) if flag.flag_type == "code_similarity" and float(flag.similarity) > 0.70]
-    system_limited = bool(flags)
-    limit = float(assignment.total_marks) / 2 if system_limited else float(assignment.total_marks)
-    return limit, system_limited, False
-
-
-async def _similarity_mark_limit_async(db: AsyncSession, assignment, version_id):
+async def _similarity_mark_limit(db: AsyncSession, assignment, version_id):
     if not version_id:
         return float(assignment.total_marks), False, False
     flags = [
         flag
-        for flag in await _external_duplicate_flags_async(db, assignment.id, version_id)
+        for flag in await _external_duplicate_flags(db, assignment.id, version_id)
         if flag.flag_type == "code_similarity" and float(flag.similarity) > 0.70
     ]
     system_limited = bool(flags)
@@ -1860,10 +1651,10 @@ def _automatic_zero_rubric_feedback(rubric, reason):
 
 @router.post("/teacher/{assignment_id}/external-evaluation/export")
 async def export_external_evaluation(assignment_id: str, request: Request, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)):
-    assignment = await _teacher_assignment_async(db, assignment_id, teacher)
-    await _assert_evaluation_allowed_async(db, assignment)
-    rubric = await _rubric_async(db, assignment.id)
-    students = sorted(await _assignment_students_async(db, assignment), key=lambda row: ((row.name or "").casefold(), row.id))
+    assignment = await _teacher_assignment(db, assignment_id, teacher)
+    await _assert_evaluation_allowed(db, assignment)
+    rubric = await _rubric(db, assignment.id)
+    students = sorted(await _assignment_students(db, assignment), key=lambda row: ((row.name or "").casefold(), row.id))
     submissions = {row.student_id: row for row in (await db.scalars(select(SqlAssignmentSubmission).filter_by(assignment_id=assignment.id))).all()}
     flags = (await db.scalars(select(SqlAssignmentDuplicateFlag).filter_by(assignment_id=assignment.id))).all()
     version_students = {}
@@ -2011,7 +1802,7 @@ async def _validate_external_result(db: AsyncSession, assignment, teacher_id, to
         or result.get("batch_number") != batch.get("batch_number")
     ):
         raise HTTPException(400, "AI response identifiers do not match the evaluation batch")
-    rubric = await _rubric_async(db, assignment.id)
+    rubric = await _rubric(db, assignment.id)
     if batch.get("rubric_digest") != rubric_digest(rubric):
         raise HTTPException(409, "The assignment rubric changed. Generate a new export")
     expected = {row["student_id"]: row for row in batch.get("students") or []}
@@ -2065,14 +1856,14 @@ async def _validate_external_result(db: AsyncSession, assignment, teacher_id, to
             raise HTTPException(400, f"Total is invalid for student {student_id}") from exc
         if abs(total - returned_total) > 0.01:
             raise HTTPException(400, f"Total does not match rubric scores for student {student_id}")
-        mark_limit, similarity_limited, _ = await _similarity_mark_limit_async(db, assignment, frozen["submission_version_id"])
+        mark_limit, similarity_limited, _ = await _similarity_mark_limit(db, assignment, frozen["submission_version_id"])
         if total > mark_limit + 0.001:
             raise HTTPException(400, f"Marks for student {student_id} exceed the automatic similarity limit of {mark_limit:g}")
         duplicate_review = result_row.get("duplicate_review") or {}
         status = duplicate_review.get("status", "none")
         if status not in {"none", "exact_match", "high_similarity"}:
             raise HTTPException(400, f"Duplicate status is invalid for student {student_id}")
-        server_flags = await _external_duplicate_flags_async(db, assignment.id, frozen["submission_version_id"])
+        server_flags = await _external_duplicate_flags(db, assignment.id, frozen["submission_version_id"])
         exact_ids = [flag.id for flag in server_flags if flag.flag_type in {"same_repository", "same_commit", "identical_content"}]
         if status == "exact_match" and not exact_ids:
             raise HTTPException(400, f"Exact duplicate claim is not supported for student {student_id}")
@@ -2140,8 +1931,8 @@ async def validate_external_evaluation(
     teacher=Depends(require_roles("teacher")),
     db: AsyncSession = Depends(db_session),
 ):
-    assignment = await _teacher_assignment_async(db, assignment_id, teacher)
-    await _assert_evaluation_allowed_async(db, assignment)
+    assignment = await _teacher_assignment(db, assignment_id, teacher)
+    await _assert_evaluation_allowed(db, assignment)
     batch, students = await _validate_external_result(db, assignment, teacher["_id"], body.batch_token, body.result, request.app.state.secret_key)
     return {"valid": True, "export_id": batch["export_id"], "batch_number": batch["batch_number"], "batch_count": batch["batch_count"], "students": students}
 
@@ -2150,10 +1941,10 @@ async def validate_external_evaluation(
 async def save_external_evaluations(
     assignment_id: str, body: BulkExternalGradeInput, request: Request, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)
 ):
-    assignment = await _teacher_assignment_async(db, assignment_id, teacher, lock=True)
-    rubric = await _rubric_async(db, assignment.id)
+    assignment = await _teacher_assignment(db, assignment_id, teacher, lock=True)
+    rubric = await _rubric(db, assignment.id)
     try:
-        await _assert_evaluation_allowed_async(db, assignment)
+        await _assert_evaluation_allowed(db, assignment)
         maximums = {row.id: float(row.max_marks) for row in rubric}
         digest = rubric_digest(rubric)
         decoded = [_decode_external_batch(row.batch_token, request.app.state.secret_key) for row in body.students]
@@ -2186,10 +1977,10 @@ async def save_external_evaluations(
             if set(row.rubric_scores) != set(maximums) or any(value < 0 or value > maximums[key] for key, value in row.rubric_scores.items()):
                 raise HTTPException(400, "Imported rubric scores are invalid")
             rubric_feedback = _normalize_rubric_feedback(row.rubric_feedback, maximums, student_label=f"student {student_id}")
-            mark_limit, similarity_limited, _ = await _similarity_mark_limit_async(db, assignment, row.submission_version_id)
+            mark_limit, similarity_limited, _ = await _similarity_mark_limit(db, assignment, row.submission_version_id)
             if sum(row.rubric_scores.values()) > mark_limit + 0.001:
                 raise HTTPException(400, f"Evaluation exceeds the automatic similarity limit of {mark_limit:g}")
-            server_flags = await _external_duplicate_flags_async(db, assignment.id, row.submission_version_id)
+            server_flags = await _external_duplicate_flags(db, assignment.id, row.submission_version_id)
             exact_ids = {flag.id for flag in server_flags if flag.flag_type in {"same_repository", "same_commit", "identical_content"}}
             referenced = set(row.duplicate_flag_ids)
             if not referenced.issubset({flag.id for flag in server_flags}):
@@ -2267,9 +2058,9 @@ async def save_grade(
     teacher=Depends(require_user(Permission.ASSIGNMENT_GRADE)),
     db: AsyncSession = Depends(db_session),
 ):
-    assignment = await _teacher_assignment_async(db, assignment_id, teacher, lock=True)
-    rubric = await _rubric_async(db, assignment.id)
-    await _assert_evaluation_allowed_async(db, assignment, student_id)
+    assignment = await _teacher_assignment(db, assignment_id, teacher, lock=True)
+    rubric = await _rubric(db, assignment.id)
+    await _assert_evaluation_allowed(db, assignment, student_id)
     student = (await db.scalars(select(SqlUser).filter_by(id=student_id, role="student"))).first()
     if not student:
         raise HTTPException(404, "Student not found")
@@ -2287,7 +2078,7 @@ async def save_grade(
         else _normalize_rubric_feedback(body.rubric_feedback, valid_ids, student_label=student.name)
     )
     total = 0 if body.missing else sum(body.rubric_scores.values())
-    mark_limit, similarity_limited, _ = await _similarity_mark_limit_async(db, assignment, submission.frozen_version_id if submission else None)
+    mark_limit, similarity_limited, _ = await _similarity_mark_limit(db, assignment, submission.frozen_version_id if submission else None)
     if not body.missing and total > mark_limit + 0.001:
         raise HTTPException(400, f"Marks cannot exceed {mark_limit:g} after system-detected code similarity above 70%")
     grade = (await db.scalars(select(SqlAssignmentGrade).filter_by(assignment_id=assignment.id, student_id=student_id).with_for_update())).first()
@@ -2328,59 +2119,28 @@ async def save_grade(
     return {"message": "Grade saved", "grade": _serialize_grade(grade)}
 
 
-def _publish_grade(db, assignment, grade, actor_id):
+async def _publish_grade(db: AsyncSession, assignment, grade, actor_id):
     if not grade.is_missing:
-        _assert_evaluation_allowed(db, assignment)
+        await _assert_evaluation_allowed(db, assignment)
     if not _closed(assignment):
         raise HTTPException(409, "Grades can be published only after the submission window closes")
     if grade.status != "draft":
         raise HTTPException(409, "Only saved evaluations can be published")
-    rubric_ids = {item.id for item in _rubric(db, assignment.id)}
-    _normalize_rubric_feedback((grade.evaluation_metadata or {}).get("rubric_feedback"), rubric_ids, student_label="this student")
-    mark_limit, _similarity_limited, _ = _similarity_mark_limit(db, assignment, grade.submission_version_id)
-    if not grade.is_missing and grade.total_awarded > mark_limit + 0.001:
-        raise HTTPException(409, f"Grade exceeds the automatic similarity limit of {mark_limit:g}")
-    grade.status, grade.published_at, grade.withdrawn_at, grade.withdrawal_reason = "published", _now(), None, None
-    grade.revision += 1
-    db.add(SqlAssignmentGradeRevision(id=str(uuid.uuid4()), grade_id=grade.id, action="published", snapshot=_snapshot_grade(grade), actor_id=actor_id))
-    _notification(db, grade.student_id, "Assignment grade published", f"Your grade for {assignment.title} is now available.")
-
-
-async def _publish_grade_async(db: AsyncSession, assignment, grade, actor_id):
-    if not grade.is_missing:
-        await _assert_evaluation_allowed_async(db, assignment)
-    if not _closed(assignment):
-        raise HTTPException(409, "Grades can be published only after the submission window closes")
-    if grade.status != "draft":
-        raise HTTPException(409, "Only saved evaluations can be published")
-    rubric_rows = await _rubric_async(db, assignment.id)
+    rubric_rows = await _rubric(db, assignment.id)
     rubric_ids = {item.id for item in rubric_rows}
     _normalize_rubric_feedback((grade.evaluation_metadata or {}).get("rubric_feedback"), rubric_ids, student_label="this student")
-    mark_limit, _similarity_limited, _ = await _similarity_mark_limit_async(db, assignment, grade.submission_version_id)
+    mark_limit, _similarity_limited, _ = await _similarity_mark_limit(db, assignment, grade.submission_version_id)
     if not grade.is_missing and grade.total_awarded > mark_limit + 0.001:
         raise HTTPException(409, f"Grade exceeds the automatic similarity limit of {mark_limit:g}")
     grade.status, grade.published_at, grade.withdrawn_at, grade.withdrawal_reason = "published", _now(), None, None
     grade.revision += 1
     db.add(SqlAssignmentGradeRevision(id=str(uuid.uuid4()), grade_id=grade.id, action="published", snapshot=_snapshot_grade(grade), actor_id=actor_id))
-    await _notification_async(db, grade.student_id, "Assignment grade published", f"Your grade for {assignment.title} is now available.")
+    await _notification(db, grade.student_id, "Assignment grade published", f"Your grade for {assignment.title} is now available.")
 
 
-def _refresh_assignment_completion(db, assignment, actor_id=None):
-    # The historical sync session disabled autoflush; publication state must reach the database
-    # before the completion query checks whether every eligible grade is public.
-    db.flush()
-    eligible_ids = [student.id for student in _assignment_students(db, assignment)]
-    published_ids = {row.student_id for row in db.query(SqlAssignmentGrade).filter_by(assignment_id=assignment.id, status="published").all()}
-    if eligible_ids and set(eligible_ids).issubset(published_ids):
-        assignment.results_published_at = assignment.results_published_at or _now()
-        assignment.results_published_by = actor_id if actor_id and actor_id != "system" else None
-    else:
-        assignment.results_published_at, assignment.results_published_by = None, None
-
-
-async def _refresh_assignment_completion_async(db: AsyncSession, assignment, actor_id=None):
+async def _refresh_assignment_completion(db: AsyncSession, assignment, actor_id=None):
     await db.flush()
-    eligible_ids = [student.id for student in await _assignment_students_async(db, assignment)]
+    eligible_ids = [student.id for student in await _assignment_students(db, assignment)]
     published_rows = (await db.scalars(select(SqlAssignmentGrade).filter_by(assignment_id=assignment.id, status="published"))).all()
     published_ids = {row.student_id for row in published_rows}
     if eligible_ids and set(eligible_ids).issubset(published_ids):
@@ -2390,32 +2150,30 @@ async def _refresh_assignment_completion_async(db: AsyncSession, assignment, act
         assignment.results_published_at, assignment.results_published_by = None, None
 
 
-def finalize_assignment_deadlines(db, now=None):
+async def finalize_assignment_deadlines(db: AsyncSession, now=None):
     """Create frozen deadline cohorts and private missing-zero evaluations exactly once.
 
-    Sync-only, unchanged: called only from `publish_ready_assignment_results`,
-    which itself is called synchronously from `app.py`'s lifespan scheduler
-    (via `asyncio.to_thread`) and directly with a sync `Session` by the
-    Docker-gated concurrency tests in `tests/test_audit_fixes.py`. See the
-    module docstring above."""
+    Runs on the worker (see `publish_ready_assignment_results`)."""
     now = now or _now()
     finalized = []
     rows = (
-        db.query(SqlAssignment)
-        .filter(
-            SqlAssignment.status == "published",
-            SqlAssignment.due_at.is_not(None),
-            SqlAssignment.due_at <= now,
-            SqlAssignment.evaluation_locked_at.is_(None),
+        await db.scalars(
+            select(SqlAssignment)
+            .filter(
+                SqlAssignment.status == "published",
+                SqlAssignment.due_at.is_not(None),
+                SqlAssignment.due_at <= now,
+                SqlAssignment.evaluation_locked_at.is_(None),
+            )
+            .order_by(SqlAssignment.id)
+            .with_for_update(skip_locked=True)
         )
-        .order_by(SqlAssignment.id)
-        .with_for_update(skip_locked=True)
-        .all()
-    )
+    ).all()
     for assignment in rows:
-        _lock_evaluation_cohort(db, assignment, actor_id=None, trigger="deadline", now=now)
-        missing = sum(1 for row in _evaluation_participants(db, assignment) if row.status == "missing")
-        _notification(
+        await _lock_evaluation_cohort(db, assignment, actor_id=None, trigger="deadline", now=now)
+        participants = await _evaluation_participants(db, assignment)
+        missing = sum(1 for row in participants if row.status == "missing")
+        await _notification(
             db,
             assignment.created_by,
             "Assignment deadline reached",
@@ -2428,30 +2186,28 @@ def finalize_assignment_deadlines(db, now=None):
     return finalized
 
 
-def publish_ready_assignment_results(db, now=None):
-    """Sync-only, unchanged. Called via `asyncio.to_thread` from `app.py`'s
-    lifespan scheduler and directly through an async-session compatibility bridge by the
-    Docker-gated `test_concurrent_scheduled_publishers_release_an_assignment_once`
-    in `tests/test_audit_fixes.py`. Do not convert to async or change its
-    signature without updating both of those callers."""
+async def publish_ready_assignment_results(db: AsyncSession, now=None):
+    """Finalize deadlines and release scheduled results. Called by the worker's periodic task
+    and by the concurrency tests; row locks (`skip_locked`) make concurrent runs release once."""
     now = now or _now()
     released = []
-    finalized = finalize_assignment_deadlines(db, now)
+    finalized = await finalize_assignment_deadlines(db, now)
     rows = (
-        db.query(SqlAssignment)
-        .filter(
-            SqlAssignment.status == "published",
-            SqlAssignment.result_release_mode == "scheduled",
-            SqlAssignment.results_published_at.is_(None),
-            SqlAssignment.due_at.is_not(None),
-            SqlAssignment.due_at <= now,
-            SqlAssignment.result_release_at.is_not(None),
-            SqlAssignment.result_release_at <= now,
+        await db.scalars(
+            select(SqlAssignment)
+            .filter(
+                SqlAssignment.status == "published",
+                SqlAssignment.result_release_mode == "scheduled",
+                SqlAssignment.results_published_at.is_(None),
+                SqlAssignment.due_at.is_not(None),
+                SqlAssignment.due_at <= now,
+                SqlAssignment.result_release_at.is_not(None),
+                SqlAssignment.result_release_at <= now,
+            )
+            .order_by(SqlAssignment.id)
+            .with_for_update(skip_locked=True)
         )
-        .order_by(SqlAssignment.id)
-        .with_for_update(skip_locked=True)
-        .all()
-    )
+    ).all()
     for assignment in rows:
         if (
             assignment.status != "published"
@@ -2463,21 +2219,21 @@ def publish_ready_assignment_results(db, now=None):
             or now < assignment.result_release_at
         ):
             continue
-        workflow = _evaluation_workflow(db, assignment)
+        workflow = await _evaluation_workflow(db, assignment)
         if workflow["submitted_count"] and not workflow["can_evaluate"]:
             continue
-        eligible_ids = [student.id for student in _assignment_students(db, assignment)]
-        grades = db.query(SqlAssignmentGrade).filter_by(assignment_id=assignment.id).with_for_update().all()
+        eligible_ids = [student.id for student in await _assignment_students(db, assignment)]
+        grades = (await db.scalars(select(SqlAssignmentGrade).filter_by(assignment_id=assignment.id).with_for_update())).all()
         if not eligible_ids or not set(eligible_ids).issubset({grade.student_id for grade in grades}):
             continue
         for grade in grades:
             if grade.status == "draft":
-                _publish_grade(db, assignment, grade, None)
-        _refresh_assignment_completion(db, assignment)
+                await _publish_grade(db, assignment, grade, None)
+        await _refresh_assignment_completion(db, assignment)
         if assignment.results_published_at:
             released.append(assignment)
     if released or finalized:
-        db.commit()
+        await db.commit()
     return released
 
 
@@ -2488,25 +2244,25 @@ async def publish_grade(
     teacher=Depends(require_user(Permission.GRADE_PUBLISH)),
     db: AsyncSession = Depends(db_session),
 ):
-    assignment = await _teacher_assignment_async(db, assignment_id, teacher, lock=True)
+    assignment = await _teacher_assignment(db, assignment_id, teacher, lock=True)
     grade = (await db.scalars(select(SqlAssignmentGrade).filter_by(assignment_id=assignment.id, student_id=student_id).with_for_update())).first()
     if not grade:
         raise HTTPException(404, "Draft grade not found")
-    await _publish_grade_async(db, assignment, grade, teacher["_id"])
-    await _refresh_assignment_completion_async(db, assignment, teacher["_id"])
+    await _publish_grade(db, assignment, grade, teacher["_id"])
+    await _refresh_assignment_completion(db, assignment, teacher["_id"])
     await db.commit()
     return {"message": "Grade published", "grade": _serialize_grade(grade)}
 
 
 @router.post("/teacher/{assignment_id}/grades/publish-all")
 async def publish_all_grades(assignment_id: str, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)):
-    assignment = await _teacher_assignment_async(db, assignment_id, teacher, lock=True)
-    workflow = await _evaluation_workflow_async(db, assignment)
+    assignment = await _teacher_assignment(db, assignment_id, teacher, lock=True)
+    workflow = await _evaluation_workflow(db, assignment)
     if workflow["submitted_count"]:
-        await _assert_evaluation_allowed_async(db, assignment)
+        await _assert_evaluation_allowed(db, assignment)
     if not _closed(assignment):
         raise HTTPException(409, "Grades can be published only after the submission deadline")
-    eligible_ids = [student.id for student in await _assignment_students_async(db, assignment)]
+    eligible_ids = [student.id for student in await _assignment_students(db, assignment)]
     all_grades = (await db.scalars(select(SqlAssignmentGrade).filter_by(assignment_id=assignment.id).with_for_update())).all()
     if not eligible_ids:
         raise HTTPException(409, "This assignment has no eligible students")
@@ -2515,8 +2271,8 @@ async def publish_all_grades(assignment_id: str, teacher=Depends(require_roles("
         raise HTTPException(409, f"Grade or mark missing must be recorded for {len(missing)} student(s)")
     grades = [grade for grade in all_grades if grade.status == "draft"]
     for grade in grades:
-        await _publish_grade_async(db, assignment, grade, teacher["_id"])
-    await _refresh_assignment_completion_async(db, assignment, teacher["_id"])
+        await _publish_grade(db, assignment, grade, teacher["_id"])
+    await _refresh_assignment_completion(db, assignment, teacher["_id"])
     await db.commit()
     return {"message": f"Published {len(grades)} grades", "count": len(grades)}
 
@@ -2525,7 +2281,7 @@ async def publish_all_grades(assignment_id: str, teacher=Depends(require_roles("
 async def withdraw_grade(
     assignment_id: str, student_id: str, body: WithdrawGradeInput, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)
 ):
-    assignment = await _teacher_assignment_async(db, assignment_id, teacher, lock=True)
+    assignment = await _teacher_assignment(db, assignment_id, teacher, lock=True)
     grade = (
         await db.scalars(select(SqlAssignmentGrade).filter_by(assignment_id=assignment.id, student_id=student_id, status="published").with_for_update())
     ).first()
@@ -2534,20 +2290,20 @@ async def withdraw_grade(
     grade.status, grade.withdrawn_at, grade.withdrawal_reason, grade.published_at = "draft", _now(), body.reason, None
     grade.revision += 1
     assignment.result_release_mode, assignment.result_release_at = "manual", None
-    await _refresh_assignment_completion_async(db, assignment)
+    await _refresh_assignment_completion(db, assignment)
     db.add(
         SqlAssignmentGradeRevision(
             id=str(uuid.uuid4()), grade_id=grade.id, action="withdrawn", snapshot=_snapshot_grade(grade), actor_id=teacher["_id"], reason=body.reason
         )
     )
-    await _notification_async(db, student_id, "Assignment grade withdrawn", f"Your grade for {assignment.title} is being corrected.")
+    await _notification(db, student_id, "Assignment grade withdrawn", f"Your grade for {assignment.title} is being corrected.")
     await db.commit()
     return {"message": "Grade withdrawn", "grade": _serialize_grade(grade)}
 
 
 @router.get("/teacher/{assignment_id}/gradebook.csv")
 async def gradebook_csv(assignment_id: str, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)):
-    assignment = await _teacher_assignment_async(db, assignment_id, teacher)
+    assignment = await _teacher_assignment(db, assignment_id, teacher)
     roster = (await _assignment_roster_payload(db, assignment))["roster"]
     output = io.StringIO()
     writer = csv.writer(output)
@@ -2640,11 +2396,11 @@ async def teacher_assignment_analytics(teacher=Depends(require_roles("teacher"))
 
 @router.post("/teacher/{assignment_id}/announcements")
 async def create_announcement(assignment_id: str, body: AnnouncementInput, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)):
-    assignment = await _teacher_assignment_async(db, assignment_id, teacher)
+    assignment = await _teacher_assignment(db, assignment_id, teacher)
     row = SqlAssignmentAnnouncement(id=str(uuid.uuid4()), assignment_id=assignment.id, author_id=teacher["_id"], title=body.title, body=body.body)
     db.add(row)
-    for student in await _assignment_students_async(db, assignment):
-        await _notification_async(db, student.id, body.title, body.body[:500], "assignment_announcement", f"/assignments/{assignment.id}")
+    for student in await _assignment_students(db, assignment):
+        await _notification(db, student.id, body.title, body.body[:500], "assignment_announcement", f"/assignments/{assignment.id}")
     await db.commit()
     return {"message": "Announcement posted", "announcement": {"id": row.id, "title": row.title, "body": row.body, "created_at": row.created_at}}
 
@@ -2656,7 +2412,7 @@ async def create_student_thread(assignment_id: str, body: ThreadInput, student=D
     db.add(thread)
     await db.flush()
     db.add(SqlAssignmentThreadMessage(id=str(uuid.uuid4()), thread_id=thread.id, author_id=student["_id"], body=body.message))
-    await _notification_async(
+    await _notification(
         db,
         assignment.created_by,
         "New assignment question",
@@ -2697,7 +2453,7 @@ async def reply_thread(thread_id: str, body: ThreadMessageInput, user=Depends(re
     db.add(SqlAssignmentThreadMessage(id=str(uuid.uuid4()), thread_id=thread.id, author_id=user["_id"], body=body.message))
     thread.updated_at = _now()
     recipient = assignment.created_by if user["role"] == "student" else thread.student_id
-    await _notification_async(db, recipient, "Assignment discussion reply", f"New reply: {thread.subject}", "assignment_reply", f"/assignments/{assignment.id}")
+    await _notification(db, recipient, "Assignment discussion reply", f"New reply: {thread.subject}", "assignment_reply", f"/assignments/{assignment.id}")
     await db.commit()
     return {"message": "Reply sent", "thread": await _serialize_thread(db, thread)}
 
@@ -2792,8 +2548,8 @@ async def update_thread_status(thread_id: str, body: ThreadStatusInput, teacher=
 
 
 @router.post("/teacher/{assignment_id}/ai-suggestions/{student_id}")
-def request_ai_suggestion(assignment_id: str, student_id: str, background_tasks: BackgroundTasks, teacher=Depends(require_roles("teacher"))):
-    del assignment_id, student_id, background_tasks, teacher
+def request_ai_suggestion(assignment_id: str, student_id: str, teacher=Depends(require_roles("teacher"))):
+    del assignment_id, student_id, teacher
     raise HTTPException(410, "In-app AI suggestions were replaced by the bulk external-AI evaluation workflow")
 
 
@@ -2855,7 +2611,7 @@ async def admin_assignment_dashboard(
     program_rows, teacher_rows, pending_rows = {}, {}, []
     total_submitted = total_missed = total_closed = total_pending = total_overdue = 0
     for assignment in assignments:
-        stats = await _assignment_stats_async(db, assignment)
+        stats = await _assignment_stats(db, assignment)
         submitted = stats["submission_count"] if stats["closed_eligible_count"] else 0
         missed = stats["missed_count"]
         total_submitted += submitted
@@ -2958,7 +2714,7 @@ async def admin_assignment_action(
         if not teacher:
             raise HTTPException(404, "Teacher not found")
         assignment.created_by = teacher.id
-        await _notification_async(
+        await _notification(
             db,
             teacher.id,
             "Assignment reassigned",
@@ -2977,7 +2733,7 @@ async def admin_assignment_action(
     elif body.action == "archive":
         assignment.status = "archived"
     elif body.action == "remind":
-        await _notification_async(
+        await _notification(
             db,
             assignment.created_by,
             "Assignment grading reminder",

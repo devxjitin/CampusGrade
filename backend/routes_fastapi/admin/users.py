@@ -234,8 +234,62 @@ def _assignment_student_profile_sync(user_id: str, session):
         pass
 
 
+def _teacher_assignment_progress(rows) -> dict:
+    """Aggregate per-assignment stats (assignment, stats) into the teacher progress summary."""
+    details = {}
+    subject_progress = {}
+    closed_eligible = submissions = missed = pending = overdue = 0
+    for assignment, stats in rows:
+        key = assignment.subject_id or f"legacy:{assignment.subject or 'General'}"
+        subject = subject_progress.setdefault(
+            key,
+            {
+                "subject_id": assignment.subject_id,
+                "subject": assignment.subject or "General",
+                "assignments": 0,
+                "closed_eligible": 0,
+                "submissions": 0,
+                "missed": 0,
+                "pending_evaluations": 0,
+                "overdue_evaluations": 0,
+            },
+        )
+        subject["assignments"] += 1
+        subject["closed_eligible"] += stats["closed_eligible_count"]
+        subject["submissions"] += stats["submission_count"] if stats["closed_eligible_count"] else 0
+        subject["missed"] += stats["missed_count"]
+        subject["pending_evaluations"] += stats["pending_grade_count"]
+        subject["overdue_evaluations"] += stats["overdue_ungraded_submission_count"]
+        closed_eligible += stats["closed_eligible_count"]
+        submissions += stats["submission_count"] if stats["closed_eligible_count"] else 0
+        missed += stats["missed_count"]
+        pending += stats["pending_grade_count"]
+        overdue += stats["overdue_ungraded_submission_count"]
+    for subject in subject_progress.values():
+        denominator = subject["closed_eligible"]
+        subject["submission_rate"] = round(subject["submissions"] / denominator * 100, 2) if denominator else None
+        subject["missed_rate"] = round(subject["missed"] / denominator * 100, 2) if denominator else None
+    details["assignment_summary"] = {
+        "created": len(rows),
+        "closed_eligible": closed_eligible,
+        "submissions": submissions,
+        "missed": missed,
+        "submission_rate": round(submissions / closed_eligible * 100, 2) if closed_eligible else None,
+        "missed_rate": round(missed / closed_eligible * 100, 2) if closed_eligible else None,
+        "pending_evaluations": pending,
+        "overdue_evaluations": overdue,
+    }
+    details["subject_progress"] = sorted(subject_progress.values(), key=lambda row: row["subject"])
+    details["evaluation_overdue"] = overdue > 0
+    return details
+
+
 def _admin_user_details_sync(user_id: str, session):
-    """Return the full safe profile and assignment context for an administrator."""
+    """Profile and owned-assignment context for an administrator.
+
+    Returns (details, progress_assignment_ids); the per-assignment stats are async and are
+    added by `admin_user_details`."""
+    progress_assignment_ids: list[str] = []
     try:
         user = session.query(SqlUser).filter(SqlUser.id == user_id).first()
         if not user or user.role not in {"student", "teacher"}:
@@ -295,59 +349,15 @@ def _admin_user_details_sync(user_id: str, session):
                         "published_grade_count": published_grades,
                     }
                 )
-            subject_progress = {}
-            closed_eligible = submissions = missed = pending = overdue = 0
-            for assignment in progress_assignment_rows:
-                stats = _assignment_stats(session, assignment)
-                key = assignment.subject_id or f"legacy:{assignment.subject or 'General'}"
-                subject = subject_progress.setdefault(
-                    key,
-                    {
-                        "subject_id": assignment.subject_id,
-                        "subject": assignment.subject or "General",
-                        "assignments": 0,
-                        "closed_eligible": 0,
-                        "submissions": 0,
-                        "missed": 0,
-                        "pending_evaluations": 0,
-                        "overdue_evaluations": 0,
-                    },
-                )
-                subject["assignments"] += 1
-                subject["closed_eligible"] += stats["closed_eligible_count"]
-                subject["submissions"] += stats["submission_count"] if stats["closed_eligible_count"] else 0
-                subject["missed"] += stats["missed_count"]
-                subject["pending_evaluations"] += stats["pending_grade_count"]
-                subject["overdue_evaluations"] += stats["overdue_ungraded_submission_count"]
-                closed_eligible += stats["closed_eligible_count"]
-                submissions += stats["submission_count"] if stats["closed_eligible_count"] else 0
-                missed += stats["missed_count"]
-                pending += stats["pending_grade_count"]
-                overdue += stats["overdue_ungraded_submission_count"]
-            for subject in subject_progress.values():
-                denominator = subject["closed_eligible"]
-                subject["submission_rate"] = round(subject["submissions"] / denominator * 100, 2) if denominator else None
-                subject["missed_rate"] = round(subject["missed"] / denominator * 100, 2) if denominator else None
-            details["assignment_summary"] = {
-                "created": len(progress_assignment_rows),
-                "closed_eligible": closed_eligible,
-                "submissions": submissions,
-                "missed": missed,
-                "submission_rate": round(submissions / closed_eligible * 100, 2) if closed_eligible else None,
-                "missed_rate": round(missed / closed_eligible * 100, 2) if closed_eligible else None,
-                "pending_evaluations": pending,
-                "overdue_evaluations": overdue,
-            }
             details["owned_assignments"] = owned_assignments
-            details["subject_progress"] = sorted(subject_progress.values(), key=lambda row: row["subject"])
-            details["evaluation_overdue"] = overdue > 0
+            progress_assignment_ids = [assignment.id for assignment in progress_assignment_rows]
         else:
             activity = _assignment_student_profile_sync(user_id, session)
             details["assignment_summary"] = activity["assignment_summary"]
             details["assignment_activity"] = activity["assignments"]
             details["reporting_range"] = activity["reporting_range"]
 
-        return {"user": details}
+        return details, progress_assignment_ids
     finally:
         pass
 
@@ -1220,7 +1230,14 @@ async def admin_user_details(
     db: AsyncSession = Depends(db_session),
 ):
     del admin
-    return await db.run_sync(lambda session: _admin_user_details_sync(user_id, session))
+    details, progress_assignment_ids = await db.run_sync(lambda session: _admin_user_details_sync(user_id, session))
+    if details["role"] == "teacher":
+        by_id = {}
+        if progress_assignment_ids:
+            by_id = {row.id: row for row in (await db.scalars(select(SqlAssignment).where(SqlAssignment.id.in_(progress_assignment_ids)))).all()}
+        rows = [(by_id[assignment_id], await _assignment_stats(db, by_id[assignment_id])) for assignment_id in progress_assignment_ids if assignment_id in by_id]
+        details.update(_teacher_assignment_progress(rows))
+    return {"user": details}
 
 
 router.add_api_route("/user/{user_id}/profile", assignment_student_profile, methods=["GET"])

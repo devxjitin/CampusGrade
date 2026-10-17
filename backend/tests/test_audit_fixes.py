@@ -36,6 +36,7 @@ from routes_fastapi.auth_routes import login
 from schemas.auth import LoginRequest
 from schemas.user import TemporaryCredentialResponse, UserStatusUpdate
 from services.github_repository_service import _refresh_duplicate_flag
+from sqlalchemy import select
 
 
 def test_first_grade_save_stays_at_revision_one_and_later_saves_advance_once():
@@ -83,7 +84,7 @@ def test_reset_submission_without_repository_pointers_does_not_block_editing():
 
 def test_admin_cannot_enter_teacher_assignment_helper():
     with pytest.raises(HTTPException) as raised:
-        _teacher_assignment(None, "assignment-1", {"_id": "admin-1", "role": "super_admin"})
+        asyncio.run(_teacher_assignment(None, "assignment-1", {"_id": "admin-1", "role": "super_admin"}))
 
     assert raised.value.status_code == 403
 
@@ -220,6 +221,23 @@ def test_concurrent_scheduled_publishers_release_an_assignment_once():
 
         return asyncio.run(run())
 
+    def run_async(callback):
+        async def run():
+            assert async_session_factory is not None
+            async with async_session_factory() as async_session:
+                try:
+                    result = await callback(async_session)
+                    await async_session.commit()
+                    return result
+                except Exception:
+                    await async_session.rollback()
+                    raise
+
+        return asyncio.run(run())
+
+    async def _publish_count(async_session, release_time):
+        return len(await publish_ready_assignment_results(async_session, release_time))
+
     suffix = uuid.uuid4().hex
     teacher_id, student_id, assignment_id = f"t-{suffix}", f"s-{suffix}", f"a-{suffix}"
     rubric_id, grade_id = f"r-{suffix}", f"g-{suffix}"
@@ -297,18 +315,21 @@ def test_concurrent_scheduled_publishers_release_an_assignment_once():
         )
         assert setup.query(SqlAssignmentEvaluationParticipant).filter_by(assignment_id=assignment_id).count() == 1
         assert setup.query(SqlAssignmentGrade).filter_by(assignment_id=assignment_id).count() == 1
-        assignment = setup.query(SqlAssignment).filter_by(id=assignment_id).one()
-        assert [student.id for student in _assignment_students(setup, assignment)] == [student_id]
-        assert _evaluation_workflow(setup, assignment)["can_evaluate"] is True
+
+    async def check_helpers(async_session):
+        assignment = (await async_session.scalars(select(SqlAssignment).filter_by(id=assignment_id))).one()
+        assert [student.id for student in await _assignment_students(async_session, assignment)] == [student_id]
+        assert (await _evaluation_workflow(async_session, assignment))["can_evaluate"] is True
 
     run_db(seed)
+    run_async(check_helpers)
     try:
         barrier = threading.Barrier(2)
         results = []
 
         def publish():
             barrier.wait(timeout=5)
-            results.append(run_db(lambda session: len(publish_ready_assignment_results(session, now))))
+            results.append(run_async(lambda async_session: _publish_count(async_session, now)))
 
         threads = [threading.Thread(target=publish) for _ in range(2)]
         for thread in threads:

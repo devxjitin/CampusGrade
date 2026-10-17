@@ -13,8 +13,6 @@ dependencies = [
     "sqlalchemy==2.0.37",
     "alembic==1.15.1",
     "asyncpg==0.30.0",
-    "redis[hiredis]>=5.0",
-    "rq>=2.1",
     "boto3>=1.35",
     "psycopg[binary]==3.2.9",
     "cryptography==44.0.0",
@@ -58,7 +56,7 @@ exclude = ["backend/migrations/versions"]
 #   backend/tests/conftest.py
 #   backend/tests/test_golden_paths.py
 #   backend/config.py
-#   backend/core/  (db.py, errors.py, logging_setup.py, redis.py)
+#   backend/core/  (db.py, errors.py, logging_setup.py)
 #   backend/routes_fastapi/institution_routes.py           (Sprint 2)
 #   backend/routes_fastapi/notification_routes.py          (Sprint 2)
 #   backend/routes_fastapi/user_routes.py                  (Sprint 2)

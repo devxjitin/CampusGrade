@@ -55,12 +55,17 @@ export default function StudentAssignmentDetailPage() {
       .catch(() => setSnapshot(null));
   }, [id, assignment?.version?.id]);
 
+  // Poll quickly while a sync or analysis is in flight, and slowly otherwise so commits the worker
+  // picks up automatically (and the "last synced" time) appear without a manual refresh.
+  const inFlight =
+    ["checking", "syncing", "freeze_pending"].includes(assignment?.sync_state?.status) || ["queued", "processing"].includes(assignment?.analysis?.status);
+  const watching = Boolean(assignment?.sync_state) && assignment?.freeze_state?.status !== "frozen";
   useEffect(() => {
-    if (!["checking", "syncing", "freeze_pending"].includes(assignment?.sync_state?.status)) return undefined;
-    const timer = window.setInterval(load, 2500);
+    if (!inFlight && !watching) return undefined;
+    const timer = window.setInterval(load, inFlight ? 2500 : 30000);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assignment?.sync_state?.status]);
+  }, [inFlight, watching]);
 
   if (!assignment || !user) return null;
 

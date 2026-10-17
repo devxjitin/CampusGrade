@@ -6,6 +6,7 @@ import {
   CalendarRange,
   ClipboardList,
   GraduationCap,
+  ListChecks,
   Layers,
   MessageSquare,
   PlusCircle,
@@ -67,6 +68,7 @@ const roleNavigation: Record<NavRole, NavSection[]> = {
         { label: "Assignment audit log", path: "/admin/audit-log", icon: ShieldCheck },
         { label: "Academic sessions", path: "/admin/academic-sessions", icon: CalendarRange },
         { label: "Session rollover", path: "/admin/session-rollover", icon: RotateCcw },
+        { label: "Background jobs", path: "/platform/jobs", icon: ListChecks },
       ],
     },
     {

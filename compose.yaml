@@ -22,7 +22,6 @@ x-api-env: &api-env
   # The local S3-compatible store has no KMS, so it rejects the AWS-only
   # server-side-encryption header. (Leave the default on real AWS S3.)
   PRIVATE_S3_SSE: ""
-  REDIS_REQUIRED: "false"
   REPOSITORY_SYNC_INTERVAL_SECONDS: ${REPOSITORY_SYNC_INTERVAL_SECONDS:-120}
   # Secrets (SECRET_KEY, DATABASE_URL, GITHUB_TOKEN, PRIVATE_S3_SECRET_KEY) are
   # read from /run/secrets by backend/config.py, never from the environment.
@@ -142,6 +141,27 @@ services:
       timeout: 5s
       start_period: 40s
       retries: 5
+
+  # Runs every background job and periodic task (python -m worker). The API process
+  # does only HTTP. Needs the database, storage, and outbound access to GitHub.
+  worker:
+    image: campusgrade-api:local
+    command: ["python", "-m", "worker"]
+    environment:
+      <<: *api-env
+    secrets: *api-secrets
+    networks: [backend, egress]
+    stop_grace_period: 30s
+    # The image's HTTP check does not apply; the worker touches a heartbeat file instead.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,sys,tempfile,time; p=os.path.join(tempfile.gettempdir(),'campusgrade-worker-heartbeat'); sys.exit(0 if time.time()-os.path.getmtime(p)<60 else 1)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      storage-init: { condition: service_completed_successfully }
 
   web:
     image: campusgrade-web:local
