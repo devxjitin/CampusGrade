@@ -38,6 +38,7 @@ class Permission(str, Enum):
     ADMIN_MANAGE = "admin.manage"
     SETTINGS_MANAGE = "settings.manage"
     JOBS_MANAGE = "jobs.manage"
+    DATA_EXPORT = "data.export"
     BATCH_MANAGE = "batch.manage"
     SECTION_MANAGE = "section.manage"
     SUBJECT_MANAGE = "subject.manage"
@@ -72,6 +73,7 @@ PERMISSIONS: dict[Permission, frozenset[Role]] = {
     Permission.ADMIN_MANAGE: frozenset({S}),
     Permission.SETTINGS_MANAGE: frozenset({S}),
     Permission.JOBS_MANAGE: frozenset({S}),
+    Permission.DATA_EXPORT: frozenset({S}),
     # Scoped to whichever programs the admin manages — super admin sees
     # everything, program admin sees only their own (enforced in SQL by
     # `core/scoping.py::scope_to_programs`, not just at the permission gate).

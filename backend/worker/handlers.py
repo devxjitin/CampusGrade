@@ -70,3 +70,30 @@ async def send_notification_email(payload: dict) -> None:
         payload["subject"], [f"Hi {user['name']},", *payload["lines"]], action_label="Open in CampusGrade", action_url=url
     )
     await email_service.send_email(user["email"], subject, text, html)
+
+
+@register("export.session")
+async def build_session_export_job(payload: dict) -> None:
+    """Build the ZIP, store it privately and mark the export ready (or failed after the last retry)."""
+    from models import database
+    from models.data_export import EXPORT_FAILED, EXPORT_READY, SqlDataExport
+    from models.sql_models import utcnow
+    from services.data_export import build_session_export
+    from services.object_storage import get_private_storage
+
+    factory = database.async_session_factory
+    assert factory is not None
+    async with factory() as db:
+        row = await db.get(SqlDataExport, payload["export_id"])
+        if row is None or row.status == EXPORT_READY:
+            return
+        try:
+            data, filename = await build_session_export(db, row.session_id)
+            key = f"{row.id}.zip"
+            await get_private_storage("exports").aput_bytes(key, data, "application/zip")
+        except LookupError as exc:  # the session was deleted: retrying cannot help
+            row.status, row.error, row.finished_at = EXPORT_FAILED, str(exc), utcnow()
+            await db.commit()
+            return
+        row.status, row.object_key, row.filename, row.size_bytes, row.error, row.finished_at = EXPORT_READY, key, filename, len(data), None, utcnow()
+        await db.commit()
