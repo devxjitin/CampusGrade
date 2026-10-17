@@ -42,7 +42,7 @@ def default_assignment_monitoring_settings(today: date | None = None) -> dict:
 def read_assignment_monitoring_settings(db) -> dict:
     """Sync variant — kept for `routes_fastapi/admin/users.py`, which is not
     yet ported (it's coupled to the still-sync `admin_helpers.py`/
-    `assignment_routes.py`) and still calls this with a sync `Session`.
+    `routes_fastapi/assignments/`) and still calls this with a sync `Session`.
     Do not delete until every sync caller of this function is gone; see
     `read_assignment_monitoring_settings_async` below for the async route
     path added in Sprint 2."""

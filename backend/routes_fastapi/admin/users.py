@@ -28,7 +28,8 @@ from utils.security_utils import encrypt_password
 
 from services import admin_helpers as legacy
 from routes_fastapi.admin_settings import read_assignment_monitoring_settings
-from routes_fastapi.assignment_routes import _assignment_stats, _submission_has_content
+from routes_fastapi.assignments.workflow import _assignment_stats
+from routes_fastapi.assignments.common import _submission_has_content
 
 router = APIRouter(tags=["admin-users"])
 
@@ -930,7 +931,7 @@ async def add_student(body: StudentCreate, request: Request, admin=Depends(requi
     `resolve_current_session`/`derive_study_year_semester` — unblocked this
     session by adding `resolve_current_session_async` alongside the existing
     sync version (see services/academic_calendar.py; the sync version is
-    untouched and still serves `assignment_routes.py`/`admin_helpers.py`)."""
+    untouched and still serves `routes_fastapi/assignments/`/`admin_helpers.py`)."""
     from services.academic_calendar import derive_study_year_semester, resolve_current_session_async
 
     data = body.model_dump()

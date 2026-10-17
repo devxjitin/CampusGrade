@@ -30,8 +30,8 @@ class PeriodicTask:
 
 
 async def publish_results() -> int:
-    # Imported lazily: assignment_routes is large and the worker only needs it here.
-    from routes_fastapi.assignment_routes import publish_ready_assignment_results
+    # Imported lazily: the assignments package is large and the worker only needs it here.
+    from routes_fastapi.assignments.grading import publish_ready_assignment_results
 
     async with database.async_session_factory() as db:
         released = await publish_ready_assignment_results(db)

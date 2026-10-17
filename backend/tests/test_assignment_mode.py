@@ -8,12 +8,9 @@ from unittest.mock import patch
 
 from models.assignment import SqlAssignmentSubmissionVersion
 from pydantic import ValidationError
-from routes_fastapi.assignment_routes import (
-    _normalize_generated_assignment,
-    _overdue_ungraded_submission_count,
-    _serialize_student_version,
-    _snapshot_grade,
-)
+from routes_fastapi.assignments.common import _normalize_generated_assignment, _snapshot_grade
+from routes_fastapi.assignments.payloads import _serialize_student_version
+from routes_fastapi.assignments.workflow import _overdue_ungraded_submission_count
 from schemas.assignment import AssignmentCreate, RepositoryResetRequest
 from services.github_repository_service import (
     CODE_SIMILARITY_THRESHOLD,

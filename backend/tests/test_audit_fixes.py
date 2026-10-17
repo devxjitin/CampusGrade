@@ -20,21 +20,17 @@ from models.database import is_database_available
 from models.notification import SqlNotification
 from models.sql_models import SqlUser
 from pydantic import ValidationError
+from routes_fastapi.assignments.common import _advance_saved_grade_revision, _assignment_students, _submission_has_content
+from routes_fastapi.assignments.grading import publish_ready_assignment_results
+from routes_fastapi.assignments.payloads import _teacher_assignment
+from routes_fastapi.assignments.workflow import _evaluation_workflow
+from routes_fastapi.auth_routes import login
+from schemas.auth import LoginRequest
+from schemas.user import TemporaryCredentialResponse, UserStatusUpdate
 from services.admin_helpers import (
     _assert_admin_continuity,
     _lock_user_safety_context,
 )
-from routes_fastapi.assignment_routes import (
-    _advance_saved_grade_revision,
-    _assignment_students,
-    _evaluation_workflow,
-    _submission_has_content,
-    _teacher_assignment,
-    publish_ready_assignment_results,
-)
-from routes_fastapi.auth_routes import login
-from schemas.auth import LoginRequest
-from schemas.user import TemporaryCredentialResponse, UserStatusUpdate
 from services.github_repository_service import _refresh_duplicate_flag
 from sqlalchemy import select
 

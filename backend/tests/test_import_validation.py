@@ -2,8 +2,6 @@ import unittest
 from unittest.mock import Mock
 
 from fastapi import HTTPException
-from sqlalchemy.exc import IntegrityError
-
 from services.admin_helpers import (
     MAX_IMPORT_ROWS,
     _commit_delete,
@@ -13,6 +11,7 @@ from services.admin_helpers import (
     _normalize_teacher_id,
     _parse_import_file,
 )
+from sqlalchemy.exc import IntegrityError
 
 
 class ImportValidationTests(unittest.TestCase):
