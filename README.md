@@ -19,10 +19,10 @@ docker compose -f compose.yaml -f compose.dev.yaml up --build
 
 - App: http://localhost:3000 API: http://localhost:5001 (docs at `/docs`)
 - Backend and frontend hot-reload from your working tree.
-- Create the first admin (the password never touches a file):
+- Create the first admin (accounts have no passwords; you sign in with the email address, which is why the app refuses `APP_ENV=production`):
 
 ```powershell
-docker compose -f compose.yaml -f compose.dev.yaml run --rm -e BOOTSTRAP_ADMIN_EMAIL=you@example.com -e BOOTSTRAP_ADMIN_PASSWORD=<12+ chars> api python bootstrap_admin.py
+docker compose -f compose.yaml -f compose.dev.yaml run --rm -e BOOTSTRAP_ADMIN_EMAIL=you@example.com api python bootstrap_admin.py
 ```
 
 ## Run it like production

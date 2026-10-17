@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { KeyRound, Plus, ShieldCheck, UserCog } from "lucide-react";
+import { Plus, ShieldCheck, UserCog } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { useToast } from "@/components/Toast";
@@ -99,7 +99,6 @@ export default function AdminAccountsPage() {
   const [email, setEmail] = useState("");
   const [access, setAccess] = useState<AdminAccess>({});
   const [saving, setSaving] = useState(false);
-  const [credential, setCredential] = useState<{ email: string; password: string } | null>(null);
 
   useEffect(() => {
     if (user && user.role !== "super_admin") router.replace("/assignments");
@@ -134,9 +133,8 @@ export default function AdminAccountsPage() {
     if (!Object.keys(access).length) return toast.warning("Give the admin access to at least one area");
     setSaving(true);
     try {
-      const response = await createAdmin({ name: name.trim(), email: email.trim().toLowerCase(), role: "admin", access });
+      await createAdmin({ name: name.trim(), email: email.trim().toLowerCase(), role: "admin", access });
       setCreateOpen(false);
-      setCredential({ email: response.user.email, password: response.temporary_password });
       resetForm();
       await load();
       toast.success("Admin created");
@@ -207,7 +205,7 @@ export default function AdminAccountsPage() {
         </div>
       )}
 
-      <Dialog open={createOpen} onClose={() => !saving && setCreateOpen(false)} title="Add admin" description="A one-time temporary password will be shown after creation." size="md" footer={<><button className="btn btn-outline" onClick={() => setCreateOpen(false)}>Cancel</button><button type="submit" form="create-admin-form" disabled={saving} className="btn btn-primary">{saving ? "Creating…" : "Create admin"}</button></>}>
+      <Dialog open={createOpen} onClose={() => !saving && setCreateOpen(false)} title="Add admin" description="The admin signs in with their email address." size="md" footer={<><button className="btn btn-outline" onClick={() => setCreateOpen(false)}>Cancel</button><button type="submit" form="create-admin-form" disabled={saving} className="btn btn-primary">{saving ? "Creating…" : "Create admin"}</button></>}>
         <form id="create-admin-form" onSubmit={submitCreate} className="space-y-4">
           <label className="block"><span className="ui-field-label">Full name</span><input required minLength={2} maxLength={100} className="input-field mt-1" value={name} onChange={(event) => setName(event.target.value)} /></label>
           <label className="block"><span className="ui-field-label">Email address</span><input required type="email" maxLength={254} className="input-field mt-1" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
@@ -219,9 +217,6 @@ export default function AdminAccountsPage() {
         <AccessEditor value={access} onChange={setAccess} />
       </Dialog>
 
-      <Dialog open={Boolean(credential)} onClose={() => setCredential(null)} title="Temporary credential" description="Share this password securely. It is displayed only once." size="sm" footer={<button className="btn btn-primary" onClick={() => setCredential(null)}>Done</button>}>
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4"><KeyRound className="h-5 w-5 text-amber-700" /><p className="mt-3 text-sm text-amber-900">{credential?.email}</p><code className="mt-2 block break-all rounded-lg bg-white p-3 font-bold text-slate-950">{credential?.password}</code></div>
-      </Dialog>
     </>
   );
 }

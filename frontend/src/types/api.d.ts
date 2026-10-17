@@ -55,43 +55,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/forgot-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Forgot Password
-         * @description Always answers 200 with the same text, so the response never reveals whether an email has an account.
-         */
-        post: operations["forgot_password_auth_forgot_password_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/reset-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reset Password */
-        post: operations["reset_password_auth_reset_password_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/auth/refresh": {
         parameters: {
             query?: never;
@@ -312,23 +275,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/change-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Change Password */
-        patch: operations["change_password_change_password_patch"];
-        trace?: never;
-    };
     "/admin/users": {
         parameters: {
             query?: never;
@@ -391,28 +337,6 @@ export interface paths {
          *     module rather than duplicated.
          */
         patch: operations["toggle_user_status_admin_user__user_id__patch"];
-        trace?: never;
-    };
-    "/admin/user/{user_id}/reset-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Reset User Password
-         * @description Async port of admin_helpers.py::reset_user_password. No admin-continuity
-         *     logic involved (resetting a password doesn't remove an admin), so this
-         *     one only needed a plain lookup, not the row-locking safety context.
-         */
-        patch: operations["reset_user_password_admin_user__user_id__reset_password_patch"];
         trace?: never;
     };
     "/admin/add-teacher": {
@@ -2225,11 +2149,6 @@ export interface components {
             assignments?: unknown[];
             /** Avatar */
             avatar?: string | null;
-            /**
-             * Must Change Password
-             * @default false
-             */
-            must_change_password: boolean;
         };
         /** BatchCreate */
         BatchCreate: {
@@ -2384,13 +2303,6 @@ export interface components {
             /** Duplicate Flag Ids */
             duplicate_flag_ids?: string[];
         };
-        /** ChangePasswordRequest */
-        ChangePasswordRequest: {
-            /** Old Password */
-            old_password: string;
-            /** New Password */
-            new_password: string;
-        };
         /** CourseCreate */
         CourseCreate: {
             /** Name */
@@ -2418,6 +2330,26 @@ export interface components {
             duration_years?: number | null;
             /** Year */
             year?: number | null;
+        };
+        /** CreatedUser */
+        CreatedUser: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Role */
+            role: string;
+        };
+        /** CreatedUserResponse */
+        CreatedUserResponse: {
+            /** Message */
+            message: string;
+            user: components["schemas"]["CreatedUser"];
         };
         /** ExportRequest */
         ExportRequest: {
@@ -2461,11 +2393,6 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        /** ForgotPasswordRequest */
-        ForgotPasswordRequest: {
-            /** Email */
-            email: string;
-        };
         /** GradeInput */
         GradeInput: {
             /** Rubric Scores */
@@ -2495,8 +2422,6 @@ export interface components {
         LoginRequest: {
             /** Email */
             email: string;
-            /** Password */
-            password: string;
         };
         /** LoginResponse */
         LoginResponse: {
@@ -2534,13 +2459,6 @@ export interface components {
         RepositorySubmitRequest: {
             /** Preview Token */
             preview_token: string;
-        };
-        /** ResetPasswordRequest */
-        ResetPasswordRequest: {
-            /** Token */
-            token: string;
-            /** New Password */
-            new_password: string;
         };
         /** RubricCriterionInput */
         RubricCriterionInput: {
@@ -2698,28 +2616,6 @@ export interface components {
             designation?: string | null;
             /** Assignments */
             assignments: components["schemas"]["TeacherAssignment"][];
-        };
-        /** TemporaryCredentialResponse */
-        TemporaryCredentialResponse: {
-            /** Message */
-            message: string;
-            /** Temporary Password */
-            temporary_password: string;
-            user: components["schemas"]["TemporaryCredentialUser"];
-        };
-        /** TemporaryCredentialUser */
-        TemporaryCredentialUser: {
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** Role */
-            role: string;
         };
         /** ThreadInput */
         ThreadInput: {
@@ -2899,72 +2795,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoginResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    forgot_password_auth_forgot_password_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ForgotPasswordRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reset_password_auth_reset_password_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ResetPasswordRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3347,39 +3177,6 @@ export interface operations {
             };
         };
     };
-    change_password_change_password_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChangePasswordRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_users_admin_users_get: {
         parameters: {
             query?: {
@@ -3516,37 +3313,6 @@ export interface operations {
             };
         };
     };
-    reset_user_password_admin_user__user_id__reset_password_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TemporaryCredentialResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     add_teacher_admin_add_teacher_post: {
         parameters: {
             query?: never;
@@ -3566,7 +3332,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TemporaryCredentialResponse"];
+                    "application/json": components["schemas"]["CreatedUserResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3665,7 +3431,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TemporaryCredentialResponse"];
+                    "application/json": components["schemas"]["CreatedUserResponse"];
                 };
             };
             /** @description Validation Error */

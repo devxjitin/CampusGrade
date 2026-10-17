@@ -27,7 +27,7 @@ def test_only_super_admins_can_request_exports(client, seed_user, login):
     teacher = seed_user(role="teacher", email="export-teacher@example.edu")
     program_admin = seed_user(role="admin", email="export-padmin@example.edu")
     for user in (teacher, program_admin):
-        token = login(user["email"], user["password"])
+        token = login(user["email"])
         headers = {"Authorization": f"Bearer {token}"}
         assert client.get("/admin/exports", headers=headers).status_code == 403
         assert client.post("/admin/exports", headers=headers, json={"session_id": "x"}).status_code == 403
@@ -68,7 +68,7 @@ def test_export_is_built_by_the_worker_and_downloadable(client, seed_user, seed_
         session.commit()
     engine.dispose()
 
-    headers = {"Authorization": f"Bearer {login(admin['email'], admin['password'])}"}
+    headers = {"Authorization": f"Bearer {login(admin['email'])}"}
     requested = client.post("/admin/exports", headers=headers, json={"session_id": session_id})
     assert requested.status_code == 202, requested.text
     export_id = requested.json()["id"]
@@ -99,5 +99,5 @@ def test_export_is_built_by_the_worker_and_downloadable(client, seed_user, seed_
 @requires_docker
 def test_unknown_session_is_rejected(client, seed_user, login):
     admin = seed_user(role="super_admin", email="export-admin2@example.edu")
-    headers = {"Authorization": f"Bearer {login(admin['email'], admin['password'])}"}
+    headers = {"Authorization": f"Bearer {login(admin['email'])}"}
     assert client.post("/admin/exports", headers=headers, json={"session_id": "does-not-exist"}).status_code == 404

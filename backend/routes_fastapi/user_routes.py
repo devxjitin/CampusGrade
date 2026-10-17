@@ -7,14 +7,12 @@ from models.sql_models import SqlUser
 from models.user_preferences import SqlUserPreference
 from schemas.common import MessageResponse
 from schemas.preferences import NOTIFICATION_KEYS, PreferenceUpdate
-from schemas.user import ChangePasswordRequest, UserResponse, UserUpdate
+from schemas.user import UserResponse, UserUpdate
 from services.identity_service import update_user_fields
-from services.session_service import list_sessions, revoke_all_sessions, revoke_other_sessions, revoke_session
+from services.session_service import list_sessions, revoke_other_sessions, revoke_session
 from services.user_service import UserService
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.security_utils import hash_password, verify_password
-from utils.validators import validate_password
 
 from routes_fastapi.deps import get_current_user
 
@@ -193,39 +191,3 @@ async def update_profile(
         await update_user_fields(db, current_user["_id"], update_data)
 
     return {"message": "Profile updated successfully"}
-
-
-@router.patch("/change-password", response_model=MessageResponse)
-async def change_password(
-    body: ChangePasswordRequest,
-    current_user=Depends(get_current_user),
-    db: AsyncSession = Depends(db_session),
-):
-    old_password = body.old_password
-    new_password = body.new_password
-
-    if not verify_password(old_password, current_user["password"]):
-        raise HTTPException(status_code=401, detail="Current password is incorrect")
-
-    valid, err = validate_password(new_password)
-    if not valid:
-        raise HTTPException(status_code=400, detail=err)
-
-    if old_password == new_password:
-        raise HTTPException(status_code=400, detail="New password must be different from current password")
-
-    hashed_password = hash_password(new_password)
-    next_session_version = int(current_user.get("session_version") or 0) + 1
-    await update_user_fields(
-        db,
-        current_user["_id"],
-        {
-            "password": hashed_password,
-            "session_version": next_session_version,
-            "must_change_password": False,
-        },
-    )
-    await revoke_all_sessions(db, current_user["_id"])
-
-    logger.info("Password changed and sessions revoked: %s", current_user.get("email"))
-    return {"message": "Password updated successfully. Please log in again."}

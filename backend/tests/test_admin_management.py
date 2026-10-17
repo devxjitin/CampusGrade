@@ -48,8 +48,6 @@ async def test_create_admin_flushes_user_before_access(monkeypatch):
         assert user in db.added
 
     monkeypatch.setattr(admin_routes, "sync_profile", fake_sync_profile)
-    monkeypatch.setattr(admin_routes, "encrypt_password", lambda _password: "hashed")
-    monkeypatch.setattr(admin_routes, "_generate_temporary_password", lambda: "Temporary-123!")
     async def fake_write_audit_log(*_args, **_kwargs):
         return None
 

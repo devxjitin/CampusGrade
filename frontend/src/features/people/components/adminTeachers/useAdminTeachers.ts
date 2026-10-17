@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getBatches, getCourses, getSections, getSubjects } from "@/features/academics/api";
-import { addTeacher, deleteUser, getAdminUsers, importTeachers, resetAdminUserPassword, toggleUserStatus, updateAdminUser } from "@/features/people/api";
+import { addTeacher, deleteUser, getAdminUsers, importTeachers, toggleUserStatus, updateAdminUser } from "@/features/people/api";
 import { useConfirm } from "@/components/ui";
 import {
   emptyAssignment,
@@ -11,7 +11,6 @@ import {
   isCompleteAssignment,
   isDuplicateMessage,
   type AcademicItem,
-  type PasswordResetResult,
   type Teacher,
   type TeacherForm,
   type UploadResult,
@@ -22,8 +21,6 @@ export const useAdminTeachers = () => {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [passwordResetResult, setPasswordResetResult] = useState<PasswordResetResult | null>(null);
-  const [resettingPasswordId, setResettingPasswordId] = useState("");
   const [searchTeacher, setSearchTeacher] = useState("");
   const [filterDesignation, setFilterDesignation] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -132,28 +129,6 @@ export const useAdminTeachers = () => {
     }
   };
 
-  const handleResetPassword = async (teacher: Teacher) => {
-    const teacherId = getTeacherId(teacher);
-    if (!teacherId) return;
-    const confirmed = await confirm({
-      title: "Reset teacher password?",
-      description: "A one-time temporary password will be generated and all existing sessions will be revoked.",
-      details: `${teacher.name} (${teacher.email})`,
-      confirmLabel: "Generate password",
-      tone: "danger",
-    });
-    if (!confirmed) return;
-    try {
-      setError(null);
-      setResettingPasswordId(teacherId);
-      setPasswordResetResult(await resetAdminUserPassword(teacherId));
-    } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to reset teacher password."));
-    } finally {
-      setResettingPasswordId("");
-    }
-  };
-
   const handleOpenEditTeacher = (teacher: Teacher) => {
     const teacherId = getTeacherId(teacher);
     if (!teacherId) {
@@ -259,7 +234,7 @@ export const useAdminTeachers = () => {
     }
 
     try {
-      const result = await addTeacher({
+      await addTeacher({
         ...formData,
         role: "teacher",
         name: formData.name.trim(),
@@ -269,7 +244,6 @@ export const useAdminTeachers = () => {
         contact_number: formData.contact_number.trim(),
       });
       handleCloseAddModal();
-      setPasswordResetResult(result);
       await fetchTeachers();
     } catch (err) {
       console.error(err);
@@ -374,9 +348,6 @@ export const useAdminTeachers = () => {
     teachers,
     loading,
     error,
-    passwordResetResult,
-    setPasswordResetResult,
-    resettingPasswordId,
     searchTeacher,
     setSearchTeacher,
     filterDesignation,
@@ -412,7 +383,6 @@ export const useAdminTeachers = () => {
     getTeacherId,
     handleToggleStatus,
     handleDeleteTeacher,
-    handleResetPassword,
     handleOpenEditTeacher,
     handleEditInputChange,
     handleEditSubmit,

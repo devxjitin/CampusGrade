@@ -5,17 +5,16 @@ two students and two assignments.
   - "E2E ready to evaluate": closed, repositories fetched and analyzed, so the teacher can prepare an
     external-AI evaluation (the stepper dialog) without GitHub.
 
-Accounts use E2E_SEED_PASSWORD. Safe to run twice (it does nothing if the teacher already exists).
+Accounts sign in with their email only. Safe to run twice (it does nothing if the teacher already exists).
 Never run this against real data: it exists for CI and local test stacks.
 
-  docker compose ... run --rm -T -e E2E_SEED_PASSWORD=... api python seed_e2e.py
+  docker compose ... run --rm -T api python seed_e2e.py
 """
 
 import asyncio
 import datetime
 import io
 import json
-import os
 import uuid
 import zipfile
 
@@ -29,7 +28,6 @@ from models.assignment import (
 from models.database import async_session_factory, init_database, is_database_available
 from models.sql_models import SqlBatch, SqlCourse, SqlSection, SqlSubject, SqlUser
 from services.assignment_storage import get_assignment_storage
-from utils.security_utils import hash_password
 
 TEACHER_EMAIL = "e2e-teacher@campusgrade.dev"
 STUDENTS = [
@@ -46,7 +44,7 @@ def _zip(files: dict[str, str]) -> bytes:
     return buffer.getvalue()
 
 
-def _seed(db, password: str) -> bool:
+def _seed(db) -> bool:
     if db.query(SqlUser).filter_by(email=TEACHER_EMAIL).first():
         return False
     now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
@@ -62,10 +60,10 @@ def _seed(db, password: str) -> bool:
     db.add_all([section, subject])
     db.flush()
     group = {"course_id": course.id, "batch_id": batch.id, "section_id": section.id}
-    teacher = SqlUser(id=str(uuid.uuid4()), name="E2E Teacher", email=TEACHER_EMAIL, password=hash_password(password), role="teacher", is_active=True, must_change_password=False)
+    teacher = SqlUser(id=str(uuid.uuid4()), name="E2E Teacher", email=TEACHER_EMAIL, role="teacher", is_active=True)
     db.add(teacher)
     students = [
-        SqlUser(id=str(uuid.uuid4()), name=name, email=email, roll_no=roll, password=hash_password(password), role="student", is_active=True, must_change_password=False, **group)
+        SqlUser(id=str(uuid.uuid4()), name=name, email=email, roll_no=roll, role="student", is_active=True, **group)
         for email, name, roll, _ in STUDENTS
     ]
     db.add_all(students)
@@ -109,14 +107,11 @@ def _seed(db, password: str) -> bool:
 
 
 async def main() -> None:
-    password = os.environ.get("E2E_SEED_PASSWORD", "")
-    if len(password) < 12:
-        raise RuntimeError("Set E2E_SEED_PASSWORD to a password of at least 12 characters")
     await init_database()
     if not is_database_available() or async_session_factory is None:
         raise RuntimeError("CampusGrade database is unavailable")
     async with async_session_factory() as db:
-        created = await db.run_sync(lambda sync_db: _seed(sync_db, password))
+        created = await db.run_sync(lambda sync_db: _seed(sync_db))
         if not created:
             print("E2E fixtures already exist")
             return

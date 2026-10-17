@@ -75,11 +75,6 @@ export interface UploadResult {
   invalid_rows?: { row_number: number; reasons?: string[] }[];
 }
 
-export interface PasswordResetResult {
-  temporary_password: string;
-  user?: { name?: string };
-}
-
 export const buildCourseLabel = (course?: Course) =>
   course?.display_name || (course?.code ? `${course?.name || "Program"} (${course?.code})` : `${course?.name || "Program"}`);
 export const getSemesterOptions = (course?: Course) => {
@@ -128,7 +123,6 @@ export const getAddStudentFieldErrors = ({
   const normalizedName = String(formData.name || "").trim();
   const normalizedEmail = String(formData.email || "").trim();
   const normalizedRollNo = String(formData.roll_no || "").trim();
-  const rollNoDigits = normalizedRollNo.replace(/\D/g, "");
   const normalizedContact = String(formData.contact_number || "").trim();
 
   if (!normalizedName) errors.name = "Name is required.";
@@ -140,7 +134,6 @@ export const getAddStudentFieldErrors = ({
 
   if (!normalizedRollNo) errors.roll_no = "Roll number is required.";
   else if (normalizedRollNo.length < 4) errors.roll_no = "Roll number must be at least 4 characters.";
-  else if (rollNoDigits.length < 2) errors.roll_no = "Roll number must contain at least 2 digits for auto password.";
 
   if (!selectedCourseId) errors.course = "Please select a program.";
   if (!selectedAddBatchId) errors.batch = "Please select a batch.";

@@ -47,10 +47,6 @@ export default function AuthGate({
       router.replace("/login?session=expired");
       return;
     }
-    if (user.must_change_password && pathname !== "/settings") {
-      router.replace("/settings?password-change=required");
-      return;
-    }
     if (allowedRoles && !allowedRoles.includes(user.role)) {
       router.replace("/dashboard");
     }

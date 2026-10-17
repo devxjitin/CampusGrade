@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getBatches, getCourses, getSections } from "@/features/academics/api";
-import { addStudent, deleteUser, getAdminUsers, importStudents, resetAdminUserPassword, toggleUserStatus, updateAdminUser } from "@/features/people/api";
+import { addStudent, deleteUser, getAdminUsers, importStudents, toggleUserStatus, updateAdminUser } from "@/features/people/api";
 import { useConfirm } from "@/components/ui";
 import { ACADEMIC_SESSION_CHANGED_EVENT, getSelectedAcademicSessionId } from "@/lib/academicSession";
 import {
@@ -21,7 +21,6 @@ import {
   type Batch,
   type Course,
   type EditStudentForm,
-  type PasswordResetResult,
   type Section,
   type Student,
   type UploadResult,
@@ -32,8 +31,6 @@ export const useAdminStudents = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [passwordResetResult, setPasswordResetResult] = useState<PasswordResetResult | null>(null);
-  const [resettingPasswordId, setResettingPasswordId] = useState("");
 
   const [searchName, setSearchName] = useState("");
   const [filterCourse, setFilterCourse] = useState("");
@@ -243,28 +240,6 @@ export const useAdminStudents = () => {
     } catch (err) {
       console.error("Failed to delete student", err);
       setError(getApiErrorMessage(err, "Failed to remove student."));
-    }
-  };
-
-  const handleResetPassword = async (student: Student) => {
-    const studentId = getStudentId(student);
-    if (!studentId) return;
-    const confirmed = await confirm({
-      title: "Reset student password?",
-      description: "A one-time temporary password will be generated and all existing sessions will be revoked.",
-      details: `${student.name} (${student.email})`,
-      confirmLabel: "Generate password",
-      tone: "danger",
-    });
-    if (!confirmed) return;
-    try {
-      setError(null);
-      setResettingPasswordId(studentId);
-      setPasswordResetResult(await resetAdminUserPassword(studentId));
-    } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to reset student password."));
-    } finally {
-      setResettingPasswordId("");
     }
   };
 
@@ -530,9 +505,8 @@ export const useAdminStudents = () => {
     };
 
     try {
-      const result = await addStudent(payload);
+      await addStudent(payload);
       handleCloseAddModal();
-      setPasswordResetResult(result);
       await fetchStudents();
     } catch (err) {
       console.error(err);
@@ -616,9 +590,6 @@ export const useAdminStudents = () => {
     students,
     loading,
     error,
-    passwordResetResult,
-    setPasswordResetResult,
-    resettingPasswordId,
     searchName,
     setSearchName,
     filterCourse,
@@ -660,7 +631,6 @@ export const useAdminStudents = () => {
     selectedEditBatchId,
     handleToggleStatus,
     handleDeleteStudent,
-    handleResetPassword,
     handleOpenEditStudent,
     handleEditInputChange,
     handleEditSubmit,

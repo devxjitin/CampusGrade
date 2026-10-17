@@ -7,7 +7,7 @@ This backend now runs as native FastAPI on PostgreSQL (no Flask bridge, no Mongo
 - `app.py`: FastAPI entrypoint (`app` ASGI object).
 - `main.py`: Optional runner for `python main.py`.
 - `routes_fastapi/admin_settings.py`: Assignment audit-log routes.
-- `routes_fastapi/auth_routes.py`: Password-based authentication routes.
+- `routes_fastapi/auth_routes.py`: Email-only sign-in, token refresh and logout.
 - `routes_fastapi/assignment_routes.py`: Assignment creation, submission, grading, discussions, and analytics.
 - `routes_fastapi/user_routes.py`: Account profile, preferences, and session routes.
 - `models/database.py` + `models/sql_models.py`: PostgreSQL connection and SQL models.

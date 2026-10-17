@@ -3,15 +3,14 @@ import { expect, test, type Page } from "@playwright/test";
 
 // Sprint 5 demo script, end to end: the teacher prepares a batch, the prompt contains only
 // pseudonyms, one wrong mark gives a clear error, the fixed JSON is reviewed as a diff and saved.
-// Needs the fixtures from backend/seed_e2e.py (E2E_SEED_PASSWORD).
-const password = process.env.E2E_SEED_PASSWORD;
+// Needs the fixtures from backend/seed_e2e.py (E2E_SEEDED=1).
+const seeded = process.env.E2E_SEEDED === "1";
 const teacherEmail = process.env.E2E_TEACHER_EMAIL ?? "e2e-teacher@campusgrade.dev";
 const realIdentifiers = ["Asha Verma", "Rohan Mehta", "E2E-001", "E2E-002", "asha-v-e2e", "rohan-m-e2e", "e2e-student1", "e2e-student2"];
 
 const signIn = async (page: Page, email: string) => {
   await page.goto("/login");
   await page.getByLabel(/university email/i).fill(email);
-  await page.getByPlaceholder("Enter your password").fill(password!);
   await page.getByRole("button", { name: /sign in/i }).click();
   await expect(page).toHaveURL(/\/assignments|\/dashboard/);
 };
@@ -24,7 +23,7 @@ const noSeriousViolations = async (page: Page, selector: string, label: string) 
 };
 
 test("teacher evaluates a batch with pseudonymized prompts", async ({ page, context }) => {
-  test.skip(!password, "E2E_SEED_PASSWORD not set — see backend/seed_e2e.py");
+  test.skip(!seeded, "E2E_SEEDED not set — see backend/seed_e2e.py");
   test.setTimeout(120_000);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await signIn(page, teacherEmail);

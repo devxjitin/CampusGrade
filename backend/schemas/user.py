@@ -62,21 +62,16 @@ class UserStatusUpdate(BaseModel):
     is_active: bool
 
 
-class TemporaryCredentialUser(BaseModel):
+class CreatedUser(BaseModel):
     id: str
     name: str
     email: EmailStr
     role: str = Field(pattern="^(teacher|student)$")
 
 
-class TemporaryCredentialResponse(BaseModel):
+class CreatedUserResponse(BaseModel):
     message: str
-    temporary_password: str
-    user: TemporaryCredentialUser
-
-
-class PasswordResetRequest(BaseModel):
-    new_password: str = Field(min_length=8, max_length=256)
+    user: CreatedUser
 
 
 class AssignmentsUpdate(BaseModel):
@@ -118,11 +113,6 @@ class UserUpdate(BaseModel):
         if value is not None and any(not item.strip() for item in value):
             raise ValueError("List items cannot be blank")
         return value
-
-
-class ChangePasswordRequest(BaseModel):
-    old_password: str = Field(min_length=1, max_length=256)
-    new_password: str = Field(min_length=8, max_length=256)
 
 
 class UserResponse(BaseModel):

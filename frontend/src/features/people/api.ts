@@ -27,7 +27,6 @@ export const getAdmins = () =>
 export const createAdmin = (data: AdminCreateInput) =>
   request.post<"/admin/admins">("/admin/admins", data) as Promise<{
     message: string;
-    temporary_password: string;
     user: AdminAccount;
   }>;
 
@@ -67,7 +66,5 @@ export const toggleUserStatus = async (userId: string, isActive: boolean) =>
 
 export const updateAdminUser = async (userId: string, userData: ApiRequestBody<"/admin/user/{user_id}", "put">) =>
   request.put<"/admin/user/{user_id}">(`/admin/user/${userId}`, userData);
-
-export const resetAdminUserPassword = (userId: string) => request.patch<"/admin/user/{user_id}/reset-password">(`/admin/user/${userId}/reset-password`);
 
 export const deleteUser = (userId: string) => request.delete<"/admin/user/{user_id}">(`/admin/user/${userId}`);

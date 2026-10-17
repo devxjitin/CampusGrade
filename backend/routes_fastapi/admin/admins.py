@@ -9,8 +9,7 @@
 - `PUT /admin/admins/{admin_id}/access` — replace an admin's access wholesale (not merge).
 
 Admins are not limited to particular programs; what they can do is exactly this access.
-New accounts get a random temporary password via
-`admin_helpers._generate_temporary_password()` and `must_change_password=True`.
+New accounts have no password: an admin signs in with their email address.
 """
 
 from __future__ import annotations
@@ -24,12 +23,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from models.settings_store import write_audit_log
 from models.sql_models import SqlAdminAccess, SqlUser
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from services.admin_helpers import _generate_temporary_password, _normalize_person_name, _normalize_user_email
+from services.admin_helpers import _normalize_person_name, _normalize_user_email
 from services.identity_service import sync_profile
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.security_utils import encrypt_password
 
 router = APIRouter(prefix="/admins", tags=["admin-admins"])
 
@@ -105,16 +103,12 @@ async def create_admin(
     if body.role == "admin" and not body.access:
         raise HTTPException(status_code=400, detail="An admin needs access to at least one area")
 
-    temporary_password = _generate_temporary_password()
     new_user = SqlUser(
         id=str(uuid.uuid4()),
         name=name,
         email=email,
-        password=encrypt_password(temporary_password),
         role=body.role,
         is_active=True,
-        must_change_password=True,
-        login_attempts=0,
         created_by=principal.user_id,
     )
     db.add(new_user)
@@ -140,7 +134,6 @@ async def create_admin(
     )
     return {
         "message": "Admin created",
-        "temporary_password": temporary_password,
         "user": {"id": new_user.id, "name": name, "email": email, "role": body.role, "access": granted},
     }
 

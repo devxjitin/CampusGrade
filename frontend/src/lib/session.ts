@@ -25,7 +25,6 @@ export interface SessionUser {
   access?: Partial<Record<AccessResource, AccessLevel>>;
   offering_ids?: string[];
   avatar?: string;
-  must_change_password?: boolean;
   [key: string]: unknown;
 }
 

@@ -4,9 +4,8 @@ import { expect, test, type Page } from "@playwright/test";
 // Sprint 5 (S5-09): axe checks on the core flows. Serious and critical violations fail the test;
 // moderate/minor ones are reported in the log. Also checks that no page scrolls sideways at 360 px (S5-08).
 const email = process.env.E2E_SUPER_ADMIN_EMAIL;
-const password = process.env.E2E_SUPER_ADMIN_PASSWORD;
 
-const publicPages = ["/login", "/forgot-password", "/reset-password?token=example"];
+const publicPages = ["/login"];
 const signedInPages = ["/dashboard", "/assignments", "/settings", "/profile", "/platform/jobs", "/platform/exports", "/admin/academic-sessions", "/admin/audit-log"];
 
 const scan = async (page: Page, path: string) => {
@@ -63,13 +62,12 @@ test.describe("signed-out pages", () => {
 test.describe("signed-in pages", () => {
   // One login (the sign-in endpoint is rate limited), every page scanned, every violation reported.
   test("axe on every core page", async ({ browser, baseURL }) => {
-    test.skip(!email || !password, "E2E_SUPER_ADMIN_EMAIL/PASSWORD not set");
+    test.skip(!email, "E2E_SUPER_ADMIN_EMAIL not set");
     test.setTimeout(180_000);
     const context = await browser.newContext({ baseURL, ignoreHTTPSErrors: true });
     const page = await context.newPage();
     await page.goto("/login");
     await page.getByLabel(/university email/i).fill(email!);
-    await page.getByPlaceholder("Enter your password").fill(password!);
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/\/assignments|\/dashboard/);
     for (const path of signedInPages) {
@@ -93,7 +91,7 @@ test.describe("signed-in pages", () => {
 
 // Student and teacher flows on the fixtures from backend/seed_e2e.py: list, open an assignment, the
 // submit page (student) and the review page (teacher), at desktop width and at 360 px.
-const seedPassword = process.env.E2E_SEED_PASSWORD;
+const seeded = process.env.E2E_SEEDED === "1";
 const people = [
   { role: "student", email: process.env.E2E_STUDENT_EMAIL ?? "e2e-student1@campusgrade.dev", open: /open assignment/i },
   { role: "teacher", email: process.env.E2E_TEACHER_EMAIL ?? "e2e-teacher@campusgrade.dev", open: /review submissions/i },
@@ -101,13 +99,12 @@ const people = [
 
 for (const person of people) {
   test(`${person.role} flows: axe and 360 px`, async ({ browser, baseURL }) => {
-    test.skip(!seedPassword, "E2E_SEED_PASSWORD not set — see backend/seed_e2e.py");
+    test.skip(!seeded, "E2E_SEEDED not set — see backend/seed_e2e.py");
     test.setTimeout(180_000);
     const context = await browser.newContext({ baseURL, ignoreHTTPSErrors: true });
     const page = await context.newPage();
     await page.goto("/login");
     await page.getByLabel(/university email/i).fill(person.email);
-    await page.getByPlaceholder("Enter your password").fill(seedPassword!);
     await page.getByRole("button", { name: /sign in/i }).click();
     await expect(page).toHaveURL(/\/assignments|\/dashboard/);
     for (const width of [1280, 360]) {

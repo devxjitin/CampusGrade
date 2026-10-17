@@ -110,7 +110,7 @@ def test_export_prompt_is_pseudonymized_and_import_restores_real_students(client
         session.commit()
     engine.dispose()
 
-    token = login(teacher["email"], teacher["password"])
+    token = login(teacher["email"])
     headers = {"Authorization": f"Bearer {token}"}
     exported = client.post(f"/assignments/teacher/{assignment_id}/external-evaluation/export", headers=headers)
     assert exported.status_code == 200, exported.text

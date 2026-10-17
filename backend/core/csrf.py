@@ -18,7 +18,7 @@ from fastapi import FastAPI, Request
 from core.errors import Forbidden, error_response
 
 _UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
-_EXEMPT_PATHS = frozenset({"/login", "/auth/refresh", "/auth/forgot-password", "/auth/reset-password"})
+_EXEMPT_PATHS = frozenset({"/login", "/auth/refresh"})
 CSRF_COOKIE_NAME = "campusgrade_csrf"
 CSRF_HEADER_NAME = "X-CSRF-Token"
 

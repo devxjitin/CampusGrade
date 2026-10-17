@@ -55,7 +55,6 @@ class Principal:
     session_id: str | None
     program_ids: frozenset[str]  # ALL_PROGRAMS for both admin tiers (admins are not scoped to programs)
     offering_ids: frozenset[str]  # subject_ids a teacher is allocated to teach
-    must_change_password: bool
     # resource -> access level (1 view, 2 edit, 3 full) a Super Admin granted this `admin`.
     access: Mapping[str, int] = field(default_factory=dict)
 
@@ -97,7 +96,7 @@ async def build_principal(
     """Build a `Principal` for the already-authenticated request.
 
     Reuses `get_current_user`'s token/session validation (expiry, session
-    revocation, suspension, forced password change) rather than
+    revocation, suspension) rather than
     reimplementing it — this function only adds the extra query(ies)
     `get_current_user` doesn't fetch today: a teacher's subject allocation,
     or a program admin's program scopes.
@@ -123,7 +122,6 @@ async def build_principal(
         session_id=current_user.get("_session_id"),
         program_ids=program_ids,
         offering_ids=offering_ids,
-        must_change_password=bool(current_user.get("must_change_password")),
         access=access,
     )
 

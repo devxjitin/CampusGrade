@@ -154,7 +154,7 @@ def test_academic_session_with_data_or_current_cannot_be_deleted(client, seed_us
     world = rollover_world
     student = seed_user(role="student", email=f"delete-guard-{world['tag']}@example.edu")
     admin = seed_user(role="super_admin", email=f"delete-admin-{world['tag']}@example.edu")
-    headers = {"Authorization": f"Bearer {login(admin['email'], admin['password'])}"}
+    headers = {"Authorization": f"Bearer {login(admin['email'])}"}
     url = f"/admin/academic-sessions/{world['from_session']}"
 
     _add_record(client, student["id"], world["from_session"], batch_id=world["batch_new"], study_year=1, semester=1, status="active")
@@ -352,7 +352,7 @@ def test_rollover_query_count_does_not_grow_with_students(client, rollover_world
     async def seed():
         async with async_session_factory() as db:
             db.add_all(
-                SqlUser(id=sid, name=f"Bulk {n}", email=f"bulk-{world['tag']}-{n}@example.edu", password="x", role="student", is_active=True)
+                SqlUser(id=sid, name=f"Bulk {n}", email=f"bulk-{world['tag']}-{n}@example.edu", role="student", is_active=True)
                 for n, sid in enumerate(ids)
             )
             await db.flush()

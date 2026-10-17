@@ -41,7 +41,7 @@ def _seed_course_with_batch(client, *, name: str, start_year: int = 2024):
 
 
 def _headers(login, user) -> dict[str, str]:
-    return {"Authorization": f"Bearer {login(user['email'], user['password'])}"}
+    return {"Authorization": f"Bearer {login(user['email'])}"}
 
 
 @requires_docker

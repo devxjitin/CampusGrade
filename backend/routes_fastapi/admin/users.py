@@ -17,14 +17,13 @@ from models.sql_models import (
     SqlSubject,
     SqlUser,
 )
-from schemas.user import AdminUserUpdate, AssignmentsUpdate, StudentCreate, TeacherCreate, TemporaryCredentialResponse, UserStatusUpdate
+from schemas.user import AdminUserUpdate, AssignmentsUpdate, CreatedUserResponse, StudentCreate, TeacherCreate, UserStatusUpdate
 from services import admin_helpers as legacy
 from services.identity_service import sync_profile
 from services.session_service import revoke_all_sessions
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from utils.security_utils import encrypt_password
 
 from routes_fastapi.admin_settings import read_assignment_monitoring_settings
 from routes_fastapi.assignments.common import _submission_has_content
@@ -508,46 +507,6 @@ async def toggle_user_status(
     return {"message": "User updated successfully"}
 
 
-@router.patch("/user/{user_id}/reset-password", response_model=TemporaryCredentialResponse)
-async def reset_user_password(user_id: str, request: Request, admin=Depends(require_user_access(Resource.USERS, Access.EDIT)), db: AsyncSession = Depends(db_session)):
-    """Async port of admin_helpers.py::reset_user_password. No admin-continuity
-    logic involved (resetting a password doesn't remove an admin), so this
-    one only needed a plain lookup, not the row-locking safety context."""
-    user = (await db.scalars(select(SqlUser).where(SqlUser.id == user_id))).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    if user.role not in {"student", "teacher"}:
-        raise HTTPException(status_code=400, detail="Only student and teacher passwords can be reset here")
-
-    temporary_password = legacy._generate_temporary_password()
-    user.password = encrypt_password(temporary_password)
-    user.must_change_password = True
-    user.session_version = int(user.session_version or 0) + 1
-    user.login_attempts = 0
-    user.locked_until = None
-    target = {"id": user.id, "name": user.name, "email": user.email, "role": user.role}
-    try:
-        await db.flush()
-    except Exception as exc:
-        await db.rollback()
-        logger.error("Password reset failed for user %s: %s", user_id, exc)
-        raise HTTPException(status_code=500, detail="Failed to reset password") from exc
-    await revoke_all_sessions(db, user.id)
-    await write_audit_log(
-        db,
-        admin["_id"],
-        "user.password_reset",
-        target_id=user.id,
-        details={"target_name": user.name, "target_email": user.email, "target_role": user.role},
-        ip_address=request.client.host if request.client else None,
-    )
-    return {
-        "message": "Temporary password generated. The user must change it at next sign-in.",
-        "temporary_password": temporary_password,
-        "user": target,
-    }
-
-
 @router.delete("/user/{user_id}")
 async def delete_user(user_id: str, request: Request, admin=Depends(require_user_access(Resource.USERS, Access.FULL)), db: AsyncSession = Depends(db_session)):
     """Async port of admin_helpers.py::delete_user. Same row-locking safety
@@ -576,7 +535,7 @@ async def delete_user(user_id: str, request: Request, admin=Depends(require_user
     return {"message": "User deleted successfully"}
 
 
-@router.post("/add-teacher", response_model=TemporaryCredentialResponse)
+@router.post("/add-teacher", response_model=CreatedUserResponse)
 async def add_teacher(body: TeacherCreate, request: Request, admin=Depends(require_user_access(Resource.USERS, Access.EDIT)), db: AsyncSession = Depends(db_session)):
     """Async port of admin_helpers.py::add_teacher. `_build_teacher_assignments_async`
     above replaces the sync helper; no coupling to `mirror_teacher_allocations`
@@ -596,22 +555,17 @@ async def add_teacher(body: TeacherCreate, request: Request, admin=Depends(requi
         raise HTTPException(status_code=400, detail="Teacher ID already exists")
 
     assignments = await _build_teacher_assignments_async(db, data.get("assignments"))
-    temporary_password = legacy._generate_temporary_password()
-    hashed = encrypt_password(temporary_password)
 
     new_user = SqlUser(
         id=str(uuid.uuid4()),
         name=name,
         email=email,
-        password=hashed,
         role="teacher",
         teacher_id=teacher_id,
         contact_number=contact_number,
         designation=str(data.get("designation") or "").strip() or None,
         assignments=assignments,
-        must_change_password=True,
         is_active=True,
-        login_attempts=0,
         created_by=admin["_id"],
         created_at=datetime.datetime.utcnow(),
     )
@@ -633,7 +587,6 @@ async def add_teacher(body: TeacherCreate, request: Request, admin=Depends(requi
     )
     return {
         "message": "Teacher added successfully",
-        "temporary_password": temporary_password,
         "user": {"id": new_user.id, "name": name, "email": email, "role": "teacher"},
     }
 
@@ -678,8 +631,6 @@ async def import_teachers(
                 raise HTTPException(status_code=400, detail="Teacher ID is required")
             name = legacy._normalize_person_name(row.get("name"))
             contact_number = legacy._normalize_contact_number(row.get("contact_number"), required=True)
-            generated_password = legacy._generate_temporary_password()
-            encrypted_password = encrypt_password(generated_password)
         except HTTPException as exc:
             invalid_rows.append({"row_number": row_number, "reasons": [str(exc.detail)]})
             continue
@@ -702,15 +653,12 @@ async def import_teachers(
             id=str(uuid.uuid4()),
             name=name,
             email=email,
-            password=encrypted_password,
             role="teacher",
             teacher_id=teacher_id,
             designation=str(row.get("designation") or "").strip() or None,
             contact_number=contact_number,
             assignments=[],
-            must_change_password=True,
             is_active=True,
-            login_attempts=0,
             created_by=admin.get("_id"),
             created_at=datetime.datetime.utcnow(),
         )
@@ -788,8 +736,6 @@ async def import_students(
             if not roll_no:
                 raise HTTPException(status_code=400, detail="Roll number is required")
             name = legacy._normalize_person_name(row.get("name"))
-            generated_password = legacy._generate_temporary_password()
-            encrypted_password = encrypt_password(generated_password)
 
             course_id = legacy._normalize_optional_fk(row.get("course_id"))
             batch_id = legacy._normalize_optional_fk(row.get("batch_id"))
@@ -867,7 +813,6 @@ async def import_students(
             id=str(uuid.uuid4()),
             name=name,
             email=email,
-            password=encrypted_password,
             role="student",
             roll_no=roll_no,
             course=course_name,
@@ -877,9 +822,7 @@ async def import_students(
             section_id=section.id if section else None,
             year=year_value,
             contact_number=contact_number,
-            must_change_password=True,
             is_active=True,
-            login_attempts=0,
             created_by=admin.get("_id"),
             created_at=datetime.datetime.utcnow(),
         )
@@ -939,7 +882,7 @@ async def _require_section_for_batch_async(db: AsyncSession, section_id: str, co
     return section
 
 
-@router.post("/add-student", response_model=TemporaryCredentialResponse)
+@router.post("/add-student", response_model=CreatedUserResponse)
 async def add_student(body: StudentCreate, request: Request, admin=Depends(require_user_access(Resource.USERS, Access.EDIT)), db: AsyncSession = Depends(db_session)):
     """Async port of admin_helpers.py::add_student. This was the one function
     in this file genuinely blocked on `services/academic_calendar.py`'s
@@ -954,7 +897,7 @@ async def add_student(body: StudentCreate, request: Request, admin=Depends(requi
     name = legacy._normalize_person_name(data.get("name"))
     roll_no = legacy._normalize_student_roll_no(data.get("roll_no"))
     if not roll_no:
-        raise HTTPException(status_code=400, detail="Roll number is required to generate password")
+        raise HTTPException(status_code=400, detail="Roll number is required")
 
     course_id = legacy._normalize_optional_fk(data.get("course_id"))
     batch_id = legacy._normalize_optional_fk(data.get("batch_id"))
@@ -1010,14 +953,11 @@ async def add_student(body: StudentCreate, request: Request, admin=Depends(requi
     course_name = str(course.name or "").strip()
     batch_label = legacy._build_batch_label(batch.start_year, batch.end_year, batch.name) if batch else None
     contact_number = legacy._normalize_contact_number(data.get("contact_number"))
-    temporary_password = legacy._generate_temporary_password()
-    hashed = encrypt_password(temporary_password)
 
     new_user = SqlUser(
         id=str(uuid.uuid4()),
         name=name,
         email=email,
-        password=hashed,
         role="student",
         roll_no=roll_no,
         course=course_name or None,
@@ -1028,9 +968,7 @@ async def add_student(body: StudentCreate, request: Request, admin=Depends(requi
         contact_number=contact_number,
         year=course.year,
         semester=data.get("semester"),
-        must_change_password=True,
         is_active=True,
-        login_attempts=0,
         created_by=admin["_id"],
         created_at=datetime.datetime.utcnow(),
     )
@@ -1073,7 +1011,6 @@ async def add_student(body: StudentCreate, request: Request, admin=Depends(requi
     )
     return {
         "message": "Student added successfully",
-        "temporary_password": temporary_password,
         "user": {"id": new_user.id, "name": name, "email": email, "role": "student"},
     }
 

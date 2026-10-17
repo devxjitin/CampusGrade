@@ -4,9 +4,8 @@
 import Link from "next/link";
 import { getCachedUser } from "@/lib/session";
 import { canAccess } from "@/lib/permissions";
-import { Eye, KeyRound, Pencil, Trash2, Upload } from "lucide-react";
+import { Eye, Pencil, Trash2, Upload } from "lucide-react";
 import { LoadingState, PageHeader } from "@/components/ui";
-import TemporaryPasswordDialog from "@/components/TemporaryPasswordDialog";
 import { useAdminTeachers } from "./adminTeachers/useAdminTeachers";
 import { assignmentSummary } from "./adminTeachers/shared";
 import { AddTeacherDialog } from "./adminTeachers/AddTeacherDialog";
@@ -20,9 +19,6 @@ export default function AdminTeachersPage() {
   const {
     loading,
     error,
-    passwordResetResult,
-    setPasswordResetResult,
-    resettingPasswordId,
     searchTeacher,
     setSearchTeacher,
     filterDesignation,
@@ -32,7 +28,6 @@ export default function AdminTeachersPage() {
     getTeacherId,
     handleToggleStatus,
     handleDeleteTeacher,
-    handleResetPassword,
     handleOpenEditTeacher,
     handleOpenAddModal,
     handleOpenUploadModal,
@@ -134,14 +129,6 @@ export default function AdminTeachersPage() {
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => handleResetPassword(teacher)}
-                            disabled={resettingPasswordId === getTeacherId(teacher)}
-                            className="text-amber-700 hover:text-amber-900 disabled:opacity-50"
-                            title="Reset password"
-                          >
-                            <KeyRound className="h-4 w-4" />
-                          </button>
-                          <button
                             onClick={() => handleToggleStatus(getTeacherId(teacher), teacher.is_active)}
                             className={teacher.is_active ? "text-red-600 hover:text-red-900" : "text-green-600 hover:text-green-900"}
                           >
@@ -161,7 +148,6 @@ export default function AdminTeachersPage() {
         </div>
       </div>
 
-      <TemporaryPasswordDialog result={passwordResetResult} onClose={() => setPasswordResetResult(null)} />
 
       <AddTeacherDialog model={model} />
       <UploadTeachersDialog model={model} />

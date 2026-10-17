@@ -44,9 +44,6 @@ def test_every_application_route_has_an_explicit_authentication_gate() -> None:
         ("GET", "/ready"),
         ("POST", "/login"),
         ("POST", "/auth/refresh"),
-        # Password recovery is for people who cannot sign in (Sprint 4); both are rate limited.
-        ("POST", "/auth/forgot-password"),
-        ("POST", "/auth/reset-password"),
     }
     auth_dependencies = {"get_current_user", "require_principal"}
     uncovered = []
@@ -69,12 +66,11 @@ def test_every_application_route_has_an_explicit_authentication_gate() -> None:
 
 def test_authenticated_principal_data_uses_one_database_round_trip() -> None:
     user = SimpleNamespace(
-        id="u1", name="Teacher", email="teacher@example.edu", password="hash",
+        id="u1", name="Teacher", email="teacher@example.edu",
         role="teacher", course=None, batch=None, course_id=None, batch_id=None,
         section_id=None, roll_no=None, assignments=[], achievements=[],
         github_repositories=[], github_username=None, leetcode_username=None,
         avatar=None, bio=None, is_active=True, session_version=0,
-        must_change_password=False, login_attempts=0, locked_until=None,
         last_login=None, created_at=None, created_by=None,
     )
     result = Mock()
@@ -104,7 +100,6 @@ def test_teacher_scope_compiles_to_an_in_predicate() -> None:
     principal = Principal(
         user_id="teacher-1", role=Role.TEACHER, status="active", session_id=None,
         program_ids=frozenset(), offering_ids=frozenset({"subject-a", "subject-b"}),
-        must_change_password=False,
     )
     statement = scope_to_offerings(select(SqlAssignment), principal, SqlAssignment.subject_id)
     compiled = str(statement.compile(compile_kwargs={"literal_binds": True}))
@@ -120,7 +115,6 @@ def _principal(role: Role, access: dict[str, int] | None = None) -> Principal:
         session_id=None,
         program_ids=ALL_PROGRAMS if role in (Role.SUPER_ADMIN, Role.ADMIN) else frozenset(),
         offering_ids=frozenset(),
-        must_change_password=False,
         access=access or {},
     )
 

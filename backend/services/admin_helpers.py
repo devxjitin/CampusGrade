@@ -3,8 +3,6 @@ import io
 import logging
 import os
 import re
-import secrets
-import string
 from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
@@ -143,23 +141,6 @@ def _generate_teacher_id_from_user_id(user_id):
     if not compact:
         raise HTTPException(status_code=400, detail="Unable to generate teacher ID")
     return f"TCH-{compact[:8]}"
-
-
-# `_generate_teacher_password`/`_generate_student_password` and their
-# `_extract_first_name_for_password`/`_extract_last_two_digits` helpers were
-# deleted here (Sprint 4, the original implementation plan): `firstname@last2digits`
-# of a phone number or roll number is guessable by any classmate who knows
-# that person's public info. Every call site (bulk teacher/student import,
-# here and in `routes_fastapi/admin/users.py`) now uses this function.
-def _generate_temporary_password():
-    """Create a strong one-time password without persisting its plaintext."""
-    return "".join((
-        secrets.choice(string.ascii_uppercase),
-        secrets.choice(string.ascii_lowercase),
-        secrets.choice(string.digits),
-        "!",
-        secrets.token_urlsafe(12),
-    ))
 
 
 def _normalize_optional_fk(raw_value):

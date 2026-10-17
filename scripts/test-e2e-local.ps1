@@ -7,8 +7,8 @@
   1. Builds the api and web images (tag :ci).
   2. Stops the running campusgrade stack (if any). Your data is kept: the containers are only stopped.
   3. Starts a separate stack (project "cgtest") on its own volumes with Mailpit, creates test accounts
-     with random passwords, and runs every Playwright spec (login, session, password reset, external-AI
-     evaluation, axe accessibility and 360 px checks).
+     and runs every Playwright spec (login, session, external-AI evaluation, axe accessibility and
+     360 px checks).
   4. Tears the test stack down (including its volumes) and starts your stack again.
 
   Needs Docker Desktop, Node (for Playwright) and `npx playwright install chromium` once.
@@ -16,7 +16,7 @@
 
 .EXAMPLE
   scripts\test-e2e-local.ps1
-  scripts\test-e2e-local.ps1 -SkipBuild -Spec e2e/password-reset.spec.ts
+  scripts\test-e2e-local.ps1 -SkipBuild -Spec e2e/login.spec.ts
 #>
 param(
   [switch]$SkipBuild,
@@ -29,8 +29,6 @@ param(
 $ErrorActionPreference = "Continue"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
-
-function New-Password { "E2e-" + [guid]::NewGuid().ToString("N").Substring(0, 16) + "!x9" }
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw "Docker is not installed or not on PATH." }
 docker info *> $null
@@ -47,6 +45,9 @@ foreach ($name in "secret_key", "postgres_password", "database_url", "private_s3
 $registry = "ghcr.io/devxjitin"
 $override = Join-Path $root ".local-throwaway.yaml"
 $backups = Join-Path $root ".local-test-backups"
+# Sign-in is by email only (no passwords), so the app refuses APP_ENV=production. This throwaway
+# stack is the one place that runs the production images with another environment name.
+$env:APP_ENV = "development"
 $env:CAMPUSGRADE_VERSION = "ci"
 $env:CAMPUSGRADE_PULL_POLICY = "never"
 $env:BACKUP_DIR = "./.local-test-backups"
@@ -87,23 +88,15 @@ try {
   Invoke-Test-Compose up -d --wait
   if ($LASTEXITCODE -ne 0) { throw "The test stack did not become healthy." }
 
-  $adminPassword = New-Password
-  $resetPassword = New-Password
-  $seedPassword = New-Password
-  Invoke-Test-Compose run --rm -T -e BOOTSTRAP_ADMIN_EMAIL=e2e-admin@campusgrade.dev -e "BOOTSTRAP_ADMIN_PASSWORD=$adminPassword" api python bootstrap_admin.py
+  Invoke-Test-Compose run --rm -T -e BOOTSTRAP_ADMIN_EMAIL=e2e-admin@campusgrade.dev api python bootstrap_admin.py
   if ($LASTEXITCODE -ne 0) { throw "Creating the admin account failed." }
-  Invoke-Test-Compose run --rm -T -e BOOTSTRAP_ADMIN_EMAIL=e2e-reset@campusgrade.dev -e "BOOTSTRAP_ADMIN_PASSWORD=$resetPassword" api python bootstrap_admin.py
-  if ($LASTEXITCODE -ne 0) { throw "Creating the reset account failed." }
-  Invoke-Test-Compose run --rm -T -e "E2E_SEED_PASSWORD=$seedPassword" api python seed_e2e.py
+  Invoke-Test-Compose run --rm -T api python seed_e2e.py
   if ($LASTEXITCODE -ne 0) { throw "Seeding the test fixtures failed." }
 
   Write-Host "=== Running Playwright" -ForegroundColor Cyan
   $env:E2E_BASE_URL = "https://campusgrade.localhost"
   $env:E2E_SUPER_ADMIN_EMAIL = "e2e-admin@campusgrade.dev"
-  $env:E2E_SUPER_ADMIN_PASSWORD = $adminPassword
-  $env:E2E_RESET_EMAIL = "e2e-reset@campusgrade.dev"
-  $env:E2E_RESET_PASSWORD = $resetPassword
-  $env:E2E_SEED_PASSWORD = $seedPassword
+  $env:E2E_SEEDED = "1"
   Push-Location (Join-Path $root "frontend")
   try {
     if ($Spec) { npx playwright test $Spec --workers=2 } else { npx playwright test --workers=2 }

@@ -17,9 +17,9 @@ from tests.conftest import requires_docker
 @requires_docker
 class TestLogin:
     def test_login_returns_token_and_user(self, client, seed_user):
-        seed_user(role="student", email="asha@example.edu", password="Str0ng!Pass99")
+        seed_user(role="student", email="asha@example.edu")
 
-        response = client.post("/login", json={"email": "asha@example.edu", "password": "Str0ng!Pass99"})
+        response = client.post("/login", json={"email": "asha@example.edu"})
 
         assert response.status_code == 200
         body = response.json()
@@ -28,12 +28,36 @@ class TestLogin:
         assert body["user"]["email"] == "asha@example.edu"
         assert "password" not in body["user"]
 
-    def test_login_rejects_wrong_password(self, client, seed_user):
-        seed_user(role="student", email="wrongpw@example.edu")
+    def test_login_rejects_an_unknown_email(self, client, seed_user):
+        seed_user(role="student", email="known@example.edu")
 
-        response = client.post("/login", json={"email": "wrongpw@example.edu", "password": "not-the-password"})
+        response = client.post("/login", json={"email": "nobody@example.edu"})
 
         assert response.status_code == 401
+
+    def test_login_rejects_a_suspended_account(self, client, seed_user):
+        from models.database import async_session_factory
+        from models.sql_models import SqlUser
+        from sqlalchemy import update
+
+        user = seed_user(role="student", email="suspended@example.edu")
+
+        async def suspend():
+            async with async_session_factory() as db:
+                await db.execute(update(SqlUser).where(SqlUser.id == user["id"]).values(is_active=False))
+                await db.commit()
+
+        client.portal.call(suspend)
+
+        response = client.post("/login", json={"email": "suspended@example.edu"})
+
+        assert response.status_code == 403
+
+    def test_login_no_longer_accepts_or_needs_a_password(self, client, seed_user):
+        seed_user(role="student", email="nopassword@example.edu")
+
+        assert client.post("/login", json={"email": "nopassword@example.edu", "password": "anything"}).status_code == 200
+        assert client.post("/login", json={"email": "nopassword@example.edu"}).status_code == 200
 
     def test_login_is_rate_limited(self, client, seed_user):
         seed_user(role="student", email="ratelimit@example.edu")
@@ -42,7 +66,7 @@ class TestLogin:
         # can stay under the limit. 22 requests always put at least 11 in one window.
         statuses = []
         for _ in range(22):
-            statuses.append(client.post("/login", json={"email": "ratelimit@example.edu", "password": "wrong"}).status_code)
+            statuses.append(client.post("/login", json={"email": "ratelimit@example.edu"}).status_code)
             if statuses[-1] == 429:
                 break
 
@@ -54,7 +78,7 @@ class TestAdminUserManagement:
     def test_admin_can_list_users(self, client, seed_user, login):
         admin = seed_user(role="super_admin", email="root-admin@example.edu")
         seed_user(role="student", email="listed-student@example.edu")
-        token = login(admin["email"], admin["password"])
+        token = login(admin["email"])
 
         response = client.get("/admin/users", headers={"Authorization": f"Bearer {token}"})
 
@@ -66,7 +90,7 @@ class TestAdminUserManagement:
 
     def test_teacher_cannot_list_users(self, client, seed_user, login):
         teacher = seed_user(role="teacher", email="not-an-admin@example.edu")
-        token = login(teacher["email"], teacher["password"])
+        token = login(teacher["email"])
 
         response = client.get("/admin/users", headers={"Authorization": f"Bearer {token}"})
 
@@ -97,7 +121,7 @@ def _assignment_body(structure: dict, title: str, total_marks: float = 20) -> di
 class TestAssignments:
     def test_teacher_creates_assignment(self, client, seed_user, seed_academic, login):
         teacher = seed_user(role="teacher", email="creator@example.edu")
-        token = login(teacher["email"], teacher["password"])
+        token = login(teacher["email"])
         headers = {"Authorization": f"Bearer {token}"}
 
         response = client.post(
@@ -117,7 +141,7 @@ class TestAssignments:
 
     def test_student_cannot_create_assignment(self, client, seed_user, seed_academic, login):
         student = seed_user(role="student", email="not-a-teacher@example.edu")
-        token = login(student["email"], student["password"])
+        token = login(student["email"])
 
         response = client.post(
             "/assignments/teacher",
@@ -130,8 +154,8 @@ class TestAssignments:
     def test_teacher_cannot_read_another_teachers_assignment(self, client, seed_user, seed_academic, login):
         owner = seed_user(role="teacher", email="owner@example.edu")
         other = seed_user(role="teacher", email="other-teacher@example.edu")
-        owner_token = login(owner["email"], owner["password"])
-        other_token = login(other["email"], other["password"])
+        owner_token = login(owner["email"])
+        other_token = login(other["email"])
 
         created = client.post(
             "/assignments/teacher",
