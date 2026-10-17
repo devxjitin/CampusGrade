@@ -20,6 +20,9 @@ test("forgot password sends an email, the link resets the password and signs out
   expect(login.ok()).toBeTruthy();
   expect((await oldSession.get("/api/auth/me")).ok()).toBeTruthy();
 
+  // Start from an empty inbox for this address so a mail left by an earlier run cannot be picked up.
+  await fetch(`${mailpit.replace(/\/$/, "")}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`, { method: "DELETE" });
+
   await page.goto("/login");
   await page.getByRole("link", { name: /forgot password/i }).click();
   await expect(page).toHaveURL(/\/forgot-password/);

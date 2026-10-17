@@ -371,8 +371,11 @@ lint-clean on the whole backend; no backend file over 800 lines.
 > ruff and mypy are clean, eslint/tsc/vitest pass, `npm run build` passes, `docker compose config`
 > resolves with the CI overlay.
 >
+> **Also verified locally in Docker Desktop** (images built locally, throwaway stack on separate volumes with
+> Mailpit, torn down afterwards): the Playwright reset spec passes against the HTTPS stack; login and
+> session specs pass. Running the specs back to back can trip the login rate limit (10 per minute).
+
 > **Not verified**
-> - The Playwright reset spec has not run yet (it runs in CI against the prod stack with Mailpit).
 > - No email has been sent through a real SMTP provider; only a faked SMTP and Mailpit-shaped config.
 > - The demo script end to end in a browser, and the "teacher publishes results → student email" step.
 >
