@@ -11,7 +11,7 @@ CampusGrade: an assignment, repository-analysis, and grading platform for one in
 ### Fast local loop (use this while developing)
 
 - `scripts\dev-local.ps1` runs Postgres in Docker (`compose.local.yaml` makes it reachable on `127.0.0.1:5433`) and the API (`uvicorn --reload`), worker and Next dev server as plain processes on the host. It is much faster than the Docker dev stack, which mounts the source into containers and proxies every request. App `http://localhost:3000`, API `http://localhost:5001`; files go to `.local\storage`, logs to `.local\logs`; `-Status` shows what is up, `-Stop` stops it. The worker does not auto-reload: restart the stack after changing worker or job code. It reuses the dev stack's database and stops the containerized api/web/worker, which would otherwise take the same ports.
-- `scripts\check-local.ps1` runs what GitHub CI runs (the ruff file list is read from `ci.yml`, mypy, pytest, eslint, tsc, vitest, and the `api.d.ts` freshness check when the API is up). `-Quick` skips pytest, `-Build` adds `npm run build`. Push when it is green; GitHub CI is then a confirmation, not the first feedback.
+- `scripts\check-local.ps1` runs the full local check (ruff, mypy, pytest, eslint, tsc, vitest, and the `api.d.ts` freshness check when the API is up). `-Quick` skips pytest, `-Build` adds `npm run build`. Push when it is green.
 
 ### Whole stack (Docker Desktop)
 
@@ -62,4 +62,4 @@ Browser → Caddy (`docker/caddy/Caddyfile`: TLS, security headers) → `/api/*`
 
 ### CI/CD
 
-`.github/workflows/ci.yml`: lint/types/tests/migration round-trip/frontend build, then builds both images, Trivy-scans them, starts `compose.prod.yaml` and runs Playwright against `https://campusgrade.localhost`; a merge to `main` pushes the tested images to `ghcr.io/devxjitin/campusgrade-{api,web}` (tags `main`, `sha-<commit>`), with no second build. `.github/workflows/release.yml` runs on `v*.*.*` tags: it waits for that commit's `sha-<commit>` images and re-tags them with the version (and `latest` for stable versions); version tags do not re-run CI.
+There is no hosted CI: GitHub Actions was removed on purpose (too slow). Everything is checked locally with `scripts\check-local.ps1` and `scripts\test-e2e-local.ps1`; code is still pushed to GitHub. Images are built locally and deployed with `scripts\deploy.ps1 -NoPull`.

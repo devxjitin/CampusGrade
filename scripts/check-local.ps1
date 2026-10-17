@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Runs the same checks as GitHub CI on this PC, so GitHub is only the final confirmation.
+  Runs all checks on this PC (there is no hosted CI).
 
 .DESCRIPTION
   Backend:  ruff (whole backend), mypy, pytest

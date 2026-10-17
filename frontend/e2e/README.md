@@ -16,7 +16,7 @@ Tests skip themselves when their credentials are not set, so a partial setup sti
 
 ## Running in CI
 
-`.github/workflows/ci.yml` builds the production images, starts `compose.prod.yaml`, creates a Super Admin with `bootstrap_admin.py`, and runs this suite against `https://campusgrade.localhost`. Only the Super Admin account exists there, so the other role tests are skipped; seed more accounts in the CI job to run them.
+`scripts\test-e2e-local.ps1` builds the production images, starts `compose.prod.yaml` and runs this suite against `https://campusgrade.localhost`.
 
 ## Running everything locally (no GitHub Actions)
 
