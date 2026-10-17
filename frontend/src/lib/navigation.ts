@@ -5,6 +5,7 @@ import {
   BookOpen,
   CalendarRange,
   ClipboardList,
+  FileArchive,
   GraduationCap,
   ListChecks,
   Layers,
@@ -69,6 +70,7 @@ const roleNavigation: Record<NavRole, NavSection[]> = {
         { label: "Academic sessions", path: "/admin/academic-sessions", icon: CalendarRange },
         { label: "Session rollover", path: "/admin/session-rollover", icon: RotateCcw },
         { label: "Background jobs", path: "/platform/jobs", icon: ListChecks },
+        { label: "Data exports", path: "/platform/exports", icon: FileArchive },
       ],
     },
     {

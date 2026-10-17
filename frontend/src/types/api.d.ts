@@ -881,6 +881,61 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Exports */
+        get: operations["list_exports_admin_exports_get"];
+        put?: never;
+        /** Request Export */
+        post: operations["request_export_admin_exports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/exports/{export_id}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Download Url
+         * @description Five-minute presigned link. `url` is null when the backend cannot presign; use `/file` then.
+         */
+        get: operations["export_download_url_admin_exports__export_id__url_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/exports/{export_id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Download File */
+        get: operations["export_download_file_admin_exports__export_id__file_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notifications": {
         parameters: {
             query?: never;
@@ -1394,7 +1449,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Export External Evaluation */
+        /**
+         * Export External Evaluation
+         * @description Prepare prompts in which every student is a pseudonym (`Student-07`).
+         *
+         *     The prompt carries no name, roll number, email, student id, repository owner or submission id.
+         *     The mapping back to real students lives only in the signed batch token that the teacher's browser
+         *     keeps (`batch_id` in the response); the prompt contains an unrelated random `batch_ref` instead.
+         */
         post: operations["export_external_evaluation_assignments_teacher__assignment_id__external_evaluation_export_post"];
         delete?: never;
         options?: never;
@@ -1431,8 +1493,35 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Validate External Evaluation */
+        /**
+         * Validate External Evaluation
+         * @description Validate an imported AI response and return, per student, the proposed marks next to what is saved.
+         *
+         *     Nothing is written. `preview` and `validate` are the same operation.
+         */
         post: operations["validate_external_evaluation_assignments_teacher__assignment_id__external_evaluation_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assignments/teacher/{assignment_id}/external-evaluation/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate External Evaluation
+         * @description Validate an imported AI response and return, per student, the proposed marks next to what is saved.
+         *
+         *     Nothing is written. `preview` and `validate` are the same operation.
+         */
+        post: operations["validate_external_evaluation_assignments_teacher__assignment_id__external_evaluation_preview_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2325,6 +2414,11 @@ export interface components {
             duration_years?: number | null;
             /** Year */
             year?: number | null;
+        };
+        /** ExportRequest */
+        ExportRequest: {
+            /** Session Id */
+            session_id: string;
         };
         /** ExternalAIAssignmentProposalImport */
         ExternalAIAssignmentProposalImport: {
@@ -4566,6 +4660,121 @@ export interface operations {
             };
         };
     };
+    list_exports_admin_exports_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    request_export_admin_exports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_download_url_admin_exports__export_id__url_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_download_file_admin_exports__export_id__file_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_items_notifications_get: {
         parameters: {
             query?: {
@@ -5576,6 +5785,41 @@ export interface operations {
         };
     };
     validate_external_evaluation_assignments_teacher__assignment_id__external_evaluation_validate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalEvaluationValidateInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_external_evaluation_assignments_teacher__assignment_id__external_evaluation_preview_post: {
         parameters: {
             query?: never;
             header?: never;
