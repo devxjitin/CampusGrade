@@ -19,7 +19,7 @@ import DashboardLayout from "@/components/layout/DashboardLayout";
 // a populated cache on first mount.
 export default function AppGroupLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AuthGate allowedRoles={["super_admin", "program_admin", "teacher", "student"]}>
+    <AuthGate allowedRoles={["super_admin", "admin", "teacher", "student"]}>
       <DashboardLayout>{children}</DashboardLayout>
     </AuthGate>
   );

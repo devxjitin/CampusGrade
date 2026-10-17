@@ -2,6 +2,8 @@
 
 // Ported from frontend-legacy/src/pages/AdminStudents.jsx
 import Link from "next/link";
+import { getCachedUser } from "@/lib/session";
+import { canAccess } from "@/lib/permissions";
 import { Eye, KeyRound, Pencil, Trash2, Upload } from "lucide-react";
 import { LoadingState, PageHeader } from "@/components/ui";
 import TemporaryPasswordDialog from "@/components/TemporaryPasswordDialog";
@@ -13,6 +15,8 @@ import { EditStudentDialog } from "./adminStudents/EditStudentDialog";
 import { UploadStudentsDialog } from "./adminStudents/UploadStudentsDialog";
 
 export default function AdminStudentsPage() {
+  const canEdit = canAccess(getCachedUser(), "users", "edit");
+  const canDelete = canAccess(getCachedUser(), "users", "full");
   const model = useAdminStudents();
   const {
     loading,
@@ -49,7 +53,7 @@ export default function AdminStudentsPage() {
           title="Students"
           description="Manage student accounts and academic placement for assignment delivery."
           actions={
-            <>
+            !canEdit ? undefined : <>
               <button onClick={handleOpenUploadModal} className="btn btn-outline">
                 <Upload className="h-4 w-4" />
                 Import students
@@ -163,7 +167,7 @@ export default function AdminStudentsPage() {
                           <Link href={`/admin/users/${getStudentId(student)}`} className="text-primary-600 hover:text-primary-800" title="View student details">
                             <Eye className="h-4 w-4" />
                           </Link>
-                          <button onClick={() => handleOpenEditStudent(student)} className="text-indigo-600 hover:text-indigo-900" title="Edit student">
+                          {canEdit && (<><button onClick={() => handleOpenEditStudent(student)} className="text-indigo-600 hover:text-indigo-900" title="Edit student">
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button
@@ -179,10 +183,10 @@ export default function AdminStudentsPage() {
                             className={student.is_active ? "text-red-600 hover:text-red-900" : "text-green-600 hover:text-green-900"}
                           >
                             {student.is_active ? "Deactivate" : "Activate"}
-                          </button>
-                          <button onClick={() => handleDeleteStudent(student)} className="text-red-700 hover:text-red-900" title="Remove student">
+                          </button></>)}
+                          {canDelete && <button onClick={() => handleDeleteStudent(student)} className="text-red-700 hover:text-red-900" title="Remove student">
                             <Trash2 className="h-4 w-4" />
-                          </button>
+                          </button>}
                         </div>
                       </td>
                     </tr>

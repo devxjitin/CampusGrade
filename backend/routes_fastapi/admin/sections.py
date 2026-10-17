@@ -3,7 +3,7 @@ import uuid
 from collections import defaultdict
 
 from core.db import db_session
-from core.policy import Permission, require
+from core.policy import Access, Resource, require_access
 from core.scoping import scope_to_programs
 from fastapi import APIRouter, Depends, HTTPException
 from models.sql_models import SqlBatch, SqlCourse, SqlSection, SqlStudentSessionRecord, SqlUser
@@ -34,7 +34,7 @@ async def _validate_section_links_async(db: AsyncSession, course_id: str, batch_
 @router.get("/sections")
 async def get_sections(
     course_id: str | None = None, batch_id: str | None = None, session_id: str | None = None,
-    principal=Depends(require(Permission.SECTION_MANAGE)), db: AsyncSession = Depends(db_session),
+    principal=Depends(require_access(Resource.SECTIONS, Access.VIEW)), db: AsyncSession = Depends(db_session),
 ):
     # See admin/batches.py's get_batches for why this is unconditional.
     query = scope_to_programs(select(SqlSection), principal, SqlSection.course_id)
@@ -93,7 +93,7 @@ async def get_sections(
 
 
 @router.post("/sections")
-async def create_section(body: SectionCreate, principal=Depends(require(Permission.SECTION_MANAGE)), db: AsyncSession = Depends(db_session)):
+async def create_section(body: SectionCreate, principal=Depends(require_access(Resource.SECTIONS, Access.EDIT)), db: AsyncSession = Depends(db_session)):
     del principal
     data = body.model_dump()
     name = _normalize_section_name(data.get("name"))
@@ -126,7 +126,7 @@ async def create_section(body: SectionCreate, principal=Depends(require(Permissi
 
 
 @router.put("/sections/{section_id}")
-async def update_section(section_id: str, body: SectionUpdate, principal=Depends(require(Permission.SECTION_MANAGE)), db: AsyncSession = Depends(db_session)):
+async def update_section(section_id: str, body: SectionUpdate, principal=Depends(require_access(Resource.SECTIONS, Access.EDIT)), db: AsyncSession = Depends(db_session)):
     del principal
     data = body.model_dump(exclude_unset=True)
     section = (await db.scalars(select(SqlSection).where(SqlSection.id == section_id))).first()
@@ -165,7 +165,7 @@ async def update_section(section_id: str, body: SectionUpdate, principal=Depends
 
 
 @router.delete("/sections/{section_id}")
-async def delete_section(section_id: str, principal=Depends(require(Permission.SECTION_MANAGE)), db: AsyncSession = Depends(db_session)):
+async def delete_section(section_id: str, principal=Depends(require_access(Resource.SECTIONS, Access.FULL)), db: AsyncSession = Depends(db_session)):
     del principal
     section = (await db.scalars(select(SqlSection).where(SqlSection.id == section_id))).first()
     if not section:

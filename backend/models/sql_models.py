@@ -1,6 +1,6 @@
 import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from models.database import Base
@@ -145,6 +145,20 @@ class SqlAdminProgramScope(Base):
     __tablename__ = "admin_program_scopes"
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     program_id: Mapped[str] = mapped_column(ForeignKey("programs.id", ondelete="CASCADE"), primary_key=True)
+
+
+class SqlAdminAccess(Base):
+    """What an `admin` account may do, set by a Super Admin: one row per resource.
+
+    `level` is "view" (read only), "edit" (also create and change) or "full" (also delete).
+    A resource with no row is not accessible. Super Admins ignore this table.
+    """
+
+    __tablename__ = "admin_access"
+    __table_args__ = (CheckConstraint("level IN ('view','edit','full')", name="ck_admin_access_level"),)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    resource: Mapped[str] = mapped_column(String(40), primary_key=True)
+    level: Mapped[str] = mapped_column(String(10), nullable=False)
 
 
 class SqlCourse(Base, TimestampedModel):

@@ -7,6 +7,7 @@ import { EmptyState, EntityCard, EntityCardGrid, ErrorState, LoadingState, PageH
 import { useToast } from "@/components/Toast";
 import { batchHooks, courseHooks, type AcademicRecord } from "@/features/academics/queries";
 import { getCachedUser } from "@/lib/session";
+import { canAccess } from "@/lib/permissions";
 import ViewingSessionBanner from "@/components/ViewingSessionBanner";
 import { ACADEMIC_SESSION_CHANGED_EVENT, getSelectedAcademicSessionId } from "@/lib/academicSession";
 import { BatchFormDialog } from "./dialogs/BatchFormDialog";
@@ -45,6 +46,8 @@ export default function AdminBatchesPage() {
   const { data: courses = [] } = courseHooks.useList();
   const createMutation = batchHooks.useCreate();
   const updateMutation = batchHooks.useUpdate();
+  const canEdit = canAccess(getCachedUser(), "batches", "edit");
+  const canDelete = canAccess(getCachedUser(), "batches", "full");
   const deleteMutation = batchHooks.useDelete();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -191,7 +194,7 @@ export default function AdminBatchesPage() {
         title="Batches"
         description="Manage academic intake periods within each program."
         actions={
-          <button onClick={() => handleOpenModal()} className="btn btn-primary">
+          !canEdit ? undefined : <button onClick={() => handleOpenModal()} className="btn btn-primary">
             <Plus className="h-4 w-4" />
             Add batch
           </button>
@@ -252,12 +255,12 @@ export default function AdminBatchesPage() {
               ]}
               actions={
                 <>
-                  <button onClick={() => handleOpenModal(batch)} className="text-blue-600 hover:text-blue-800 p-2 rounded-lg transition-colors">
+                  {canEdit && <button onClick={() => handleOpenModal(batch)} className="text-blue-600 hover:text-blue-800 p-2 rounded-lg transition-colors">
                     <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handleDelete(batch)} className="text-red-600 hover:text-red-800 p-2 rounded-lg transition-colors">
+                  </button>}
+                  {canDelete && <button onClick={() => handleDelete(batch)} className="text-red-600 hover:text-red-800 p-2 rounded-lg transition-colors">
                     <Trash2 className="w-4 h-4" />
-                  </button>
+                  </button>}
                 </>
               }
             />

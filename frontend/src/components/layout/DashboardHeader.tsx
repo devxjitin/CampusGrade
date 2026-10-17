@@ -43,7 +43,7 @@ export const DashboardHeader = ({
   sidebarCollapsed: boolean;
   breadcrumbItems: BreadcrumbItem[];
   pageLabel: string;
-  role: "super_admin" | "program_admin" | "teacher" | "student";
+  role: "super_admin" | "admin" | "teacher" | "student";
   academicSessions: AcademicSessionItem[];
   selectedSessionId: string;
   handleSessionChange: (sessionId: string) => void;

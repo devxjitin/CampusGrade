@@ -34,7 +34,7 @@ const UserAvatar = ({
 // a real latent bug (it silently resets any local state SidebarContent
 // would ever hold), not just style.
 export interface SidebarContentProps {
-  role: "super_admin" | "program_admin" | "teacher" | "student";
+  role: "super_admin" | "admin" | "teacher" | "student";
   sections: NavSection[];
   navigation: NavigationContext;
   pathname: string;

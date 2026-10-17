@@ -7,6 +7,7 @@ import { EmptyState, EntityCard, EntityCardGrid, ErrorState, LoadingState, PageH
 import { useToast } from "@/components/Toast";
 import { batchHooks, courseHooks, sectionHooks, type AcademicRecord } from "@/features/academics/queries";
 import { getCachedUser } from "@/lib/session";
+import { canAccess } from "@/lib/permissions";
 import ViewingSessionBanner from "@/components/ViewingSessionBanner";
 import { ACADEMIC_SESSION_CHANGED_EVENT, getSelectedAcademicSessionId } from "@/lib/academicSession";
 import { SectionFormDialog } from "./dialogs/SectionFormDialog";
@@ -50,6 +51,8 @@ export default function AdminSectionsPage() {
   const { data: batches = [] } = batchHooks.useList();
   const createMutation = sectionHooks.useCreate();
   const updateMutation = sectionHooks.useUpdate();
+  const canEdit = canAccess(getCachedUser(), "sections", "edit");
+  const canDelete = canAccess(getCachedUser(), "sections", "full");
   const deleteMutation = sectionHooks.useDelete();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -203,7 +206,7 @@ export default function AdminSectionsPage() {
         title="Sections"
         description="Manage student groups within a program and batch."
         actions={
-          <button onClick={() => handleOpenModal()} className="btn btn-primary">
+          !canEdit ? undefined : <button onClick={() => handleOpenModal()} className="btn btn-primary">
             <Plus className="h-4 w-4" />
             Add section
           </button>
@@ -265,12 +268,12 @@ export default function AdminSectionsPage() {
               ]}
               actions={
                 <>
-                  <button onClick={() => handleOpenModal(section)} className="rounded-lg p-2 text-blue-600 transition-colors hover:text-blue-800">
+                  {canEdit && <button onClick={() => handleOpenModal(section)} className="rounded-lg p-2 text-blue-600 transition-colors hover:text-blue-800">
                     <Edit2 className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => handleDelete(section)} className="rounded-lg p-2 text-red-600 transition-colors hover:text-red-800">
+                  </button>}
+                  {canDelete && <button onClick={() => handleDelete(section)} className="rounded-lg p-2 text-red-600 transition-colors hover:text-red-800">
                     <Trash2 className="h-4 w-4" />
-                  </button>
+                  </button>}
                 </>
               }
             />

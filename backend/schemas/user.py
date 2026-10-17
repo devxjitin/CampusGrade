@@ -7,8 +7,8 @@ class UserCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     email: EmailStr
     # Sprint 5, the original implementation plan: "admin" split into "super_admin"/
-    # "program_admin" (see migration `canvasgrade_022`).
-    role: str = Field(pattern="^(super_admin|program_admin|teacher|student)$")
+    # "admin" (see migrations `canvasgrade_022` and `canvasgrade_031`).
+    role: str = Field(pattern="^(super_admin|admin|teacher|student)$")
     teacher_id: str | None = Field(default=None, max_length=50)
     roll_no: str | None = Field(default=None, max_length=50)
     course_id: str | None = Field(default=None, max_length=64)
@@ -86,7 +86,7 @@ class AssignmentsUpdate(BaseModel):
 class AdminUserUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     email: EmailStr | None = None
-    role: str | None = Field(default=None, pattern="^(super_admin|program_admin|teacher|student)$")
+    role: str | None = Field(default=None, pattern="^(super_admin|admin|teacher|student)$")
     roll_no: str | None = Field(default=None, max_length=50)
     teacher_id: str | None = Field(default=None, max_length=50)
     contact_number: str | None = Field(default=None, max_length=50)

@@ -15,3 +15,6 @@ Naye entries neeche add hote hain. Purani lines edit mat karo.
 [2026-10-17 18:45] [Claude] [Fix: rollover undo cached fields revert, sirf run ke enrollments, latest-run guard]
 [2026-10-17 18:45] [Claude] [Refactor: rollover plan/execute bulk queries, fixed query count; migration 030 enrollment tag]
 [2026-10-17 21:17] [Claude] [Remove: subject auto-enrol (rollover + add-student), UI preview card aur label]
+[2026-10-17 22:06] [Claude] [Add: admin role (replaces program_admin) with per-area view/edit/full access set by Super Admin]
+[2026-10-17 22:06] [Claude] [Fix: only Super Admin can edit/delete admin accounts or promote roles]
+[2026-10-17 22:06] [Claude] [Update: migration 031 dev DB par applied, frontend nav/accounts UI/proxy access-aware]

@@ -2,6 +2,8 @@
 
 // Ported from frontend-legacy/src/pages/AdminTeachers.jsx
 import Link from "next/link";
+import { getCachedUser } from "@/lib/session";
+import { canAccess } from "@/lib/permissions";
 import { Eye, KeyRound, Pencil, Trash2, Upload } from "lucide-react";
 import { LoadingState, PageHeader } from "@/components/ui";
 import TemporaryPasswordDialog from "@/components/TemporaryPasswordDialog";
@@ -12,6 +14,8 @@ import { EditTeacherDialog } from "./adminTeachers/EditTeacherDialog";
 import { UploadTeachersDialog } from "./adminTeachers/UploadTeachersDialog";
 
 export default function AdminTeachersPage() {
+  const canEdit = canAccess(getCachedUser(), "users", "edit");
+  const canDelete = canAccess(getCachedUser(), "users", "full");
   const model = useAdminTeachers();
   const {
     loading,
@@ -44,7 +48,7 @@ export default function AdminTeachersPage() {
           title="Teachers"
           description="Manage teacher accounts, academic assignments, and course responsibilities."
           actions={
-            <>
+            !canEdit ? undefined : <>
               <button onClick={handleOpenUploadModal} className="btn btn-outline">
                 <Upload className="h-4 w-4" />
                 Import teachers
@@ -126,7 +130,7 @@ export default function AdminTeachersPage() {
                           <Link href={`/admin/users/${getTeacherId(teacher)}`} className="text-primary-600 hover:text-primary-800" title="View teacher details">
                             <Eye className="h-4 w-4" />
                           </Link>
-                          <button onClick={() => handleOpenEditTeacher(teacher)} className="text-indigo-600 hover:text-indigo-900" title="Edit teacher">
+                          {canEdit && (<><button onClick={() => handleOpenEditTeacher(teacher)} className="text-indigo-600 hover:text-indigo-900" title="Edit teacher">
                             <Pencil className="h-4 w-4" />
                           </button>
                           <button
@@ -142,10 +146,10 @@ export default function AdminTeachersPage() {
                             className={teacher.is_active ? "text-red-600 hover:text-red-900" : "text-green-600 hover:text-green-900"}
                           >
                             {teacher.is_active ? "Deactivate" : "Activate"}
-                          </button>
-                          <button onClick={() => handleDeleteTeacher(teacher)} className="text-red-700 hover:text-red-900" title="Remove teacher">
+                          </button></>)}
+                          {canDelete && <button onClick={() => handleDeleteTeacher(teacher)} className="text-red-700 hover:text-red-900" title="Remove teacher">
                             <Trash2 className="h-4 w-4" />
-                          </button>
+                          </button>}
                         </div>
                       </td>
                     </tr>

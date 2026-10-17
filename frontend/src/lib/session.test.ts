@@ -31,8 +31,8 @@ describe("isAdminRole", () => {
     expect(isAdminRole("super_admin")).toBe(true);
   });
 
-  it("is true for program_admin", () => {
-    expect(isAdminRole("program_admin")).toBe(true);
+  it("is true for admin", () => {
+    expect(isAdminRole("admin")).toBe(true);
   });
 
   it("is false for teacher, student, undefined, and null", () => {

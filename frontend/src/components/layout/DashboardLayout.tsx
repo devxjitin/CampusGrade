@@ -34,7 +34,7 @@ interface NotificationItem {
 
 export interface DashboardLayoutProps {
   children: React.ReactNode;
-  role?: "super_admin" | "program_admin" | "teacher" | "student";
+  role?: "super_admin" | "admin" | "teacher" | "student";
   userName?: string;
   userEmail?: string;
   userAvatar?: string;
@@ -68,8 +68,9 @@ const DashboardLayout = ({ children, role: roleProp, userName, userEmail, userAv
   const [academicSessions, setAcademicSessions] = useState<AcademicSessionItem[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState("");
 
-  const sections = useMemo(() => getMenuSections(role), [role]);
-  const navigation = useMemo(() => getNavigationContext(role, pathname || ""), [pathname, role]);
+  const access = cachedUser?.access;
+  const sections = useMemo(() => getMenuSections(role, access), [role, access]);
+  const navigation = useMemo(() => getNavigationContext(role, pathname || "", access), [pathname, role, access]);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setImageFailed(false), [effectiveUserAvatar]);

@@ -1,7 +1,7 @@
 from datetime import date, datetime
 
 from core.db import db_session
-from core.policy import Permission, require
+from core.policy import Access, Permission, Resource, require, require_access
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from models.settings_store import (
     get_audit_logs,
@@ -99,7 +99,7 @@ async def update_assignment_monitoring_settings(
 
 @router.get("/audit-log")
 async def fastapi_get_audit_log(
-    principal=Depends(require(Permission.AUDIT_VIEW)),
+    principal=Depends(require_access(Resource.AUDIT_LOG, Access.VIEW)),
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=10, le=100, description="Items per page"),
     action: str | None = None,

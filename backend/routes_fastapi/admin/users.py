@@ -5,7 +5,7 @@ import logging
 import uuid
 
 from core.db import db_session
-from core.policy import Permission, require_user
+from core.policy import Access, Resource, require_user_access
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from models.assignment import SqlAssignment, SqlAssignmentGrade, SqlAssignmentSubmission, SqlAssignmentSubmissionVersion
 from models.settings_store import write_audit_log
@@ -362,6 +362,20 @@ def _admin_user_details_sync(user_id: str, session):
         pass
 
 
+
+_ADMIN_TIER_ROLES = {"super_admin", "admin"}
+
+
+def _assert_can_manage_account(actor: dict, target_role: str, next_role: str | None = None) -> None:
+    """Only a Super Admin may touch administrator accounts or make anyone one.
+
+    Without this, an `admin` with edit access to users could reset a Super Admin or promote
+    themselves."""
+    if actor.get("role") == "super_admin":
+        return
+    if target_role in _ADMIN_TIER_ROLES or (next_role is not None and next_role in _ADMIN_TIER_ROLES):
+        raise HTTPException(status_code=403, detail="Only a Super Admin can manage administrator accounts")
+
 @router.get("/users")
 async def get_users(
     page: int = 1,
@@ -369,7 +383,7 @@ async def get_users(
     search: str | None = None,
     role: str | None = None,
     session_id: str | None = None,
-    admin=Depends(require_user(Permission.USER_MANAGE)),
+    admin=Depends(require_user_access(Resource.USERS, Access.VIEW)),
     db: AsyncSession = Depends(db_session),
 ):
     """Async port of admin_helpers.py::get_users — read-only, no shared-helper
@@ -464,7 +478,7 @@ async def toggle_user_status(
     user_id: str,
     body: UserStatusUpdate,
     request: Request,
-    admin=Depends(require_user(Permission.USER_MANAGE)),
+    admin=Depends(require_user_access(Resource.USERS, Access.EDIT)),
     db: AsyncSession = Depends(db_session),
 ):
     """Async port of admin_helpers.py::toggle_user_status. Uses the async
@@ -474,6 +488,7 @@ async def toggle_user_status(
     data = body.model_dump()
     user, active_admins = await _lock_user_safety_context_async(db, user_id)
     next_active = data["is_active"]
+    _assert_can_manage_account(admin, user.role)
     legacy._assert_admin_continuity(user, active_admins, admin["_id"], next_active=next_active)
     changed = user.is_active != next_active
     if changed:
@@ -494,7 +509,7 @@ async def toggle_user_status(
 
 
 @router.patch("/user/{user_id}/reset-password", response_model=TemporaryCredentialResponse)
-async def reset_user_password(user_id: str, request: Request, admin=Depends(require_user(Permission.USER_MANAGE)), db: AsyncSession = Depends(db_session)):
+async def reset_user_password(user_id: str, request: Request, admin=Depends(require_user_access(Resource.USERS, Access.EDIT)), db: AsyncSession = Depends(db_session)):
     """Async port of admin_helpers.py::reset_user_password. No admin-continuity
     logic involved (resetting a password doesn't remove an admin), so this
     one only needed a plain lookup, not the row-locking safety context."""
@@ -534,12 +549,13 @@ async def reset_user_password(user_id: str, request: Request, admin=Depends(requ
 
 
 @router.delete("/user/{user_id}")
-async def delete_user(user_id: str, request: Request, admin=Depends(require_user(Permission.USER_MANAGE)), db: AsyncSession = Depends(db_session)):
+async def delete_user(user_id: str, request: Request, admin=Depends(require_user_access(Resource.USERS, Access.FULL)), db: AsyncSession = Depends(db_session)):
     """Async port of admin_helpers.py::delete_user. Same row-locking safety
     context as toggle_user_status; a delete that would remove the last
     active admin, or an admin deleting themselves, is rejected before the
     delete is even issued."""
     user, active_admins = await _lock_user_safety_context_async(db, user_id)
+    _assert_can_manage_account(admin, user.role)
     legacy._assert_admin_continuity(user, active_admins, admin["_id"], deleting=True)
     target = {"name": user.name, "email": user.email, "role": user.role}
     await db.delete(user)
@@ -561,7 +577,7 @@ async def delete_user(user_id: str, request: Request, admin=Depends(require_user
 
 
 @router.post("/add-teacher", response_model=TemporaryCredentialResponse)
-async def add_teacher(body: TeacherCreate, request: Request, admin=Depends(require_user(Permission.USER_MANAGE)), db: AsyncSession = Depends(db_session)):
+async def add_teacher(body: TeacherCreate, request: Request, admin=Depends(require_user_access(Resource.USERS, Access.EDIT)), db: AsyncSession = Depends(db_session)):
     """Async port of admin_helpers.py::add_teacher. `_build_teacher_assignments_async`
     above replaces the sync helper; no coupling to `mirror_teacher_allocations`
     (that's only called from update_teacher_assignments/update_admin_user,
@@ -626,7 +642,7 @@ async def add_teacher(body: TeacherCreate, request: Request, admin=Depends(requi
 async def import_teachers(
     file: UploadFile = File(...),
     dry_run: bool = Form(False),
-    admin=Depends(require_user(Permission.USER_MANAGE)),
+    admin=Depends(require_user_access(Resource.USERS, Access.EDIT)),
     db: AsyncSession = Depends(db_session),
 ):
     """Async port of admin_helpers.py::import_teachers. Self-contained bulk
@@ -733,7 +749,7 @@ async def import_teachers(
 async def import_students(
     file: UploadFile = File(...),
     dry_run: bool = Form(False),
-    admin=Depends(require_user(Permission.USER_MANAGE)),
+    admin=Depends(require_user_access(Resource.USERS, Access.EDIT)),
     db: AsyncSession = Depends(db_session),
 ):
     """Async port of admin_helpers.py::import_students. Self-contained bulk
@@ -924,7 +940,7 @@ async def _require_section_for_batch_async(db: AsyncSession, section_id: str, co
 
 
 @router.post("/add-student", response_model=TemporaryCredentialResponse)
-async def add_student(body: StudentCreate, request: Request, admin=Depends(require_user(Permission.USER_MANAGE)), db: AsyncSession = Depends(db_session)):
+async def add_student(body: StudentCreate, request: Request, admin=Depends(require_user_access(Resource.USERS, Access.EDIT)), db: AsyncSession = Depends(db_session)):
     """Async port of admin_helpers.py::add_student. This was the one function
     in this file genuinely blocked on `services/academic_calendar.py`'s
     `resolve_current_session`/`derive_study_year_semester` — unblocked this
@@ -1063,7 +1079,7 @@ async def add_student(body: StudentCreate, request: Request, admin=Depends(requi
 
 
 @router.patch("/user/{user_id}/assignments")
-async def update_teacher_assignments(user_id: str, body: AssignmentsUpdate, admin=Depends(require_user(Permission.USER_MANAGE)), db: AsyncSession = Depends(db_session)):
+async def update_teacher_assignments(user_id: str, body: AssignmentsUpdate, admin=Depends(require_user_access(Resource.USERS, Access.EDIT)), db: AsyncSession = Depends(db_session)):
     """Async port of admin_helpers.py::update_teacher_assignments. Unblocked
     this session by `mirror_teacher_allocations_async` (see
     services/academic_calendar.py)."""
@@ -1083,7 +1099,7 @@ async def update_teacher_assignments(user_id: str, body: AssignmentsUpdate, admi
 
 
 @router.put("/user/{user_id}")
-async def update_admin_user(user_id: str, body: AdminUserUpdate, request: Request, admin=Depends(require_user(Permission.USER_MANAGE)), db: AsyncSession = Depends(db_session)):
+async def update_admin_user(user_id: str, body: AdminUserUpdate, request: Request, admin=Depends(require_user_access(Resource.USERS, Access.EDIT)), db: AsyncSession = Depends(db_session)):
     """Async port of admin_helpers.py::update_admin_user — the last of the 10
     genuinely-coupled functions in this file. Deliberately deferred earlier
     this session because of its size and the number of interacting checks;
@@ -1106,6 +1122,7 @@ async def update_admin_user(user_id: str, body: AdminUserUpdate, request: Reques
 
     next_role = data.get("role", user.role)
     next_active = data.get("is_active", user.is_active)
+    _assert_can_manage_account(admin, user.role, next_role)
     legacy._assert_admin_continuity(user, active_admins, admin["_id"], next_role=next_role, next_active=next_active)
     status_changed = user.is_active != next_active
     role_changed = user.role != next_role
@@ -1206,7 +1223,7 @@ async def update_admin_user(user_id: str, body: AdminUserUpdate, request: Reques
 
 async def assignment_student_profile(
     user_id: str,
-    admin=Depends(require_user(Permission.USER_MANAGE)),
+    admin=Depends(require_user_access(Resource.USERS, Access.VIEW)),
     db: AsyncSession = Depends(db_session),
 ):
     del admin
@@ -1215,7 +1232,7 @@ async def assignment_student_profile(
 
 async def admin_user_details(
     user_id: str,
-    admin=Depends(require_user(Permission.USER_MANAGE)),
+    admin=Depends(require_user_access(Resource.USERS, Access.VIEW)),
     db: AsyncSession = Depends(db_session),
 ):
     del admin

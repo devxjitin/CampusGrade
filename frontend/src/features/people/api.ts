@@ -1,21 +1,24 @@
 // Admin user management (students/teachers/user directory).
 // Sprint 7: split out of src/lib/api.ts.
+import type { AccessLevel, AccessResource } from "@/lib/session";
 import { request, type ApiRequestBody } from "@/types/api-client";
+
+export type AdminAccess = Partial<Record<AccessResource, AccessLevel>>;
 
 export interface AdminAccount {
   id: string;
   name: string;
   email: string;
-  role: "super_admin" | "program_admin";
+  role: "super_admin" | "admin";
   is_active: boolean;
-  program_ids: string[];
+  access: AdminAccess;
 }
 
 export interface AdminCreateInput {
   name: string;
   email: string;
-  role: "program_admin";
-  program_ids: string[];
+  role: "admin";
+  access: AdminAccess;
 }
 
 export const getAdmins = () =>
@@ -28,10 +31,10 @@ export const createAdmin = (data: AdminCreateInput) =>
     user: AdminAccount;
   }>;
 
-export const replaceAdminScopes = (adminId: string, programIds: string[]) =>
-  request.put<"/admin/admins/{admin_id}/scopes">(`/admin/admins/${adminId}/scopes`, {
-    program_ids: programIds,
-  }) as Promise<{ message: string; program_ids: string[] }>;
+export const replaceAdminAccess = (adminId: string, access: AdminAccess) =>
+  request.put<"/admin/admins/{admin_id}/access">(`/admin/admins/${adminId}/access`, {
+    access,
+  }) as Promise<{ message: string; access: AdminAccess }>;
 
 export const addStudent = async (studentData: ApiRequestBody<"/admin/add-student", "post">) =>
   request.post<"/admin/add-student">("/admin/add-student", studentData);

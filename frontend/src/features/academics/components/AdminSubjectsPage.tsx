@@ -7,6 +7,7 @@ import { EmptyState, EntityCard, EntityCardGrid, ErrorState, LoadingState, PageH
 import { useToast } from "@/components/Toast";
 import { subjectHooks, courseHooks, batchHooks, type AcademicRecord } from "@/features/academics/queries";
 import { getCachedUser } from "@/lib/session";
+import { canAccess } from "@/lib/permissions";
 import ViewingSessionBanner from "@/components/ViewingSessionBanner";
 import { ACADEMIC_SESSION_CHANGED_EVENT, getSelectedAcademicSessionId } from "@/lib/academicSession";
 import { SubjectFormDialog } from "./dialogs/SubjectFormDialog";
@@ -53,6 +54,8 @@ export default function AdminSubjectsPage() {
   const { data: batches = [] } = batchHooks.useList();
   const createMutation = subjectHooks.useCreate();
   const updateMutation = subjectHooks.useUpdate();
+  const canEdit = canAccess(getCachedUser(), "subjects", "edit");
+  const canDelete = canAccess(getCachedUser(), "subjects", "full");
   const deleteMutation = subjectHooks.useDelete();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -185,7 +188,7 @@ export default function AdminSubjectsPage() {
         title="Subjects"
         description="Assign compulsory or optional subjects to a specific program and batch."
         actions={
-          <button onClick={() => handleOpenModal()} className="btn btn-primary">
+          !canEdit ? undefined : <button onClick={() => handleOpenModal()} className="btn btn-primary">
             <Plus className="h-4 w-4" />
             Add subject
           </button>
@@ -218,12 +221,12 @@ export default function AdminSubjectsPage() {
               ]}
               actions={
                 <>
-                  <button onClick={() => handleOpenModal(subject)} className="rounded-lg p-2 text-blue-600 transition-colors hover:text-blue-800">
+                  {canEdit && <button onClick={() => handleOpenModal(subject)} className="rounded-lg p-2 text-blue-600 transition-colors hover:text-blue-800">
                     <Edit2 className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => handleDelete(subject)} className="rounded-lg p-2 text-red-600 transition-colors hover:text-red-800">
+                  </button>}
+                  {canDelete && <button onClick={() => handleDelete(subject)} className="rounded-lg p-2 text-red-600 transition-colors hover:text-red-800">
                     <Trash2 className="h-4 w-4" />
-                  </button>
+                  </button>}
                 </>
               }
             />

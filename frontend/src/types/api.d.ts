@@ -582,7 +582,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/admins/{admin_id}/scopes": {
+    "/admin/admins/{admin_id}/access": {
         parameters: {
             query?: never;
             header?: never;
@@ -590,8 +590,8 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Replace Admin Scopes */
-        put: operations["replace_admin_scopes_admin_admins__admin_id__scopes_put"];
+        /** Replace Admin Access */
+        put: operations["replace_admin_access_admin_admins__admin_id__access_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -1908,6 +1908,13 @@ export interface components {
             /** Is Current */
             is_current?: boolean | null;
         };
+        /** AdminAccessUpdate */
+        AdminAccessUpdate: {
+            /** Access */
+            access?: {
+                [key: string]: string;
+            };
+        };
         /** AdminAssignmentActionInput */
         AdminAssignmentActionInput: {
             /**
@@ -1934,16 +1941,13 @@ export interface components {
             email: string;
             /**
              * Role
-             * @default program_admin
+             * @default admin
              */
             role: string;
-            /** Program Ids */
-            program_ids?: string[];
-        };
-        /** AdminScopesUpdate */
-        AdminScopesUpdate: {
-            /** Program Ids */
-            program_ids?: string[];
+            /** Access */
+            access?: {
+                [key: string]: string;
+            };
         };
         /** AdminUserUpdate */
         AdminUserUpdate: {
@@ -3825,7 +3829,7 @@ export interface operations {
             };
         };
     };
-    replace_admin_scopes_admin_admins__admin_id__scopes_put: {
+    replace_admin_access_admin_admins__admin_id__access_put: {
         parameters: {
             query?: never;
             header?: never;
@@ -3836,7 +3840,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AdminScopesUpdate"];
+                "application/json": components["schemas"]["AdminAccessUpdate"];
             };
         };
         responses: {

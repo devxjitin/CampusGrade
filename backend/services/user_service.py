@@ -14,7 +14,7 @@ class UserService:
                 update[field] = sanitize_string(payload[field], 5000 if field == "bio" else 100)
         # Sprint 5, the original implementation plan: both admin roles are excluded
         # here, same as the single "admin" role was before the split.
-        if role not in ("super_admin", "program_admin"):
+        if role not in ("super_admin", "admin"):
             for field in ("github_username",):
                 if field in payload and payload[field] is not None:
                     update[field] = sanitize_string(payload[field], 100)

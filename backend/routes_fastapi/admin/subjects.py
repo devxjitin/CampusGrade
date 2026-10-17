@@ -3,8 +3,7 @@
 import uuid
 
 from core.db import db_session
-from core.policy import Permission, require
-from core.principal import Role
+from core.policy import Access, Resource, require_access
 from fastapi import APIRouter, Depends, HTTPException
 from models.sql_models import SqlBatch, SqlCourse, SqlStudentSubjectEnrollment, SqlSubject
 from schemas.academic import SubjectCreate, SubjectUpdate
@@ -41,12 +40,10 @@ async def get_subjects(
     course_id: str | None = None,
     batch_id: str | None = None,
     session_id: str | None = None,
-    principal=Depends(require(Permission.SUBJECT_MANAGE)),
+    principal=Depends(require_access(Resource.SUBJECTS, Access.VIEW)),
     db: AsyncSession = Depends(db_session),
 ):
     query = select(SqlSubject)
-    if principal.role is Role.PROGRAM_ADMIN:
-        query = query.where(SqlSubject.course_id.in_(principal.program_ids))
     if course_id:
         query = query.where(SqlSubject.course_id == course_id)
     if batch_id:
@@ -115,7 +112,7 @@ async def _assert_subject_unique(db: AsyncSession, values: dict, subject_id: str
 @router.post("/subjects")
 async def create_subject(
     body: SubjectCreate,
-    principal=Depends(require(Permission.SUBJECT_MANAGE)),
+    principal=Depends(require_access(Resource.SUBJECTS, Access.EDIT)),
     db: AsyncSession = Depends(db_session),
 ):
     del principal
@@ -138,7 +135,7 @@ async def create_subject(
 async def update_subject(
     subject_id: str,
     body: SubjectUpdate,
-    principal=Depends(require(Permission.SUBJECT_MANAGE)),
+    principal=Depends(require_access(Resource.SUBJECTS, Access.EDIT)),
     db: AsyncSession = Depends(db_session),
 ):
     del principal
@@ -163,7 +160,7 @@ async def update_subject(
 @router.delete("/subjects/{subject_id}")
 async def delete_subject(
     subject_id: str,
-    principal=Depends(require(Permission.SUBJECT_MANAGE)),
+    principal=Depends(require_access(Resource.SUBJECTS, Access.FULL)),
     db: AsyncSession = Depends(db_session),
 ):
     del principal

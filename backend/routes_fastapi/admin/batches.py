@@ -3,7 +3,7 @@ import uuid
 from collections import defaultdict
 
 from core.db import db_session
-from core.policy import Permission, require
+from core.policy import Access, Resource, require_access
 from core.scoping import scope_to_programs
 from fastapi import APIRouter, Depends, HTTPException
 from models.sql_models import SqlBatch, SqlCourse, SqlSection, SqlStudentSessionRecord, SqlSubject, SqlUser
@@ -33,7 +33,7 @@ router = APIRouter(tags=["admin-batches"])
 async def get_batches(
     course_id: str | None = None,
     session_id: str | None = None,
-    principal=Depends(require(Permission.BATCH_MANAGE)),
+    principal=Depends(require_access(Resource.BATCHES, Access.VIEW)),
     db: AsyncSession = Depends(db_session),
 ):
     # Sprint 5, the original implementation plan "Done when": a program admin scoped
@@ -146,7 +146,7 @@ async def get_batches(
 
 
 @router.post("/batches")
-async def create_batch(body: BatchCreate, principal=Depends(require(Permission.BATCH_MANAGE)), db: AsyncSession = Depends(db_session)):
+async def create_batch(body: BatchCreate, principal=Depends(require_access(Resource.BATCHES, Access.EDIT)), db: AsyncSession = Depends(db_session)):
     del principal
     data = body.model_dump()
     course_id = str(data.get("course_id") or "").strip()
@@ -179,7 +179,7 @@ async def create_batch(body: BatchCreate, principal=Depends(require(Permission.B
 
 
 @router.put("/batches/{batch_id}")
-async def update_batch(batch_id: str, body: BatchUpdate, principal=Depends(require(Permission.BATCH_MANAGE)), db: AsyncSession = Depends(db_session)):
+async def update_batch(batch_id: str, body: BatchUpdate, principal=Depends(require_access(Resource.BATCHES, Access.EDIT)), db: AsyncSession = Depends(db_session)):
     del principal
     data = body.model_dump(exclude_unset=True)
     batch = (await db.scalars(select(SqlBatch).where(SqlBatch.id == batch_id))).first()
@@ -221,7 +221,7 @@ async def update_batch(batch_id: str, body: BatchUpdate, principal=Depends(requi
 
 
 @router.delete("/batches/{batch_id}")
-async def delete_batch(batch_id: str, principal=Depends(require(Permission.BATCH_MANAGE)), db: AsyncSession = Depends(db_session)):
+async def delete_batch(batch_id: str, principal=Depends(require_access(Resource.BATCHES, Access.FULL)), db: AsyncSession = Depends(db_session)):
     del principal
     batch = (await db.scalars(select(SqlBatch).where(SqlBatch.id == batch_id))).first()
     if not batch:

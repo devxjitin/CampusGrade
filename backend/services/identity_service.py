@@ -23,7 +23,7 @@ import datetime
 
 from models.refresh_token import SqlRefreshToken
 from models.sql_models import (
-    SqlAdminProgramScope,
+    SqlAdminAccess,
     SqlBatch,
     SqlStudentProfile,
     SqlTeacherProfile,
@@ -34,6 +34,9 @@ from models.sql_models import (
 )
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+# Stored admin_access.level -> number (matches core.policy.Access).
+ACCESS_LEVELS = {"view": 1, "edit": 2, "full": 3}
 
 
 def normalize_user(user: SqlUser | None) -> dict | None:
@@ -91,13 +94,14 @@ async def load_authenticated_user(db: AsyncSession, user_id: str, session_id: st
         await db.execute(
             select(
                 SqlUser,
-                SqlAdminProgramScope.program_id,
+                SqlAdminAccess.resource,
+                SqlAdminAccess.level,
                 SqlTeacherSessionAllocation.subject_ids,
                 SqlRefreshToken.id,
                 SqlRefreshToken.revoked_at,
                 SqlRefreshToken.expires_at,
             )
-            .outerjoin(SqlAdminProgramScope, SqlAdminProgramScope.user_id == SqlUser.id)
+            .outerjoin(SqlAdminAccess, SqlAdminAccess.user_id == SqlUser.id)
             .outerjoin(SqlTeacherSessionAllocation, SqlTeacherSessionAllocation.teacher_id == SqlUser.id)
             .outerjoin(SqlRefreshToken, session_join)
             .where(SqlUser.id == str(user_id))
@@ -107,10 +111,10 @@ async def load_authenticated_user(db: AsyncSession, user_id: str, session_id: st
         return None
     user = normalize_user(rows[0][0])
     assert user is not None
-    user["_program_ids"] = frozenset(row[1] for row in rows if row[1])
-    user["_offering_ids"] = frozenset(subject_id for row in rows for subject_id in (row[2] or []))
+    user["_access"] = {row[1]: ACCESS_LEVELS.get(row[2], 0) for row in rows if row[1]}
+    user["_offering_ids"] = frozenset(subject_id for row in rows for subject_id in (row[3] or []))
     if session_id:
-        refresh_id, revoked_at, expires_at = rows[0][3], rows[0][4], rows[0][5]
+        refresh_id, revoked_at, expires_at = rows[0][4], rows[0][5], rows[0][6]
         user["_session_active"] = bool(
             refresh_id and revoked_at is None and expires_at is not None and expires_at > datetime.datetime.utcnow()
         )

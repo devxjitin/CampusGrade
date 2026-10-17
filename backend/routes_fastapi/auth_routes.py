@@ -3,6 +3,7 @@ import secrets
 
 from config import get_settings
 from core.db import db_session
+from core.policy import access_summary
 from core.principal import Principal, require_principal
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from schemas.auth import ForgotPasswordRequest, LoginRequest, LoginResponse, ResetPasswordRequest
@@ -118,7 +119,7 @@ async def login(body: LoginRequest, request: Request, response: Response, role: 
     user = await auth_service.authenticate(identifier, password, db)
     # Sprint 5, the original implementation plan: both admin roles count as "staff"
     # for the sign-in page split, same as the single "admin" role did before.
-    if role == "staff" and user["role"] not in {"teacher", "super_admin", "program_admin"}:
+    if role == "staff" and user["role"] not in {"teacher", "super_admin", "admin"}:
         raise HTTPException(status_code=403, detail="Use the student sign-in page for this account.")
     if role and role != "staff" and user["role"] != role:
         raise HTTPException(status_code=403, detail=f"Use the {user['role']} sign-in page for this account.")
@@ -206,4 +207,5 @@ async def read_current_principal(principal: Principal = Depends(require_principa
         "program_ids": sorted(principal.program_ids),
         "offering_ids": sorted(principal.offering_ids),
         "must_change_password": principal.must_change_password,
+        "access": access_summary(principal),
     }

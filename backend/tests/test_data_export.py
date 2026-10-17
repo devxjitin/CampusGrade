@@ -25,7 +25,7 @@ def test_csv_cells_that_look_like_formulas_are_neutralised():
 @requires_docker
 def test_only_super_admins_can_request_exports(client, seed_user, login):
     teacher = seed_user(role="teacher", email="export-teacher@example.edu")
-    program_admin = seed_user(role="program_admin", email="export-padmin@example.edu")
+    program_admin = seed_user(role="admin", email="export-padmin@example.edu")
     for user in (teacher, program_admin):
         token = login(user["email"], user["password"])
         headers = {"Authorization": f"Bearer {token}"}

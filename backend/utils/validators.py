@@ -54,8 +54,8 @@ def sanitize_string(value, max_length=500):
 
 def validate_role(role):
     # Sprint 5, the original implementation plan: "admin" split into "super_admin"/
-    # "program_admin" (see migration `canvasgrade_022`).
-    valid_roles = ["student", "teacher", "super_admin", "program_admin"]
+    # "admin" (see migrations `canvasgrade_022` and `canvasgrade_031`).
+    valid_roles = ["student", "teacher", "super_admin", "admin"]
     if role not in valid_roles:
         return False, f"Invalid role. Must be one of: {', '.join(valid_roles)}"
     return True, None

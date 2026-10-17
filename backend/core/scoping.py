@@ -10,12 +10,13 @@ from core.principal import Principal, Role
 
 
 def scope_to_programs(stmt: Select, principal: Principal, program_col: ColumnClause | ColumnElement) -> Select:
-    """Restrict a statement to the programs visible to the principal."""
-    if principal.is_super:
+    """Restrict a statement to the programs visible to the principal.
+
+    Both admin tiers see every program (admins are limited by `access`, not by program)."""
+    del program_col
+    if principal.is_admin_tier:
         return stmt
-    if principal.role is Role.PROGRAM_ADMIN:
-        return stmt.where(program_col.in_(principal.program_ids))
-    raise Forbidden("This action is scoped to program administrators.")
+    raise Forbidden("This action is for administrators.")
 
 
 def scope_to_offerings(stmt: Select, principal: Principal, subject_col: ColumnClause | ColumnElement) -> Select:
