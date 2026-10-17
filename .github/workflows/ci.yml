@@ -132,21 +132,15 @@ jobs:
           cache-from: type=gha,scope=web
           cache-to: type=gha,scope=web,mode=max
 
-      - name: Trivy scan (api)
-        uses: aquasecurity/trivy-action@v0.33.1
-        with:
-          image-ref: ${{ env.CAMPUSGRADE_REGISTRY }}/campusgrade-api:ci
-          severity: CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
-
-      - name: Trivy scan (web)
-        uses: aquasecurity/trivy-action@v0.33.1
-        with:
-          image-ref: ${{ env.CAMPUSGRADE_REGISTRY }}/campusgrade-web:ci
-          severity: CRITICAL
-          ignore-unfixed: true
-          exit-code: "1"
+      # Run Trivy from its official container image against the images just built (no
+      # third-party installer action in the path). Fails on fixable CRITICAL findings.
+      - name: Trivy scan (api and web images)
+        run: |
+          for image in api web; do
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+              aquasec/trivy:0.75.0 image --severity CRITICAL --ignore-unfixed --exit-code 1 \
+              "${CAMPUSGRADE_REGISTRY}/campusgrade-${image}:ci"
+          done
 
       - name: Generate secrets and config
         run: |
