@@ -101,6 +101,32 @@ services:
       retries: 12
       start_period: 5s
 
+  # Nightly pg_dump + bucket copy into BACKUP_DIR on the host (outside Docker's
+  # disk; set it in .env.prod). Also the tool behind scripts/restore.ps1:
+  # `docker compose run --rm backup once|restore ...`.
+  backup:
+    build:
+      context: docker/backup
+    image: campusgrade-backup:local
+    environment:
+      PGHOST: postgres
+      PGUSER: campusgrade
+      PGDATABASE: campusgrade_db
+      PRIVATE_S3_ENDPOINT: http://storage:9000
+      PRIVATE_S3_BUCKET: campusgrade-private
+      PRIVATE_S3_REGION: us-east-1
+      PRIVATE_S3_ACCESS_KEY: campusgrade-app
+      BACKUP_DIR: /backups
+      BACKUP_HOUR: ${BACKUP_HOUR:-2}
+    secrets: [postgres_password, private_s3_secret_key]
+    volumes:
+      - ${BACKUP_DIR:-./backups}:/backups
+    networks: [backend]
+    depends_on:
+      postgres: { condition: service_healthy }
+      storage: { condition: service_healthy }
+      storage-init: { condition: service_completed_successfully }
+
   # One-shot: creates the private bucket (idempotent) before the API starts.
   storage-init:
     image: campusgrade-api:local
@@ -183,7 +209,9 @@ services:
     volumes:
       - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
-    networks: [frontend]
+    # backend: presigned /storage/* requests go straight to the object store.
+    networks: [frontend, backend]
     depends_on:
       - web
       - api
+      - storage

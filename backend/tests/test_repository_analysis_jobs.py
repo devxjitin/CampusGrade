@@ -17,7 +17,7 @@ def test_failed_analysis_raises_for_retry_and_notifies_once(client, seed_user, d
     # `client` re-imports the app graph against the test database; import under it.
     from models.assignment import SqlAssignment, SqlAssignmentSubmission, SqlAssignmentSubmissionVersion
     from models.database import async_session_factory
-    from routes_fastapi.assignment_routes import _analysis_state
+    from routes_fastapi.assignments.payloads import _analysis_state
     from services import github_repository_service as repository_service
 
     teacher = seed_user(role="teacher", email="analysis-teacher@example.edu")

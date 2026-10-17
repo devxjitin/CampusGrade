@@ -3,10 +3,9 @@ from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
-
 from routes_fastapi.admin.users import _profile_assignment_status
 from routes_fastapi.admin_settings import AssignmentMonitoringSettings, default_assignment_monitoring_settings
-from routes_fastapi.assignment_routes import _parse_dashboard_date
+from routes_fastapi.assignments.crud import _parse_dashboard_date
 
 
 def test_default_academic_year_rolls_over_in_july():

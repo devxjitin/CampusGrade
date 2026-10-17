@@ -1,6 +1,7 @@
 // Assignment CRUD/detail across teacher, student, and admin modes, plus
 // discussions/announcements.
 // Sprint 7: split out of src/lib/api.ts.
+import axios from "axios";
 import { downloadBlob } from "@/lib/http";
 import { request, type ApiRequestBody } from "@/types/api-client";
 
@@ -18,11 +19,32 @@ export const updateAssignment = async (id: string, payload: ApiRequestBody<"/ass
 
 export const deleteAssignment = (id: string) => request.delete<"/assignments/teacher/{assignment_id}">(`/assignments/teacher/${id}`);
 
-export const uploadAssignmentAttachment = async (id: string, file: File) => {
-  const form = new FormData();
-  form.append("file", file);
-  return request.post<"/assignments/teacher/{assignment_id}/attachments">(`/assignments/teacher/${id}/attachments`, form, {
-    headers: { "Content-Type": "multipart/form-data" },
+// Uploads go straight to object storage through a presigned PUT, so the API never
+// handles the bytes. When the backend can't presign (local dev storage) the file
+// falls back to the multipart endpoint. `onProgress` receives 0..100.
+export const uploadAssignmentAttachment = async (id: string, file: File, onProgress?: (percent: number) => void) => {
+  const contentType = file.type || "application/octet-stream";
+  const presign = await request.post<"/assignments/teacher/{assignment_id}/attachments/presign">(`/assignments/teacher/${id}/attachments/presign`, {
+    filename: file.name,
+    content_type: contentType,
+    size_bytes: file.size,
+  });
+  if (!presign.upload_url) {
+    const form = new FormData();
+    form.append("file", file);
+    return request.post<"/assignments/teacher/{assignment_id}/attachments">(`/assignments/teacher/${id}/attachments`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+      onUploadProgress: (event) => onProgress?.(event.total ? Math.round((event.loaded / event.total) * 100) : 0),
+    });
+  }
+  await axios.put(presign.upload_url, file, {
+    headers: { "Content-Type": contentType },
+    onUploadProgress: (event) => onProgress?.(event.total ? Math.round((event.loaded / event.total) * 100) : 0),
+  });
+  return request.post<"/assignments/teacher/{assignment_id}/attachments/complete">(`/assignments/teacher/${id}/attachments/complete`, {
+    resource_id: presign.resource_id,
+    filename: file.name,
+    content_type: contentType,
   });
 };
 
@@ -36,6 +58,17 @@ export const getStudentAssignments = () => request.get<"/assignments/student">("
 export const getStudentAssignment = (id: string) => request.get<"/assignments/student/{assignment_id}">(`/assignments/student/${id}`);
 
 export const downloadAssignmentResource = async (assignmentId: string, resourceId: string, filename?: string) => {
+  const { url } = await request.get<"/assignments/student/{assignment_id}/resources/{resource_id}/url">(
+    `/assignments/student/${assignmentId}/resources/${resourceId}/url`,
+  );
+  if (url) {
+    // Presigned link: the browser fetches the file from object storage directly.
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename || "attachment";
+    link.click();
+    return;
+  }
   const response = await request.rawGet<"/assignments/student/{assignment_id}/resources/{resource_id}">(`/assignments/student/${assignmentId}/resources/${resourceId}`, {
     responseType: "blob",
   });

@@ -203,3 +203,4 @@ frontend/test-results/
 .env.prod
 .deployed-version
 .env.prod
+.deployed-history

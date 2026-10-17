@@ -128,16 +128,6 @@ class Settings(BaseSettings):
     # should read.
     allowed_origins_raw: str = Field(default="http://localhost:5174,http://localhost:3000", alias="ALLOWED_ORIGINS")
     cookie_secure: bool = False
-    # Sprint 6, the original implementation plan: the access token moves into an
-    # httpOnly cookie this sprint, but the `Authorization` header is still
-    # accepted for one sprint so the not-yet-updated frontend keeps working
-    # (see `routes_fastapi/deps.py::get_bearer_token`) and CSRF is enforced
-    # on cookie-authenticated mutating requests. The plan's rollback plan
-    # for this sprint is exactly this flag: "Feature flag
-    # AUTH_COOKIE_MODE=false falls back to header auth. Keep the flag for
-    # two sprints." Defaults `True` — cookie mode is what's actually live;
-    # flipping it off is the emergency escape hatch, not the normal state.
-    auth_cookie_mode: bool = True
 
     @property
     def allowed_origins(self) -> list[str]:
@@ -168,14 +158,6 @@ class Settings(BaseSettings):
     assignment_max_text_bytes: int = 1024 * 1024
     repository_sync_interval_seconds: int = 120
 
-    # --- external AI (Azure OpenAI today; see the original architecture doc §6) ---
-    azure_openai_endpoint: str | None = None
-    azure_openai_api_key: str | None = None
-    azure_openai_deployment: str | None = None
-    azure_openai_api_version: str = "2024-10-21"
-    # Documented migration aliases (see ai/assignment_ai.py::_azure_openai_config) — kept for compatibility, not new.
-    azure_openai_base_url: str | None = None
-    azure_openai_model: str | None = None
 
     # --- sessions ---
     revoked_session_retention_days: int = 7

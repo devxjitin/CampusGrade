@@ -1,11 +1,9 @@
 import io
-import json
 import zipfile
 from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
-
 from schemas.assignment import BulkExternalGradeStudentInput
 from services.assignment_external_evaluation import (
     build_student_source,

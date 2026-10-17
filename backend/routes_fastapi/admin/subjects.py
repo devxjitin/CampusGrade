@@ -8,12 +8,7 @@ from core.principal import Role
 from fastapi import APIRouter, Depends, HTTPException
 from models.sql_models import SqlBatch, SqlCourse, SqlStudentSubjectEnrollment, SqlSubject
 from schemas.academic import SubjectCreate, SubjectUpdate
-from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from routes_fastapi.admin.courses import compute_teacher_allocation_counts_async
-from routes_fastapi.admin_routes import (
+from services.admin_helpers import (
     _build_batch_label,
     _normalize_subject_code,
     _normalize_subject_credits,
@@ -21,6 +16,11 @@ from routes_fastapi.admin_routes import (
     _normalize_subject_name,
     _normalize_subject_year,
 )
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from routes_fastapi.admin.courses import compute_teacher_allocation_counts_async
 
 router = APIRouter(tags=["admin-subjects"])
 

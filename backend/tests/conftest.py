@@ -20,6 +20,7 @@ from __future__ import annotations
 import os
 import subprocess
 from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -72,6 +73,10 @@ def _migrate(sync_url: str) -> None:
         get_settings.cache_clear()
 
 
+if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
+
+
 @pytest.fixture(scope="session")
 def database_url() -> Iterator[str]:
     # Set TEST_DATABASE_URL to an empty, disposable Postgres database (e.g. a
@@ -113,7 +118,7 @@ def app_env(database_url: str, monkeypatch: pytest.MonkeyPatch) -> Iterator[None
 
 
 @pytest.fixture
-def client(app_env: None, database_url: str) -> Iterator["TestClient"]:  # noqa: F821,UP037 - TestClient is imported lazily below, string annotation is intentional
+def client(app_env: None, database_url: str) -> Iterator["TestClient"]:  # noqa: UP037 - TestClient is imported lazily below, string annotation is intentional
     """A TestClient wired to a real, migrated Postgres database.
 
     Importing `app` is deferred to fixture time (not module import time) so

@@ -34,16 +34,22 @@ smoke() {
 
 start() {
   export CAMPUSGRADE_VERSION="$1"
-  if [ "${NO_PULL:-0}" = 1 ]; then export CAMPUSGRADE_PULL_POLICY=never; else export CAMPUSGRADE_PULL_POLICY=always; compose pull --quiet; fi
+  if [ "${NO_PULL:-0}" = 1 ]; then export CAMPUSGRADE_PULL_POLICY=never; else export CAMPUSGRADE_PULL_POLICY=always; compose pull --quiet --ignore-buildable; fi
+  compose build --quiet backup
+  # Back up (database + files) before the new migrations run, when upgrading.
+  if [ "${2:-}" = backup ]; then echo "Backing up before migrating ..."; compose run --rm -T backup once; fi
   compose up -d --wait --remove-orphans
   smoke
   printf '%s' "$1" > "$STATE_FILE"
+  echo "$1" >> .deployed-history
 }
 
 previous=""
 [ -f "$STATE_FILE" ] && previous="$(cat "$STATE_FILE")"
 echo "Deploying CampusGrade $VERSION (previous: ${previous:-none})"
-if start "$VERSION"; then
+do_backup=""
+[ -n "$previous" ] && [ "${NO_BACKUP:-0}" != 1 ] && do_backup=backup
+if start "$VERSION" "$do_backup"; then
   echo "CampusGrade $VERSION is running at https://$site"
 else
   echo "Deploy failed." >&2

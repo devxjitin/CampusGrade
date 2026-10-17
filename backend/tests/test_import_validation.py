@@ -2,9 +2,7 @@ import unittest
 from unittest.mock import Mock
 
 from fastapi import HTTPException
-from sqlalchemy.exc import IntegrityError
-
-from routes_fastapi.admin_routes import (
+from services.admin_helpers import (
     MAX_IMPORT_ROWS,
     _commit_delete,
     _normalize_contact_number,
@@ -13,6 +11,7 @@ from routes_fastapi.admin_routes import (
     _normalize_teacher_id,
     _parse_import_file,
 )
+from sqlalchemy.exc import IntegrityError
 
 
 class ImportValidationTests(unittest.TestCase):

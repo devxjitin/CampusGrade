@@ -8,8 +8,8 @@ import jwt
 from app import _is_weak_secret
 from config import get_settings
 from fastapi import HTTPException
-from routes_fastapi.admin_routes import _generate_temporary_password
 from routes_fastapi.deps import ACCESS_COOKIE_NAME, get_bearer_token, get_current_user, issue_token, require_roles
+from services.admin_helpers import _generate_temporary_password
 from utils import security_utils
 from utils.validators import validate_password
 
@@ -132,35 +132,22 @@ class AuthorizationPolicyTests(unittest.TestCase):
 
 class CookieAuthTests(unittest.TestCase):
     """Sprint 6, the original implementation plan: `get_bearer_token` reads the
-    httpOnly access cookie first, falls back to the `Authorization` header,
-    and `AUTH_COOKIE_MODE=false` (config.py) skips the cookie entirely —
-    the plan's documented rollback. None of this needs Docker/a database;
+    httpOnly access cookie first, falls back to the `Authorization` header.
+    None of this needs Docker/a database;
     `get_bearer_token` only looks at `request.cookies`/`request.headers`."""
 
-    def test_prefers_the_access_cookie_when_cookie_mode_is_on(self):
+    def test_prefers_the_access_cookie(self):
         request = SimpleNamespace(cookies={ACCESS_COOKIE_NAME: "cookie-token"}, headers={"Authorization": "Bearer header-token"})
-        with patch("routes_fastapi.deps.get_settings") as mock_settings:
-            mock_settings.return_value.auth_cookie_mode = True
-            self.assertEqual("cookie-token", get_bearer_token(request))
+        self.assertEqual("cookie-token", get_bearer_token(request))
 
     def test_falls_back_to_the_header_when_no_cookie_is_present(self):
         request = SimpleNamespace(cookies={}, headers={"Authorization": "Bearer header-token"})
-        with patch("routes_fastapi.deps.get_settings") as mock_settings:
-            mock_settings.return_value.auth_cookie_mode = True
-            self.assertEqual("header-token", get_bearer_token(request))
-
-    def test_auth_cookie_mode_false_ignores_the_cookie_entirely(self):
-        request = SimpleNamespace(cookies={ACCESS_COOKIE_NAME: "cookie-token"}, headers={"Authorization": "Bearer header-token"})
-        with patch("routes_fastapi.deps.get_settings") as mock_settings:
-            mock_settings.return_value.auth_cookie_mode = False
-            self.assertEqual("header-token", get_bearer_token(request))
+        self.assertEqual("header-token", get_bearer_token(request))
 
     def test_no_cookie_and_no_header_is_rejected(self):
         request = SimpleNamespace(cookies={}, headers={})
-        with patch("routes_fastapi.deps.get_settings") as mock_settings:
-            mock_settings.return_value.auth_cookie_mode = True
-            with self.assertRaises(HTTPException) as raised:
-                get_bearer_token(request)
+        with self.assertRaises(HTTPException) as raised:
+            get_bearer_token(request)
         self.assertEqual(401, raised.exception.status_code)
 
 

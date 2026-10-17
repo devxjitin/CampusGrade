@@ -41,7 +41,7 @@ from services.academic_calendar import derive_study_year_semester, is_graduating
 # `_active_students_in_session`, `_plan`) — confirmed by grep before doing
 # this, unlike `services/academic_calendar.py`'s `resolve_current_session`/
 # `mirror_teacher_allocations`, which are also called from still-sync
-# `admin_routes.py`/`assignment_routes.py` and needed a sync+async twin pair
+# `admin_helpers.py`/`routes_fastapi/assignments/` and needed a sync+async twin pair
 # instead. `notify_admins_if_rollover_due` at the bottom of this file is
 # different again: it's called via `asyncio.to_thread` from `app.py`'s
 # lifespan scheduler, so it stays sync (`db: Session`) — converting it would

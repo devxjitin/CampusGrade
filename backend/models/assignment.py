@@ -243,21 +243,3 @@ class SqlAssignmentThreadMessage(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
 
 
-class SqlAssignmentAISuggestion(Base):
-    __tablename__ = "assignment_ai_suggestions"
-    __table_args__ = (UniqueConstraint("assignment_id", "student_id", "submission_version_id", name="uq_assignment_ai_suggestion_version"),)
-
-    id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    assignment_id: Mapped[str] = mapped_column(ForeignKey("assignments.id", ondelete="CASCADE"), nullable=False, index=True)
-    student_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    submission_version_id: Mapped[str] = mapped_column(ForeignKey("assignment_submission_versions.id", ondelete="CASCADE"), nullable=False)
-    requested_by: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued", index=True)
-    rubric_scores: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
-    evidence: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
-    model_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
-    updated_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)

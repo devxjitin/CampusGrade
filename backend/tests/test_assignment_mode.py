@@ -1,32 +1,25 @@
 import io
 import json
-import os
 import unittest
 import zipfile
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from pydantic import ValidationError
-
-from schemas.assignment import AssignmentCreate, RepositoryResetRequest
 from models.assignment import SqlAssignmentSubmissionVersion
-from routes_fastapi.assignment_routes import (
-    _normalize_generated_assignment,
-    _overdue_ungraded_submission_count,
-    _serialize_student_version,
-    _snapshot_grade,
-)
-from ai.assignment_ai import _azure_openai_config, _invoke_prompt
-from config import get_settings
+from pydantic import ValidationError
+from routes_fastapi.assignments.common import _normalize_generated_assignment, _snapshot_grade
+from routes_fastapi.assignments.payloads import _serialize_student_version
+from routes_fastapi.assignments.workflow import _overdue_ungraded_submission_count
+from schemas.assignment import AssignmentCreate, RepositoryResetRequest
 from services.github_repository_service import (
     CODE_SIMILARITY_THRESHOLD,
-    _code_fingerprints,
-    code_similarity,
     GitHubRateLimitError,
     GitHubRepositoryError,
+    _code_fingerprints,
     _parse_git_advertisement,
     _safe_manifest,
+    code_similarity,
     normalize_repository_url,
     preview_repository,
 )
@@ -113,67 +106,6 @@ class AssignmentSchemaTests(unittest.TestCase):
         self.assertFalse(draft["repository_requirements"]["require_readme"])
 
 
-class AzureOpenAIConfigurationTests(unittest.TestCase):
-    # `_azure_openai_config()` reads `config.get_settings()`, which is
-    # `lru_cache`d (Sprint 1, the original implementation plan) — patching os.environ
-    # alone doesn't reach it once any earlier test/import has already
-    # populated the cache from the real environment/.env. Every test in this
-    # class must clear that cache both before (so it rebuilds from the
-    # patched environ) and after (so later tests get the real environment
-    # back, not this test's fake Azure credentials).
-    def setUp(self):
-        get_settings.cache_clear()
-        self.addCleanup(get_settings.cache_clear)
-
-    def test_uses_azure_endpoint_deployment_and_api_version(self):
-        with patch.dict(os.environ, {
-            "AZURE_OPENAI_ENDPOINT": "https://canvasgrade.openai.azure.com/",
-            "AZURE_OPENAI_API_KEY": "test-key",
-            "AZURE_OPENAI_DEPLOYMENT": "assignment draft",
-            "AZURE_OPENAI_API_VERSION": "2024-10-21",
-            "SECRET_KEY": os.environ.get("SECRET_KEY", "test-secret-of-at-least-thirty-two-characters-ok"),
-        }, clear=True):
-            get_settings.cache_clear()
-            config = _azure_openai_config()
-
-        self.assertIsNotNone(config)
-        self.assertEqual("https://canvasgrade.openai.azure.com", config.endpoint)
-        self.assertEqual("assignment draft", config.deployment)
-        self.assertEqual("2024-10-21", config.api_version)
-
-    def test_uses_api_key_header_and_deployment_request_url(self):
-        class FakeResponse:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_args):
-                return False
-
-            def read(self):
-                return b'{"choices":[{"message":{"content":"{\\\"title\\\":\\\"Draft\\\"}"}}]}'
-
-        with patch.dict(os.environ, {
-            "AZURE_OPENAI_ENDPOINT": "https://canvasgrade.openai.azure.com",
-            "AZURE_OPENAI_API_KEY": "test-key",
-            "AZURE_OPENAI_DEPLOYMENT": "assignment draft",
-            "AZURE_OPENAI_API_VERSION": "2024-10-21",
-            "SECRET_KEY": os.environ.get("SECRET_KEY", "test-secret-of-at-least-thirty-two-characters-ok"),
-        }, clear=True), patch("ai.assignment_ai.urlopen", return_value=FakeResponse()) as request_open:
-            get_settings.cache_clear()
-            response, error = _invoke_prompt("Create an assignment")
-
-        request = request_open.call_args.args[0]
-        headers = {name.lower(): value for name, value in request.header_items()}
-        self.assertEqual('{"title":"Draft"}', response)
-        self.assertIsNone(error)
-        self.assertEqual("test-key", headers["api-key"])
-        self.assertNotIn("authorization", headers)
-        self.assertEqual(
-            "https://canvasgrade.openai.azure.com/openai/deployments/assignment%20draft/chat/completions?api-version=2024-10-21",
-            request.full_url,
-        )
-
-
 class RepositoryValidationTests(unittest.TestCase):
     def test_student_submission_payload_excludes_teacher_analysis(self):
         version = SimpleNamespace(
@@ -197,7 +129,8 @@ class RepositoryValidationTests(unittest.TestCase):
 
     def test_rejects_non_repository_or_non_github_urls(self):
         for value in ("https://gitlab.com/student/project", "https://github.com/student/project/tree/main", "file:///etc/passwd"):
-            with self.assertRaises(GitHubRepositoryError): normalize_repository_url(value)
+            with self.assertRaises(GitHubRepositoryError):
+                normalize_repository_url(value)
 
     def test_parses_public_git_head_without_rest_metadata(self):
         payload = (

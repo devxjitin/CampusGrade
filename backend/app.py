@@ -18,7 +18,7 @@ from models import database
 from models.database import get_database_status, init_database, is_database_available
 from routes_fastapi.admin import router as admin_router
 from routes_fastapi.admin_settings import router as admin_settings_router
-from routes_fastapi.assignment_routes import router as assignment_router
+from routes_fastapi.assignments import router as assignment_router
 from routes_fastapi.auth_routes import router as auth_router
 from routes_fastapi.notification_routes import router as notification_router
 from routes_fastapi.user_routes import router as user_router

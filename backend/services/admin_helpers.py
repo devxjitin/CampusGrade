@@ -9,10 +9,10 @@ from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from models.sql_models import SqlBatch, SqlCourse, SqlUser
-from services.academic_service import AcademicService
+from routes_fastapi.deps import get_current_user
 from sqlalchemy.exc import IntegrityError
 
-from routes_fastapi.deps import get_current_user
+from services.academic_service import AcademicService
 
 logger = logging.getLogger("CampusGrade.AdminRoutes")
 router = APIRouter(tags=["admin"])

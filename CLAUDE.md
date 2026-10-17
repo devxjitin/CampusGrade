@@ -8,10 +8,16 @@ CampusGrade: an assignment, repository-analysis, and grading platform for one in
 
 ## Commands
 
+### Fast local loop (use this while developing)
+
+- `scripts\dev-local.ps1` runs Postgres in Docker (`compose.local.yaml` makes it reachable on `127.0.0.1:5433`) and the API (`uvicorn --reload`), worker and Next dev server as plain processes on the host. It is much faster than the Docker dev stack, which mounts the source into containers and proxies every request. App `http://localhost:3000`, API `http://localhost:5001`; files go to `.local\storage`, logs to `.local\logs`; `-Status` shows what is up, `-Stop` stops it. The worker does not auto-reload: restart the stack after changing worker or job code. It reuses the dev stack's database and stops the containerized api/web/worker, which would otherwise take the same ports.
+- `scripts\check-local.ps1` runs what GitHub CI runs (the ruff file list is read from `ci.yml`, mypy, pytest, eslint, tsc, vitest, and the `api.d.ts` freshness check when the API is up). `-Quick` skips pytest, `-Build` adds `npm run build`. Push when it is green; GitHub CI is then a confirmation, not the first feedback.
+
 ### Whole stack (Docker Desktop)
 
 - Dev (hot reload, no HTTPS): `scripts\init-secrets.ps1` once, then `docker compose -f compose.yaml -f compose.dev.yaml up --build` → app `http://localhost:3000`, API `http://localhost:5001`.
 - Prod-like: `scripts\deploy.ps1 -Version <tag>` pulls images from GHCR, migrates, starts the stack behind Caddy at `https://campusgrade.localhost`, smoke-tests, and rolls back on failure. `-NoPull` deploys locally built images (tag them `ghcr.io/devxjitin/campusgrade-{api,web}:<tag>`).
+- Backups: the `backup` service (`docker/backup/`) writes a nightly pg_dump + bucket copy to `BACKUP_DIR` (set in `.env.prod`; 14 daily / 8 weekly kept). `scriptsestore.ps1 -From <backup> [-ScratchDb name]` restores one; `deploy.ps1` backs up before migrating; `scriptsollback.ps1` redeploys the previous version (the schema is not downgraded). `scripts/test-backup-restore.sh` is the CI round-trip test.
 - First admin: `scripts\bootstrap-admin.ps1`. Trust Caddy's local CA once: `scripts\trust-caddy-ca.ps1`.
 - Compose files: `compose.yaml` (base), `compose.dev.yaml`, `compose.prod.yaml` (hardened, pinned images). Secrets are files in `secrets/` (git-ignored), mounted at `/run/secrets/*` and read by `backend/config.py`; never put secrets in env vars, images or committed files.
 
@@ -41,7 +47,7 @@ Browser → Caddy (`docker/caddy/Caddyfile`: TLS, security headers) → `/api/*`
 - Database access is async: `models/database.py` builds the async engine/`async_session_factory`; routes use `Depends(db_session)` from `core/db.py`. Some helpers still use sync Sessions through `db.run_sync(...)`. `DATABASE_URL` uses the `postgresql+psycopg://` form; the asyncpg URL is derived.
 - Auth (`routes_fastapi/auth_routes.py`, `deps.py`): httpOnly cookies `campusgrade_access` (15 min), `campusgrade_refresh` (rotating, days) and a readable `campusgrade_csrf` double-submit token (`core/csrf.py` enforces it on POST/PUT/PATCH/DELETE). Access tokens carry `session_version` and `sid` and are validated against the user's current session on every request. `GET /auth/me` returns the `Principal`. Roles: `super_admin`, `program_admin`, `teacher`, `student`; authorization via `require_roles(...)`/`require(Permission...)` and the policy engine in `core/policy.py`, `core/scoping.py`, `core/principal.py`.
 - Models: `models/sql_models.py` (users and identity/profile tables, programs, academic sessions, batches, sections, subjects, enrollments, audit log, settings) and `models/assignment.py` (assignments, rubric, resources, submissions + versions, grades + revisions, similarity flags, discussions).
-- `routes_fastapi/assignment_routes.py` is still the largest router (~3,000 lines, split planned in Sprint 3); `routes_fastapi/admin/` holds the per-resource admin routers mounted under `/admin`; `routes_fastapi/admin_routes.py` is legacy helper code slated for deletion.
+- `routes_fastapi/assignments/` is the assignment API, one router per concern (crud, submissions, external_ai, grading, discussions, admin) plus shared helpers (common, workflow, payloads); `routes_fastapi/admin/` holds the per-resource admin routers mounted under `/admin`; `services/admin_helpers.py` holds the shared admin normalizers and import parsers.
 - GitHub submissions: `services/github_repository_service.py` fetches/archives repos and computes similarity fingerprints (secrets redacted via `SECRET_PATTERNS`); `services/assignment_external_evaluation.py` builds the full-repository export for the external-AI workflow.
 - Storage: `services/object_storage.py` (`LocalPrivateObjectStorage` for tests/dev scripts, `S3PrivateObjectStorage` for S3-compatible stores (RustFS locally) and AWS S3; `PRIVATE_S3_*` settings). Production always uses the S3 backend. `scripts/ensure_bucket.py` (run by the `storage-init` service) creates the bucket.
 - Config: `config.py` (pydantic-settings) reads environment variables, `.env`, then `/run/secrets/<field_name>` files. The app refuses to start on a weak `SECRET_KEY`.

@@ -16,6 +16,8 @@ export const ResourcesPanel = ({ model }: { model: CreateAssignmentModel }) => {
     setAttachments,
     pendingFiles,
     setPendingFiles,
+    uploadProgress,
+    setUploadProgress,
     editing,
     id,
     toast,
@@ -90,17 +92,34 @@ export const ResourcesPanel = ({ model }: { model: CreateAssignmentModel }) => {
                       }
                       try {
                         const uploaded = [];
-                        for (const file of files) uploaded.push((await uploadAssignmentAttachment(id!, file)).resource);
+                        for (const file of files) {
+                          setUploadProgress({ name: file.name, percent: 0 });
+                          uploaded.push((await uploadAssignmentAttachment(id!, file, (percent) => setUploadProgress({ name: file.name, percent }))).resource);
+                        }
                         setAttachments([...attachments, ...uploaded]);
                         toast.success(`${uploaded.length} attachment(s) uploaded`);
                       } catch (error) {
                         const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message;
                         toast.error(message || "Upload failed");
+                      } finally {
+                        setUploadProgress(null);
+                        e.target.value = "";
                       }
                     }}
                   />
                 </label>
               </div>
+              {uploadProgress && (
+                <div className="mt-3" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress.percent} aria-label={`Uploading ${uploadProgress.name}`}>
+                  <div className="mb-1 flex justify-between text-xs text-slate-600">
+                    <span className="truncate">{uploadProgress.name}</span>
+                    <span>{uploadProgress.percent}%</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+                    <div className="h-full bg-primary-600 transition-[width]" style={{ width: `${uploadProgress.percent}%` }} />
+                  </div>
+                </div>
+              )}
               {attachments.length > 0 && (
                 <div className="mt-4 space-y-2">
                   {attachments.map((x) => (
