@@ -8,6 +8,11 @@ CampusGrade: an assignment, repository-analysis, and grading platform for one in
 
 ## Commands
 
+### Fast local loop (use this while developing)
+
+- `scripts\dev-local.ps1` runs Postgres in Docker (`compose.local.yaml` makes it reachable on `127.0.0.1:5433`) and the API (`uvicorn --reload`), worker and Next dev server as plain processes on the host. It is much faster than the Docker dev stack, which mounts the source into containers and proxies every request. App `http://localhost:3000`, API `http://localhost:5001`; files go to `.local\storage`, logs to `.local\logs`; `-Status` shows what is up, `-Stop` stops it. The worker does not auto-reload: restart the stack after changing worker or job code. It reuses the dev stack's database and stops the containerized api/web/worker, which would otherwise take the same ports.
+- `scripts\check-local.ps1` runs what GitHub CI runs (the ruff file list is read from `ci.yml`, mypy, pytest, eslint, tsc, vitest, and the `api.d.ts` freshness check when the API is up). `-Quick` skips pytest, `-Build` adds `npm run build`. Push when it is green; GitHub CI is then a confirmation, not the first feedback.
+
 ### Whole stack (Docker Desktop)
 
 - Dev (hot reload, no HTTPS): `scripts\init-secrets.ps1` once, then `docker compose -f compose.yaml -f compose.dev.yaml up --build` → app `http://localhost:3000`, API `http://localhost:5001`.
