@@ -98,7 +98,7 @@ export interface paths {
         };
         /**
          * Read Current Principal
-         * @description Sprint 6, IMPLEMENTATION_PLAN.md: "returns the Principal as JSON. The
+         * @description Sprint 6, the original implementation plan: "returns the Principal as JSON. The
          *     frontend uses this instead of decoding a JWT client-side." Frozensets
          *     aren't JSON-serialisable, so `program_ids`/`offering_ids` go out as
          *     sorted lists; `"*"` (`core.principal.ALL_PROGRAMS`) means "every
@@ -500,10 +500,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Assignment Student Profile
-         * @description Return only assignment participation and grading data for a student.
-         */
+        /** Assignment Student Profile */
         get: operations["assignment_student_profile_admin_user__user_id__profile_get"];
         put?: never;
         post?: never;
@@ -520,10 +517,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * Admin User Details
-         * @description Return the full safe profile and assignment context for an administrator.
-         */
+        /** Admin User Details */
         get: operations["admin_user_details_admin_user__user_id__details_get"];
         put?: never;
         post?: never;

@@ -83,7 +83,7 @@ class SqlUser(Base, TimestampedModel):
 
 
 class SqlUserProfile(Base):
-    """Sprint 4, IMPLEMENTATION_PLAN.md — expand phase.
+    """Sprint 4, the original implementation plan — expand phase.
 
     Backfilled from (and, from this sprint on, dual-written alongside)
     `SqlUser`'s own `name`/`contact_number`/`avatar`/`bio`/`github_username`
@@ -106,7 +106,7 @@ class SqlUserProfile(Base):
 
 
 class SqlStudentProfile(Base):
-    """Sprint 4, IMPLEMENTATION_PLAN.md — expand phase. See `SqlUserProfile`."""
+    """Sprint 4, the original implementation plan — expand phase. See `SqlUserProfile`."""
 
     __tablename__ = "student_profiles"
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
@@ -123,7 +123,7 @@ class SqlStudentProfile(Base):
 
 
 class SqlTeacherProfile(Base):
-    """Sprint 4, IMPLEMENTATION_PLAN.md — expand phase. See `SqlUserProfile`."""
+    """Sprint 4, the original implementation plan — expand phase. See `SqlUserProfile`."""
 
     __tablename__ = "teacher_profiles"
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
@@ -134,7 +134,7 @@ class SqlTeacherProfile(Base):
 
 
 class SqlAdminProgramScope(Base):
-    """Sprint 4, IMPLEMENTATION_PLAN.md — expand phase.
+    """Sprint 4, the original implementation plan — expand phase.
 
     Empty for every admin today (there is no `program_admin` role yet — see
     `core/principal.py`); this table exists so Sprint 5 has somewhere to
@@ -210,7 +210,7 @@ class SqlAcademicSession(Base, TimestampedModel):
     """A named reporting session (e.g. "2025-2026 (Odd)") an admin can
     switch between in the topbar. This only scopes what date range admin
     reports/dashboards compute over — assignments and enrollments are not
-    tagged with a session. See PLAN_CAMPUSGRADE_CHANGES.md Option A."""
+    tagged with a session. See the original changes plan Option A."""
 
     __tablename__ = "academic_sessions"
     __table_args__ = (UniqueConstraint("label", "term", name="uq_academic_sessions_label_term"),)
@@ -245,7 +245,7 @@ class SqlStudentSessionRecord(Base, TimestampedModel):
     This is the source of truth going forward — users.year/users.semester
     stay in place as a cached copy of the *current* session's record so
     existing code that reads them keeps working. See
-    PLAN_ACADEMIC_SESSIONS_AND_BATCHES.md Part 1.
+    the original academic-sessions plan Part 1.
     """
 
     __tablename__ = "student_session_records"
@@ -274,7 +274,7 @@ class SqlTeacherSessionAllocation(Base, TimestampedModel):
     screen reads from — this table is written alongside it so allocations
     can be carried forward by the rollover engine without an admin having
     to re-enter them every term. See
-    PLAN_ACADEMIC_SESSIONS_AND_BATCHES.md Phase 6.
+    the original academic-sessions plan Phase 6.
     """
 
     __tablename__ = "teacher_session_allocations"

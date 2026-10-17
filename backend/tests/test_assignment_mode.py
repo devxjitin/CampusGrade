@@ -115,7 +115,7 @@ class AssignmentSchemaTests(unittest.TestCase):
 
 class AzureOpenAIConfigurationTests(unittest.TestCase):
     # `_azure_openai_config()` reads `config.get_settings()`, which is
-    # `lru_cache`d (Sprint 1, IMPLEMENTATION_PLAN.md) — patching os.environ
+    # `lru_cache`d (Sprint 1, the original implementation plan) — patching os.environ
     # alone doesn't reach it once any earlier test/import has already
     # populated the cache from the real environment/.env. Every test in this
     # class must clear that cache both before (so it rebuilds from the

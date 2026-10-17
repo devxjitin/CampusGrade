@@ -42,17 +42,32 @@ class LocalPrivateObjectStorage(PrivateObjectStorage):
 
 
 class S3PrivateObjectStorage(PrivateObjectStorage):
-    def __init__(self, *, bucket: str, endpoint: str | None = None, region: str | None = None):
+    def __init__(
+        self,
+        *,
+        bucket: str,
+        endpoint: str | None = None,
+        region: str | None = None,
+        access_key: str | None = None,
+        secret_key: str | None = None,
+        sse: str | None = "AES256",
+    ):
         import boto3
+        from botocore.config import Config
 
         self.bucket = bucket
-        self.client = boto3.client("s3", endpoint_url=endpoint or None, region_name=region or None)
+        self.sse = sse or None
+        options: dict = {"endpoint_url": endpoint or None, "region_name": region or None}
+        if access_key and secret_key:
+            options.update(aws_access_key_id=access_key, aws_secret_access_key=secret_key)
+        # Path-style addressing is required by MinIO and works on AWS S3 too.
+        self.client = boto3.client("s3", config=Config(s3={"addressing_style": "path"}, signature_version="s3v4"), **options)
 
     def put_bytes(self, key: str, data: bytes, content_type: str = "application/octet-stream") -> None:
-        self.client.upload_fileobj(
-            io.BytesIO(data), self.bucket, key,
-            ExtraArgs={"ContentType": content_type, "ServerSideEncryption": "AES256"},
-        )
+        extra_args = {"ContentType": content_type}
+        if self.sse:
+            extra_args["ServerSideEncryption"] = self.sse
+        self.client.upload_fileobj(io.BytesIO(data), self.bucket, key, ExtraArgs=extra_args)
 
     def get_bytes(self, key: str) -> bytes:
         return self.client.get_object(Bucket=self.bucket, Key=key)["Body"].read()
@@ -73,6 +88,9 @@ def get_private_storage(namespace: str) -> PrivateObjectStorage:
             bucket=settings.private_s3_bucket,
             endpoint=settings.private_s3_endpoint,
             region=settings.private_s3_region,
+            access_key=settings.private_s3_access_key,
+            secret_key=settings.private_s3_secret_key,
+            sse=settings.private_s3_sse,
         )
     root = Path(settings.private_storage_path) if settings.private_storage_path else Path(__file__).resolve().parents[1] / "uploads" / "private"
     return LocalPrivateObjectStorage(root / safe_namespace)

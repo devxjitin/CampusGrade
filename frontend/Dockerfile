@@ -1,20 +1,38 @@
+# syntax=docker/dockerfile:1.7
+# Build context is the repository root:
+#   docker build -f frontend/Dockerfile -t campusgrade-web .
+
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci
 
 FROM node:22-alpine AS build
 WORKDIR /app
-ARG BACKEND_ORIGIN=http://api:5001
-ARG NEXT_PUBLIC_API_URL=/api
-ENV BACKEND_ORIGIN=$BACKEND_ORIGIN NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NEXT_PUBLIC_API_URL=/api
 COPY --from=deps /app/node_modules ./node_modules
 COPY frontend/ ./
 RUN npm run build
 
-FROM node:22-alpine
+# Plain Alpine plus only the Node binary: the full node image also ships npm and yarn,
+# which `node server.js` never uses (~150 MB less, and less to patch).
+FROM alpine:3.22 AS runtime
 WORKDIR /app
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
-COPY --from=build /app ./
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+RUN apk add --no-cache libstdc++ \
+ && addgroup -S -g 10001 app \
+ && adduser -S -u 10001 -G app app
+COPY --from=deps /usr/local/bin/node /usr/local/bin/node
+# Standalone output: a minimal server plus only the node_modules it traces.
+COPY --from=build --chown=10001:10001 /app/.next/standalone ./
+COPY --from=build --chown=10001:10001 /app/.next/static ./.next/static
+COPY --from=build --chown=10001:10001 /app/public ./public
+USER 10001:10001
 EXPOSE 3000
-CMD ["npm", "run", "start"]
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+CMD ["node", "server.js"]

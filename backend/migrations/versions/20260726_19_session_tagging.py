@@ -6,7 +6,7 @@ the current session so the unique constraint change below does not orphan
 them; the per-(student, subject) uniqueness is relaxed to per-(student,
 subject, session) so a student can retake a subject in a later session.
 
-See PLAN_ACADEMIC_SESSIONS_AND_BATCHES.md Part 5 / Phase 2.
+See the original academic-sessions plan Part 5 / Phase 2.
 """
 
 from alembic import op
@@ -75,7 +75,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint("uq_student_subject_enrollment_session", "student_subject_enrollments", type_="unique")
+    op.execute("ALTER TABLE student_subject_enrollments DROP CONSTRAINT IF EXISTS uq_student_subject_enrollment_session")
     op.create_unique_constraint("uq_student_subject_enrollment", "student_subject_enrollments", ["student_id", "subject_id"])
     op.drop_index("ix_student_subject_enrollments_session_id", table_name="student_subject_enrollments")
     op.drop_column("student_subject_enrollments", "session_id")

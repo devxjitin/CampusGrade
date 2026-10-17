@@ -5,7 +5,6 @@ import json
 import uuid
 
 import jwt
-from ai.assignment_ai import _azure_openai_config, _extract_json_payload, _invoke_prompt_with_timeout
 from core.db import db_session
 from core.policy import Permission, require, require_roles, require_user
 from core.principal import Role
@@ -88,7 +87,7 @@ ALLOWED_ATTACHMENT_TYPES = {
 
 
 # ---------------------------------------------------------------------------
-# Sprint 2 (IMPLEMENTATION_PLAN.md): async port. This file is unusual versus
+# Sprint 2 (the original implementation plan): async port. This file is unusual versus
 # the rest of Sprint 2's ports because several of its private helpers have
 # real *sync* callers outside this file that cannot be converted in the same
 # pass:
@@ -2844,7 +2843,7 @@ async def admin_assignment_dashboard(
         )
     else:
         query = select(SqlAssignment).filter(SqlAssignment.due_at >= start, SqlAssignment.due_at <= end)
-    # Sprint 5, IMPLEMENTATION_PLAN.md "Done when": unconditional, same
+    # Sprint 5, the original implementation plan "Done when": unconditional, same
     # reasoning as admin/batches.py::get_batches — a program admin can't
     # widen their own scope by passing (or omitting) program_id.
     query = scope_to_programs(query, principal, SqlAssignment.target_course_id)

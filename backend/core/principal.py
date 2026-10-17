@@ -1,4 +1,4 @@
-"""Policy engine, roles live (Sprint 5, IMPLEMENTATION_PLAN.md).
+"""Policy engine, roles live (Sprint 5, the original implementation plan).
 
 `Principal` is the one object that answers "who is making this request, and
 what are they scoped to" — built once per request from a single query, so

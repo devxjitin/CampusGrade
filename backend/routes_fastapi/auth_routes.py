@@ -21,7 +21,7 @@ router = APIRouter(tags=["auth"])
 login_limiter = SlidingWindowRateLimiter(limit=10, window_seconds=60)
 auth_service = AuthService()
 
-# Sprint 6, IMPLEMENTATION_PLAN.md.
+# Sprint 6, the original implementation plan.
 ACCESS_TOKEN_MINUTES = 15
 CSRF_COOKIE_NAME = "campusgrade_csrf"
 
@@ -65,7 +65,7 @@ def _clear_refresh_cookie(response: Response):
 
 
 def _set_access_cookie(response: Response, access_token: str):
-    """Sprint 6, IMPLEMENTATION_PLAN.md: `httponly`, `secure` (from
+    """Sprint 6, the original implementation plan: `httponly`, `secure` (from
     settings), `samesite="lax"`, path `/` — unlike the refresh cookie, the
     access token has to be readable on every route, not just `/auth/...`."""
     response.set_cookie(
@@ -105,7 +105,7 @@ async def login(body: LoginRequest, request: Request, response: Response, role: 
     password = body.password
 
     user = await auth_service.authenticate(identifier, password, db)
-    # Sprint 5, IMPLEMENTATION_PLAN.md: both admin roles count as "staff"
+    # Sprint 5, the original implementation plan: both admin roles count as "staff"
     # for the sign-in page split, same as the single "admin" role did before.
     if role == "staff" and user["role"] not in {"teacher", "super_admin", "program_admin"}:
         raise HTTPException(status_code=403, detail="Use the student sign-in page for this account.")
@@ -120,7 +120,7 @@ async def login(body: LoginRequest, request: Request, response: Response, role: 
     _set_refresh_cookie(response, refresh_token)
     _set_access_cookie(response, token)
     _set_csrf_cookie(response)
-    # `token` stays in the JSON body too — Sprint 6, IMPLEMENTATION_PLAN.md
+    # `token` stays in the JSON body too — Sprint 6, the original implementation plan
     # "accept both for one sprint": the not-yet-updated frontend still reads
     # it from here and sends it as an `Authorization` header, which
     # `get_bearer_token` still accepts as a fallback. Removed in Sprint 10.
@@ -159,7 +159,7 @@ async def logout(response: Response, current_user=Depends(get_current_user), db:
 
 @router.get("/auth/me")
 async def read_current_principal(principal: Principal = Depends(require_principal)):
-    """Sprint 6, IMPLEMENTATION_PLAN.md: "returns the Principal as JSON. The
+    """Sprint 6, the original implementation plan: "returns the Principal as JSON. The
     frontend uses this instead of decoding a JWT client-side." Frozensets
     aren't JSON-serialisable, so `program_ids`/`offering_ids` go out as
     sorted lists; `"*"` (`core.principal.ALL_PROGRAMS`) means "every

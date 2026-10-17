@@ -1,4 +1,4 @@
-"""Four roles go live (Sprint 5, IMPLEMENTATION_PLAN.md).
+"""Four roles go live (Sprint 5, the original implementation plan).
 
 Every existing `admin` becomes a `super_admin` — deliberate, so nobody loses
 access on deploy day. `program_admin` accounts are created afterwards by
@@ -32,5 +32,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint(_CHECK_NAME, "users", type_="check")
+    op.execute(f"ALTER TABLE users DROP CONSTRAINT IF EXISTS {_CHECK_NAME}")
     op.execute("UPDATE users SET role = 'admin' WHERE role IN ('super_admin', 'program_admin')")

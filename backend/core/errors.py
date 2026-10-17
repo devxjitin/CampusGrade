@@ -1,4 +1,4 @@
-"""One exception hierarchy, one response shape (Sprint 1, IMPLEMENTATION_PLAN.md).
+"""One exception hierarchy, one response shape (Sprint 1, the original implementation plan).
 
 Every error the API returns deliberately (not an unhandled 500) should raise
 one of these instead of `HTTPException(status_code=..., detail=...)`
@@ -117,7 +117,7 @@ def error_response(request: Request, error: AppError) -> JSONResponse:
     """Build the same `application/problem+json` body
     `handle_app_error` below produces, callable directly.
 
-    Needed by `core/csrf.py`'s middleware (Sprint 6, IMPLEMENTATION_PLAN.md):
+    Needed by `core/csrf.py`'s middleware (Sprint 6, the original implementation plan):
     an exception *raised* from inside a `@app.middleware("http")` function
     does not reach the `@app.exception_handler` registered below — that's a
     documented FastAPI/Starlette limitation, not a bug in this app —

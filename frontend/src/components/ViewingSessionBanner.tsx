@@ -1,7 +1,7 @@
 "use client";
 
 // Shown on admin screens that scope their data to the topbar "Viewing"
-// session lens (see PLAN_ACADEMIC_SESSIONS_AND_BATCHES.md Part 2A). Only
+// session lens (see the original academic-sessions plan Part 2A). Only
 // renders when the admin is looking at a session other than the current
 // one, so it's obvious this data is a historical/future snapshot.
 import { useEffect, useState } from "react";

@@ -1,4 +1,4 @@
-"""Double-submit CSRF check (Sprint 6, IMPLEMENTATION_PLAN.md).
+"""Double-submit CSRF check (Sprint 6, the original implementation plan).
 
 Only matters once the access token lives in a cookie the browser sends
 automatically — a plain `Authorization: Bearer` header can't be forged by a

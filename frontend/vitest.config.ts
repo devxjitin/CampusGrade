@@ -2,7 +2,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 import path from "node:path";
 
-// Sprint 0 (IMPLEMENTATION_PLAN.md): unit-test harness for src/lib and
+// Sprint 0 (the original implementation plan): unit-test harness for src/lib and
 // src/hooks. Component tests use @testing-library/react on top of this.
 export default defineConfig({
   plugins: [react()],

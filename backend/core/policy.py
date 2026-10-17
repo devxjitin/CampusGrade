@@ -1,4 +1,4 @@
-"""The permission matrix — enforced, not shadowed (Sprint 5, IMPLEMENTATION_PLAN.md).
+"""The permission matrix — enforced, not shadowed (Sprint 5, the original implementation plan).
 
 Built in Sprint 3 as shadow-mode-only scaffolding logging mismatches against
 `routes_fastapi.deps`'s `require_roles`. Sprint 5 turns shadow mode off:

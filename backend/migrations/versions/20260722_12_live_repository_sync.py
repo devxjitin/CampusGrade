@@ -91,7 +91,10 @@ def upgrade() -> None:
 def downgrade() -> None:
     for name in ("detection_source", "detected_at", "repository_generation"):
         op.drop_column("assignment_submission_versions", name)
-    op.drop_constraint("fk_assignment_submissions_frozen_by", "assignment_submissions", type_="foreignkey")
+    # upgrade() skips creating this constraint when an equivalent foreign key on
+    # frozen_by already exists (e.g. from the baseline schema), so it may not exist
+    # under this name; dropping the column below removes any such constraint anyway.
+    op.execute("ALTER TABLE assignment_submissions DROP CONSTRAINT IF EXISTS fk_assignment_submissions_frozen_by")
     for name in ("freeze_requested_at", "next_sync_at", "sync_status", "latest_remote_sha", "frozen_version_id", "pending_version_id"):
         op.drop_index(f"ix_assignment_submissions_{name}", table_name="assignment_submissions")
     for name in ("freeze_reason", "frozen_by", "frozen_at", "freeze_requested_at", "sync_failure_count", "sync_error", "next_sync_at", "last_sync_completed_at", "last_sync_checked_at", "sync_status", "latest_remote_sha", "repository_generation", "default_branch", "repository_name", "repository_owner", "repository_url", "frozen_version_id", "pending_version_id"):

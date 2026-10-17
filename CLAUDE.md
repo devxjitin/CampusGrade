@@ -4,49 +4,56 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-CampusGrade: an assignment, repository-analysis, and grading platform. FastAPI + PostgreSQL backend, Next.js (App Router, TypeScript, Tailwind CSS v4, TanStack Query) frontend in `frontend/`. The old Vite/React frontend (`frontend-legacy/`) has been removed after cutover; see `MIGRATION_PLAN.md` for the migration history.
+CampusGrade: an assignment, repository-analysis, and grading platform for one institution. FastAPI + PostgreSQL backend, Next.js (App Router, TypeScript, Tailwind CSS v4, TanStack Query) frontend in `frontend/`, deployed as a Docker Compose stack. `PRD.md` holds the requirements, known issues and target architecture; `Sprint.md` is the delivery plan (check which sprint is current before starting work).
 
 ## Commands
 
-### Backend (run from `backend/`, or point tools at `backend/`)
+### Whole stack (Docker Desktop)
 
-- Install deps: `uv sync` (uv reads `pyproject.toml`/`uv.lock` at repo root; `.venv` also lives at repo root)
-- Run dev server: `cd backend && python app.py` (set `FASTAPI_RELOAD=true` for autoreload) or `uvicorn app:app --reload`
-- Run all tests: `uv run pytest backend/tests` (from repo root) — tests import backend modules directly (`from app import ...`), so pytest must resolve `backend/` onto `sys.path`; running from repo root against `backend/tests` works because of the package layout
-- Run a single test: `uv run pytest backend/tests/test_security.py::PasswordSecurityTests::test_rejects_predictable_jwt_secrets`
-- DB migrations (Alembic, config lives in `backend/alembic.ini`, scripts in `backend/migrations/`, not `backend/alembic/` which is a stale leftover): `cd backend && alembic upgrade head`, create one with `alembic revision -m "description"`
-- Required env vars are documented in `backend/.env.example` (`SECRET_KEY` must be >=32 chars and not a common/weak value, `DATABASE_URL`, `ALLOWED_ORIGINS`, Azure OpenAI settings, private storage backend settings)
+- Dev (hot reload, no HTTPS): `scripts\init-secrets.ps1` once, then `docker compose -f compose.yaml -f compose.dev.yaml up --build` → app `http://localhost:3000`, API `http://localhost:5001`.
+- Prod-like: `scripts\deploy.ps1 -Version <tag>` pulls images from GHCR, migrates, starts the stack behind Caddy at `https://campusgrade.localhost`, smoke-tests, and rolls back on failure. `-NoPull` deploys locally built images (tag them `ghcr.io/devxjitin/campusgrade-{api,web}:<tag>`).
+- First admin: `scripts\bootstrap-admin.ps1`. Trust Caddy's local CA once: `scripts\trust-caddy-ca.ps1`.
+- Compose files: `compose.yaml` (base), `compose.dev.yaml`, `compose.prod.yaml` (hardened, pinned images). Secrets are files in `secrets/` (git-ignored), mounted at `/run/secrets/*` and read by `backend/config.py`; never put secrets in env vars, images or committed files.
 
-### Frontend (run from `frontend/`)
+### Backend (from repo root)
 
-- Install deps: `npm install`
-- Dev server: `npm run dev` (Next.js on port 3000; `/api/*` is rewritten to the FastAPI backend at `BACKEND_ORIGIN`, default `http://127.0.0.1:5001` — see `next.config.ts`)
-- Build: `npm run build`
-- Lint: `npm run lint`
-- No frontend test suite exists yet.
+- Install deps: `uv sync` (`pyproject.toml`/`uv.lock` at repo root, `.venv` at repo root)
+- Run all tests: `uv run pytest backend/tests` (set `SECRET_KEY` to any ≥32-char non-trivial value). Tests import backend modules directly (`from app import ...`). Database-backed tests (`requires_docker`, the `database_url` fixture) start a throwaway Postgres via testcontainers, or use `TEST_DATABASE_URL=postgresql+psycopg://...` pointing at an empty disposable database (it is migrated for you). CI runs them on Linux; the Windows event loop prints noisy `proactor_events` errors, so for a CI-faithful run use a Linux container on the same Docker network as the test database.
+- Single test: `uv run pytest backend/tests/test_readiness.py::test_ready_returns_200_when_database_and_storage_are_ready`
+- Lint/types: `uv run ruff check <files>` (CI checks an explicit clean-file list, see `pyproject.toml`) and `uv run mypy`.
+- Migrations (Alembic; config `backend/alembic.ini`, scripts `backend/migrations/`): `cd backend && alembic upgrade head`; new one: `alembic revision -m "description"`. In Docker they run as the one-shot `migrate` service, never in the API entrypoint. Migrations must be backward compatible with the previous app version (expand → migrate → contract).
+
+### Frontend (from `frontend/`)
+
+- `npm ci`, `npm run dev` (port 3000; `/api/*` is rewritten to `BACKEND_ORIGIN` in dev only), `npm run build`, `npm run lint`, `npx vitest run`, `npm run e2e` (Playwright; needs a running seeded stack, see `e2e/README.md`).
+- `frontend/AGENTS.md` warns this Next.js version has breaking changes: read the guide in `node_modules/next/dist/docs/` before changing framework-level code. The request interceptor file is `src/proxy.ts` (this version's name for middleware).
 
 ## Architecture
 
+### Request path (production)
+
+Browser → Caddy (`docker/caddy/Caddyfile`: TLS, security headers) → `/api/*` to the `api` replicas (prefix stripped, so backend routes stay unprefixed, e.g. `/login`, `/ready`) and everything else to `web` (Next.js standalone). Postgres and the S3-compatible store (`storage`, RustFS) are only on the internal `backend` network. Server-side calls from Next.js to the API use `API_INTERNAL_URL` (`http://api:5001`).
+
 ### Backend
 
-- `app.py` is the FastAPI entrypoint (ASGI `app` object); `main.py` is a thin `python main.py` runner that re-execs into the project venv on Windows. Both just call `uvicorn.run("app:app", ...)`.
-- App startup (`lifespan` in `app.py`) verifies the DB is reachable and its Alembic revision matches head, does a private-storage read/write health check, initializes Redis, and starts an in-process background loop that (a) auto-publishes assignment results whose release condition has been met and (b) periodically purges stale sessions. There is no separate worker process for this — it runs inside the API process's asyncio loop.
-- Auth is JWT-based (`routes_fastapi/deps.py`): access tokens are short-lived, carry a `session_version` and `sid` (refresh-token session id) claim, and are validated against the user's current `session_version`/session-active state on every request — this is how server-side session revocation works despite stateless JWTs. `require_roles(...)` and `require_permission(...)` are the two authorization dependencies used on routes; roles are `admin`, `teacher`, `student`.
-- Two SQLAlchemy database layers coexist: a sync `engine`/`SessionLocal` (used by most existing route/service code and by Alembic) and an async `async_engine`/`async_session_factory` (`get_db()`) that new code is meant to use going forward (see comment in `models/database.py`). `DATABASE_URL` uses the `postgresql+psycopg://` sync driver form; the async engine URL is derived automatically from it.
-- Domain models live in `models/sql_models.py` (users, departments, courses, batches, sections, subjects, enrollments, audit log, app settings) and `models/assignment.py` (assignments, rubric criteria, resources, submissions + versions, grades + grade revisions, duplicate-similarity flags, announcements, discussion threads, AI suggestions). Non-ORM data-access helpers (`auth_store.py`, `settings_store.py`) sit alongside the ORM models for pieces not yet migrated to full SQLAlchemy models.
-- `routes_fastapi/assignment_routes.py` is the largest and most central router (~1900 lines): assignment CRUD, submission handling (including GitHub-repository submissions), grading, duplicate/plagiarism similarity detection across submissions, discussions, and analytics all live here. `routes_fastapi/admin/` is a package of smaller per-resource routers (batches, courses, sections, subjects, departments, users) mounted under the `/admin` prefix in `app.py`; `routes_fastapi/admin_routes.py` and `routes_fastapi/admin_settings.py` are separate, older files (temporary-password generation, audit-log endpoints) — don't confuse the `admin/` package with `admin_routes.py`.
-- GitHub-repository assignment submissions are their own subsystem: `services/github_repository_service.py` fetches/archives a submitted repo and computes code-similarity fingerprints (secrets are redacted via `SECRET_PATTERNS` before any content is stored or shown); `services/assignment_external_evaluation.py` builds the full-repository export (no size/token budget — every file is included, binary as base64) used to hand a submission to an external evaluator/AI grader.
-- Private file storage (submission archives, uploaded documents) is abstracted behind `services/object_storage.py` (`PrivateObjectStorage` base class with `LocalPrivateObjectStorage` and `S3PrivateObjectStorage` implementations, selected by `PRIVATE_STORAGE_BACKEND`); `services/assignment_storage.py` builds on top of this for assignment-specific paths/keys.
-- `ai/assignment_ai.py` handles document text extraction (PDF/DOCX/etc.) and calls Azure OpenAI (endpoint/deployment/key from env) for assignment-drafting assistance.
-- Background scheduled work needing to run outside the API process (rather than the in-process lifespan loop) goes through Redis + RQ (`core/redis.py`, `assignment_worker.py`).
+- `app.py` is the ASGI entrypoint; in containers it runs under gunicorn (`gunicorn.conf.py`, UvicornWorker). `GET /health` is liveness, `GET /ready` checks DB reachability, Alembic head and the storage check done at startup.
+- Currently (until Sprint 2) `lifespan` still runs an in-process scheduler loop (auto-publish results, purge sessions, rollover notice) and repository analysis still falls back to FastAPI `BackgroundTasks` when Redis is absent (Redis is not part of the stack). Sprint 2 moves all of this into a separate `worker` service on a Postgres `jobs` table; do not add new background work to the API process.
+- Database access is async: `models/database.py` builds the async engine/`async_session_factory`; routes use `Depends(db_session)` from `core/db.py`. Some helpers still use sync Sessions through `db.run_sync(...)`. `DATABASE_URL` uses the `postgresql+psycopg://` form; the asyncpg URL is derived.
+- Auth (`routes_fastapi/auth_routes.py`, `deps.py`): httpOnly cookies `campusgrade_access` (15 min), `campusgrade_refresh` (rotating, days) and a readable `campusgrade_csrf` double-submit token (`core/csrf.py` enforces it on POST/PUT/PATCH/DELETE). Access tokens carry `session_version` and `sid` and are validated against the user's current session on every request. `GET /auth/me` returns the `Principal`. Roles: `super_admin`, `program_admin`, `teacher`, `student`; authorization via `require_roles(...)`/`require(Permission...)` and the policy engine in `core/policy.py`, `core/scoping.py`, `core/principal.py`.
+- Models: `models/sql_models.py` (users and identity/profile tables, programs, academic sessions, batches, sections, subjects, enrollments, audit log, settings) and `models/assignment.py` (assignments, rubric, resources, submissions + versions, grades + revisions, similarity flags, discussions).
+- `routes_fastapi/assignment_routes.py` is still the largest router (~3,000 lines, split planned in Sprint 3); `routes_fastapi/admin/` holds the per-resource admin routers mounted under `/admin`; `routes_fastapi/admin_routes.py` is legacy helper code slated for deletion.
+- GitHub submissions: `services/github_repository_service.py` fetches/archives repos and computes similarity fingerprints (secrets redacted via `SECRET_PATTERNS`); `services/assignment_external_evaluation.py` builds the full-repository export for the external-AI workflow.
+- Storage: `services/object_storage.py` (`LocalPrivateObjectStorage` for tests/dev scripts, `S3PrivateObjectStorage` for S3-compatible stores (RustFS locally) and AWS S3; `PRIVATE_S3_*` settings). Production always uses the S3 backend. `scripts/ensure_bucket.py` (run by the `storage-init` service) creates the bucket.
+- Config: `config.py` (pydantic-settings) reads environment variables, `.env`, then `/run/secrets/<field_name>` files. The app refuses to start on a weak `SECRET_KEY`.
+- AI: there is no in-app model call. The external-AI workflow is human-in-the-loop (generate prompt → teacher uses an external tool → import JSON → validate and save). `ai/assignment_ai.py` still contains an unused Azure OpenAI client slated for removal; only `extract_text_from_document` is live.
 
 ### Frontend
 
-- Routing uses the Next.js App Router under `src/app/`. Authed pages live inside the `(dashboard)` route group and share `src/app/(dashboard)/layout.tsx` (ported from legacy's `DashboardLayout.jsx` — sidebar/nav/topbar chrome). Role gating is client-side: pages/components check the session user's role directly rather than a single central router guard, since the JWT only exists in `localStorage` (not visible during server rendering).
-- Session state lives in `localStorage` (`campusgrade_token`, `campusgrade_user`), read/written via `src/lib/session.ts`. Not a global store — zustand is not used for auth here either.
-- `src/lib/api.ts` is the single axios instance for all API calls, a straight TypeScript port of legacy's `services/api.js`: attaches the bearer token on every request, transparently calls `/auth/refresh` once on a 401 (de-duplicated via a shared `refreshPromise`) and retries the original request, and flattens FastAPI's `{"detail": ...}` error shape onto `error.response.data.message`.
-- Data fetching goes through TanStack Query hooks in `src/hooks/` (e.g. `useAcademicStructure.ts`), wrapping the calls in `lib/api.ts` — this is new versus legacy, which had no query/cache layer.
-- Some pages are shared client components rendered by multiple thin route `page.tsx` files with different props (e.g. `AssignmentDashboardView` with an `initialView` prop, `CreateAssignmentView` used by both `/assignments/create` and `/assignments/[id]/edit`) — this replicates legacy's single-component-multiple-routes pattern (`AssignmentDashboard initialView="..."` in `App.jsx`) under App Router.
-- The external-AI grading workflow (prompt generation, proposal import, repo-bundle export, validate + save) is human-in-the-loop only — no internal embeddings/RAG. It's UI embedded in `CreateAssignmentView.tsx` and `BulkExternalEvaluationDialog.tsx`, calling `lib/api.ts` functions that hit `/assignments/teacher-tools/external-ai-*` and `/assignments/teacher/:id/external-evaluation/*`.
-- In dev, `next.config.ts` rewrites `/api/*` to the FastAPI backend (`BACKEND_ORIGIN`, default `http://127.0.0.1:5001`) and redirects the old `/login/student` and `/login/teacher` paths to `/login`. The frontend's real API base URL is `NEXT_PUBLIC_API_URL` (defaults to `/api`).
-- See `MIGRATION_PLAN.md` for the full Vite→Next.js migration history (the pre-migration `frontend-legacy/` app has been removed).
+- App Router under `src/app/`; authenticated pages live in the `(app)` route group sharing `src/app/(app)/layout.tsx` (persistent shell). `src/app/session/refresh/page.tsx` silently refreshes an expired access cookie (see `src/proxy.ts`). Route `page.tsx` files are thin and render components from `src/features/<domain>/components` (`academics`, `ai`, `assignments`, `auth`, `grading`, `integrity`, `people`, `reporting`); each feature has `api.ts`, `queries.ts` (TanStack Query), `schema.ts`, `types.ts`.
+- Auth is cookie-based; no token in `localStorage`. `src/lib/http.ts` is the shared axios instance: sends cookies, adds the CSRF header on mutating requests, and on a 401 calls `/auth/refresh` once (deduplicated) and retries. `src/lib/session.ts` caches `GET /auth/me` in memory. `src/proxy.ts` gates `/admin/*` and `/platform/*` by role server-side and routes expired-access/valid-refresh visits through `/session/refresh`.
+- `src/types/api.d.ts` is generated from the backend OpenAPI (`npm run gen:types`); CI fails if it is stale. `src/types/api-client.ts` is the typed request facade.
+- Next.js builds with `output: "standalone"`; the production image runs `node server.js` as a non-root user.
+
+### CI/CD
+
+`.github/workflows/ci.yml`: lint/types/tests/migration round-trip/frontend build, then builds both images, Trivy-scans them, starts `compose.prod.yaml` and runs Playwright against `https://campusgrade.localhost`; pushes to `main` and `v*.*.*` tags publish `ghcr.io/devxjitin/campusgrade-{api,web}` tagged by git SHA, `main`, or the version tag.

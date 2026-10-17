@@ -53,7 +53,7 @@ def sanitize_string(value, max_length=500):
 
 
 def validate_role(role):
-    # Sprint 5, IMPLEMENTATION_PLAN.md: "admin" split into "super_admin"/
+    # Sprint 5, the original implementation plan: "admin" split into "super_admin"/
     # "program_admin" (see migration `canvasgrade_022`).
     valid_roles = ["student", "teacher", "super_admin", "program_admin"]
     if role not in valid_roles:

@@ -1,8 +1,8 @@
 // TanStack Query layer for external-AI drafting + evaluation.
-// Sprint 7 (IMPLEMENTATION_PLAN.md "Frontend shell rebuild"), item 5.
+// Sprint 7 (the original implementation plan "Frontend shell rebuild"), item 5.
 //
 //
-// Known gap (see SPRINT_STATUS.md): this feature has no read/write hooks
+// Known gap (see the original sprint status): this feature has no read/write hooks
 // wired yet — call sites still use ai/api.ts functions directly.
 
 export const aiKeys = {

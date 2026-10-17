@@ -1,5 +1,5 @@
 // TanStack Query layer for notifications/audit-log/monitoring-settings.
-// Sprint 7 (IMPLEMENTATION_PLAN.md "Frontend shell rebuild"), item 5.
+// Sprint 7 (the original implementation plan "Frontend shell rebuild"), item 5.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ApiRequestBody } from "@/types/api-client";
 import {
@@ -23,7 +23,7 @@ export const reportingKeys = {
  * instead of per-page (see Sprint 7 notes) — a single subscription here
  * means navigating between pages no longer destroys and re-fetches this
  * query. Not yet wired into DashboardLayout itself (it still manages its
- * own notification state with useState/useEffect) — see SPRINT_STATUS.md
+ * own notification state with useState/useEffect) — see the original sprint status
  * "known gaps" for why that swap was left for a follow-up.
  */
 export const useNotifications = () =>

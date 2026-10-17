@@ -3,7 +3,7 @@
 // Session rollover: promotes every student to the next academic session
 // (semester/year change), creates the new intake's batches on Odd terms,
 // auto-enrols compulsory subjects, and graduates final-year students.
-// See PLAN_ACADEMIC_SESSIONS_AND_BATCHES.md Part 4.
+// See the original academic-sessions plan Part 4.
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, History, RotateCcw, Undo2 } from "lucide-react";
 import { PageHeader, useConfirm } from "@/components/ui";

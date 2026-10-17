@@ -3,7 +3,7 @@
 Promotes every active student from one academic session to the next,
 creates the next intake's batches/sections on an Odd rollover, auto-enrols
 compulsory subjects, and graduates students whose study year has run past
-their course's duration. See PLAN_ACADEMIC_SESSIONS_AND_BATCHES.md Part 4.
+their course's duration. See the original academic-sessions plan Part 4.
 
 Every row this module creates is stamped with a rollover_run_id so it can
 be audited, and undone within the allowed window (before any new
@@ -306,7 +306,7 @@ def notify_admins_if_rollover_due(db: Session) -> int:
     """Called from the background scheduler (see app.py). If the current
     session's end_date has passed and nothing has rolled over yet, nudge
     every admin once — this is the "prepare automatically, confirm
-    manually" behaviour from PLAN_ACADEMIC_SESSIONS_AND_BATCHES.md Part 4
+    manually" behaviour from the original academic-sessions plan Part 4
     Step 4: never flip the current session on its own, just make sure an
     admin can't miss that it's time to.
 
@@ -323,7 +323,7 @@ def notify_admins_if_rollover_due(db: Session) -> int:
 
     label, term, _start, _end = next_session_label(current)
     dedupe_key = f"rollover-due:{current.id}:{label}:{term}"
-    # Sprint 5, IMPLEMENTATION_PLAN.md: rollover is a `ROLLOVER_EXECUTE`
+    # Sprint 5, the original implementation plan: rollover is a `ROLLOVER_EXECUTE`
     # action, super-admin only (see core/policy.py) — only super admins get
     # notified that a rollover is due.
     admins = db.query(SqlUser).filter(SqlUser.role == "super_admin", SqlUser.is_active.is_(True)).all()

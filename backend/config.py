@@ -1,4 +1,4 @@
-"""Typed application configuration (Sprint 1, IMPLEMENTATION_PLAN.md).
+"""Typed application configuration (Sprint 1, the original implementation plan).
 
 Replaces ~32 scattered `os.getenv(...)` calls across the backend with one
 object, validated once at import. The app should refuse to start on a bad
@@ -6,12 +6,12 @@ value rather than fail confusingly on the first request that needs it —
 `_secret()` in `app.py` already did this for `SECRET_KEY`; this extends the
 same idea to every setting.
 
-Placement note (deviation from IMPLEMENTATION_PLAN.md Sprint 1): the plan
+Placement note (deviation from the original implementation plan Sprint 1): the plan
 sketches this as `backend/app/config.py`. `backend/app.py` (the existing
 FastAPI entrypoint module) would collide with a new `app/` package — you
 cannot have both `app.py` and `app/` importable from the same root. Renaming
 `app.py` into `app/main.py` is a real, disclosed piece of the target layout
-(see ARCHITECTURE.md §5.1), but it belongs with the domain-split sprints
+(see the original architecture doc §5.1), but it belongs with the domain-split sprints
 (Sprint 10+) where the rest of the package layout actually changes — doing
 it half-finished now would just mean renaming it again later. So this
 module lives at `backend/config.py` and the new core helpers live under the
@@ -21,11 +21,12 @@ differs from the plan — only where it sits until Sprint 10.
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 # `models/database.py` used to be the module every other module transitively
 # imported early enough to bootstrap `.env` into os.environ via
@@ -35,7 +36,22 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # (`utils/security_utils.py`'s live SECRET_KEY read for legacy Fernet
 # ciphertext, `migrations/env.py` which Alembic runs outside the app
 # entirely) still see `.env` values.
-load_dotenv()
+_SECRETS_DIR = os.getenv("SECRETS_DIR", "/run/secrets")
+
+
+def _load_dotenv() -> None:
+    """Copy `.env` values into `os.environ` (for the few modules that read
+    `os.getenv` directly) without ever overriding a real environment variable or
+    a mounted Docker secret of the same name."""
+    for key, value in dotenv_values().items():
+        if value is None or key in os.environ:
+            continue
+        if os.path.exists(os.path.join(_SECRETS_DIR, key.lower())):
+            continue
+        os.environ[key] = value
+
+
+_load_dotenv()
 
 _WEAK_SECRETS = {
     "super_secret_jwt_key_here",
@@ -64,8 +80,34 @@ def is_weak_secret(value: str) -> bool:
     return len(candidate) < 32 or candidate.isdigit() or len(set(candidate)) < 8 or candidate.lower() in _WEAK_SECRETS
 
 
+# Docker/Compose secrets are mounted as one file per secret under /run/secrets
+# (file name == setting name, e.g. /run/secrets/secret_key). pydantic-settings
+# reads them directly, so credentials never have to live in environment
+# variables, `docker inspect` output, or committed env files. Precedence:
+# real environment variables > mounted secrets > `.env`. The directory is
+# optional so local development and tests are unaffected.
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+        secrets_dir=_SECRETS_DIR if os.path.isdir(_SECRETS_DIR) else None,
+    )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # Mounted secrets outrank a `.env` file. With the default order a developer
+        # `.env` that gets bind-mounted into a dev container (./backend:/app) would
+        # silently override the Docker secret (e.g. point DATABASE_URL elsewhere).
+        return (init_settings, env_settings, file_secret_settings, dotenv_settings)
 
     # --- core ---
     app_env: str = "development"
@@ -86,7 +128,7 @@ class Settings(BaseSettings):
     # should read.
     allowed_origins_raw: str = Field(default="http://localhost:5174,http://localhost:3000", alias="ALLOWED_ORIGINS")
     cookie_secure: bool = False
-    # Sprint 6, IMPLEMENTATION_PLAN.md: the access token moves into an
+    # Sprint 6, the original implementation plan: the access token moves into an
     # httpOnly cookie this sprint, but the `Authorization` header is still
     # accepted for one sprint so the not-yet-updated frontend keeps working
     # (see `routes_fastapi/deps.py::get_bearer_token`) and CSRF is enforced
@@ -111,6 +153,16 @@ class Settings(BaseSettings):
     private_s3_bucket: str | None = None
     private_s3_endpoint: str | None = None
     private_s3_region: str | None = None
+    # Credentials for S3-compatible storage (MinIO). Leave unset on AWS to use the
+    # normal boto3 credential chain / IAM role.
+    private_s3_access_key: str | None = None
+    private_s3_secret_key: str | None = None
+    # Browser-reachable base URL used to sign presigned links (Sprint 3), e.g.
+    # https://campusgrade.localhost/storage. Falls back to the internal endpoint.
+    private_s3_public_endpoint: str | None = None
+    # Server-side encryption header. AWS S3 accepts "AES256"; MinIO without a
+    # KMS rejects it, so set this to empty there.
+    private_s3_sse: str | None = "AES256"
 
     # --- github repository submissions ---
     github_token: str | None = None
@@ -119,7 +171,7 @@ class Settings(BaseSettings):
     assignment_max_text_bytes: int = 1024 * 1024
     repository_sync_interval_seconds: int = 120
 
-    # --- external AI (Azure OpenAI today; see ARCHITECTURE.md §6) ---
+    # --- external AI (Azure OpenAI today; see the original architecture doc §6) ---
     azure_openai_endpoint: str | None = None
     azure_openai_api_key: str | None = None
     azure_openai_deployment: str | None = None

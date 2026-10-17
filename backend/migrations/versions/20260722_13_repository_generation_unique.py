@@ -22,5 +22,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_constraint("uq_assignment_submission_commit", "assignment_submission_versions", type_="unique")
+    op.execute("ALTER TABLE assignment_submission_versions DROP CONSTRAINT IF EXISTS uq_assignment_submission_commit")
     op.create_unique_constraint("uq_assignment_submission_commit", "assignment_submission_versions", ["submission_id", "commit_sha"])

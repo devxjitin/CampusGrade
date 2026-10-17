@@ -1,4 +1,4 @@
-"""Dual-write for the new identity profile tables (Sprint 4, IMPLEMENTATION_PLAN.md).
+"""Dual-write for the new identity profile tables (Sprint 4, the original implementation plan).
 
 `SqlUser`'s old columns (`name`, `contact_number`, `avatar`, `bio`,
 `github_username`, `roll_no`, `course_id`, `teacher_id`, `designation`, ...)

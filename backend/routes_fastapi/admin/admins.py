@@ -1,4 +1,4 @@
-"""Admin management endpoints (Sprint 5, IMPLEMENTATION_PLAN.md).
+"""Admin management endpoints (Sprint 5, the original implementation plan).
 
 The three endpoints the plan names for Sprint 5's role split, all
 super-admin only (`Permission.ADMIN_MANAGE`):

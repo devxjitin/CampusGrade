@@ -1,0 +1,169 @@
+# Base definition shared by dev and prod. Do not run this file on its own:
+#   dev:  docker compose -f compose.yaml -f compose.dev.yaml up --build
+#   prod: scripts\deploy.ps1 -Version vX.Y.Z   (uses compose.prod.yaml)
+name: campusgrade
+
+x-api-env: &api-env
+  APP_ENV: ${APP_ENV:-production}
+  APP_ID: canvas-grade
+  PORT: "5001"
+  ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://campusgrade.localhost}
+  COOKIE_SECURE: ${COOKIE_SECURE:-true}
+  # The API is only reachable from the proxy over the internal network, so it is
+  # safe to trust X-Forwarded-For there (login rate limiting needs the real IP).
+  FORWARDED_ALLOW_IPS: "*"
+  WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+  PRIVATE_STORAGE_BACKEND: s3
+  PRIVATE_S3_BUCKET: campusgrade-private
+  PRIVATE_S3_ENDPOINT: http://storage:9000
+  PRIVATE_S3_PUBLIC_ENDPOINT: ${PRIVATE_S3_PUBLIC_ENDPOINT:-https://campusgrade.localhost/storage}
+  PRIVATE_S3_REGION: us-east-1
+  PRIVATE_S3_ACCESS_KEY: campusgrade-app
+  # The local S3-compatible store has no KMS, so it rejects the AWS-only
+  # server-side-encryption header. (Leave the default on real AWS S3.)
+  PRIVATE_S3_SSE: ""
+  REDIS_REQUIRED: "false"
+  REPOSITORY_SYNC_INTERVAL_SECONDS: ${REPOSITORY_SYNC_INTERVAL_SECONDS:-120}
+  # Secrets (SECRET_KEY, DATABASE_URL, GITHUB_TOKEN, PRIVATE_S3_SECRET_KEY) are
+  # read from /run/secrets by backend/config.py, never from the environment.
+
+x-api-secrets: &api-secrets
+  - secret_key
+  - database_url
+  - github_token
+  - private_s3_secret_key
+
+secrets:
+  secret_key:
+    file: ./secrets/secret_key.txt
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+  database_url:
+    file: ./secrets/database_url.txt
+  private_s3_secret_key:
+    file: ./secrets/private_s3_secret_key.txt
+  github_token:
+    file: ./secrets/github_token.txt
+
+networks:
+  # No outside access: the database and object storage live here only.
+  backend:
+    internal: true
+  # Outbound internet (GitHub). Only services that need it join this one.
+  egress: {}
+  # The only network the reverse proxy shares with the app tier.
+  frontend: {}
+
+# Explicit names keep production data separate from dev and from any volumes
+# an older checkout of this project left behind.
+volumes:
+  postgres_data:
+    name: campusgrade_prod_postgres
+  storage_data:
+    name: campusgrade_prod_storage
+  caddy_data:
+    name: campusgrade_prod_caddy
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: campusgrade
+      POSTGRES_DB: campusgrade_db
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets: [postgres_password]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U campusgrade -d campusgrade_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # S3-compatible object storage (RustFS). Reached only on the internal network;
+  # the same boto3 code talks to AWS S3 later by changing PRIVATE_S3_* settings.
+  storage:
+    image: rustfs/rustfs:1.0.2
+    environment:
+      RUSTFS_ACCESS_KEY: campusgrade-app
+      RUSTFS_SECRET_KEY_FILE: /run/secrets/private_s3_secret_key
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ENABLE: "false"
+      RUSTFS_VOLUMES: /data
+    secrets: [private_s3_secret_key]
+    volumes:
+      - storage_data:/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  # One-shot: creates the private bucket (idempotent) before the API starts.
+  storage-init:
+    image: campusgrade-api:local
+    command: ["python", "-m", "scripts.ensure_bucket"]
+    environment:
+      <<: *api-env
+    secrets: *api-secrets
+    networks: [backend]
+    depends_on:
+      storage: { condition: service_healthy }
+    restart: "no"
+
+  # One-shot: applies Alembic migrations before any API replica starts, so
+  # replicas never race each other.
+  migrate:
+    image: campusgrade-api:local
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      <<: *api-env
+    secrets: *api-secrets
+    networks: [backend]
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    image: campusgrade-api:local
+    environment:
+      <<: *api-env
+    secrets: *api-secrets
+    networks: [backend, egress, frontend]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      storage-init: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5001/ready', timeout=4)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 40s
+      retries: 5
+
+  web:
+    image: campusgrade-web:local
+    environment:
+      NODE_ENV: production
+      # Server-side calls from the Next.js proxy go straight to the API.
+      API_INTERNAL_URL: http://api:5001
+    networks: [frontend]
+    depends_on:
+      api: { condition: service_healthy }
+
+  proxy:
+    image: caddy:2.10-alpine
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-campusgrade.localhost}
+      # "internal" = Caddy's own CA (local use). For a real domain, set this to
+      # the contact email so Caddy obtains a Let's Encrypt certificate.
+      CADDY_TLS: ${CADDY_TLS:-internal}
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    networks: [frontend]
+    depends_on:
+      - web
+      - api

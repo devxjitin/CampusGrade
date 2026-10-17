@@ -1,6 +1,6 @@
 """Session rollover endpoints: preview, execute, undo, history.
 
-See PLAN_ACADEMIC_SESSIONS_AND_BATCHES.md Part 4 and
+See the original academic-sessions plan Part 4 and
 backend/services/session_rollover.py for the actual logic — this module is
 just the thin HTTP wrapper, following the pattern of the other files in
 routes_fastapi/admin/.

@@ -18,7 +18,7 @@ logger = logging.getLogger("CampusGrade.AdminRoutes")
 router = APIRouter(tags=["admin"])
 
 def require_admin(current_user=Depends(get_current_user)):
-    """Sprint 5, IMPLEMENTATION_PLAN.md: "any admin" gate (both `super_admin`
+    """Sprint 5, the original implementation plan: "any admin" gate (both `super_admin`
     and `program_admin`) for the ~12 routes in `routes_fastapi/admin/users.py`
     that use `admin["_id"]`/`admin.get(...)` dict access for audit logging
     and `created_by` â€” those call sites can't switch to the `Principal`
@@ -41,7 +41,7 @@ def require_admin(current_user=Depends(get_current_user)):
 def _lock_user_safety_context(session, user_id):
     """Serialize changes that could remove the final active super admin.
 
-    Sprint 5, IMPLEMENTATION_PLAN.md: the continuity guard is specifically
+    Sprint 5, the original implementation plan: the continuity guard is specifically
     about `super_admin` (there must always be â‰¥1 active one) â€” a
     `program_admin` being deleted or demoted never trips this, since a
     program admin's absence doesn't leave the platform unmanageable the way
@@ -148,7 +148,7 @@ def _generate_teacher_id_from_user_id(user_id):
 
 # `_generate_teacher_password`/`_generate_student_password` and their
 # `_extract_first_name_for_password`/`_extract_last_two_digits` helpers were
-# deleted here (Sprint 4, IMPLEMENTATION_PLAN.md): `firstname@last2digits`
+# deleted here (Sprint 4, the original implementation plan): `firstname@last2digits`
 # of a phone number or roll number is guessable by any classmate who knows
 # that person's public info. Every call site (bulk teacher/student import,
 # here and in `routes_fastapi/admin/users.py`) now uses this function.

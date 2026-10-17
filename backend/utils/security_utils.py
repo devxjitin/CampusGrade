@@ -8,7 +8,7 @@ from argon2.exceptions import InvalidHashError, VerifyMismatchError
 from config import get_settings
 from cryptography.fernet import Fernet, InvalidToken
 
-# Sprint 4, IMPLEMENTATION_PLAN.md: argon2id is the hash new passwords get.
+# Sprint 4, the original implementation plan: argon2id is the hash new passwords get.
 # bcrypt (and the older reversible Fernet format below) are read-only from
 # here on — `verify_password` still accepts them so existing accounts can
 # still log in, and `needs_password_rehash` flags them so a successful

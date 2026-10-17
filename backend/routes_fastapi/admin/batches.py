@@ -36,7 +36,7 @@ async def get_batches(
     principal=Depends(require(Permission.BATCH_MANAGE)),
     db: AsyncSession = Depends(db_session),
 ):
-    # Sprint 5, IMPLEMENTATION_PLAN.md "Done when": a program admin scoped
+    # Sprint 5, the original implementation plan "Done when": a program admin scoped
     # to one program must not see another program's batches, even if they
     # pass someone else's course_id — scope_to_programs is applied
     # unconditionally, not just as a fallback when course_id is absent.

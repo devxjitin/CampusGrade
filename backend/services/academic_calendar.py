@@ -1,6 +1,6 @@
 """Derivation helpers for academic sessions, batches, and student year/semester.
 
-The core idea (see PLAN_ACADEMIC_SESSIONS_AND_BATCHES.md Part 1): a batch is
+The core idea (see the original academic-sessions plan Part 1): a batch is
 fixed forever once it is created ("B.Tech CSE 2025-2029"), and a session is
 one Odd/Even term. A student's study year and semester are *derived* from
 those two facts rather than typed by hand, so "the semester changed" and
@@ -45,7 +45,7 @@ async def resolve_current_session_async(db: AsyncSession) -> SqlAcademicSession 
     """Async twin of `resolve_current_session`. Kept side-by-side rather than
     converting the original, because the original is still called with a
     sync `Session` from `admin_routes.py` and `assignment_routes.py`
-    (neither ported yet — see IMPLEMENTATION_PLAN.md Sprint 2/10). Both
+    (neither ported yet — see the original implementation plan Sprint 2/10). Both
     versions must stay behaviorally identical; if you change the filter/order
     logic in one, change it in the other."""
     return (

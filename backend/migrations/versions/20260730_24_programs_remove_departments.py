@@ -1,6 +1,6 @@
 """Rename courses to programs and remove single-school lookup tables.
 
-Sprint 8 of IMPLEMENTATION_PLAN.md. Foreign-key *column names* such as
+Sprint 8 of the original implementation plan. Foreign-key *column names* such as
 ``course_id`` intentionally remain unchanged until the Sprint 9 contract
 migration, but their referenced table follows PostgreSQL's table rename.
 
@@ -133,7 +133,7 @@ def downgrade() -> None:
         )
     )
 
-    op.drop_constraint("uq_programs_name", "programs", type_="unique")
+    op.execute("ALTER TABLE programs DROP CONSTRAINT IF EXISTS uq_programs_name")
     op.add_column("programs", sa.Column("department_id", sa.String(length=64), nullable=True))
     op.execute(sa.text("UPDATE programs SET department_id = :department_id").bindparams(department_id=_SOET_ID))
     op.alter_column("programs", "department_id", nullable=False)

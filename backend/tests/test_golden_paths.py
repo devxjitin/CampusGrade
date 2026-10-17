@@ -1,4 +1,4 @@
-"""Characterisation tests (Sprint 0 of IMPLEMENTATION_PLAN.md).
+"""Characterisation tests (Sprint 0 of the original implementation plan).
 
 These lock in *current* behaviour — right or wrong — against a real,
 migrated Postgres database. Every later refactor sprint (async DB layer,
@@ -70,16 +70,36 @@ class TestAdminUserManagement:
         assert response.status_code == 403
 
 
+def _assignment_body(structure: dict, title: str, total_marks: float = 20) -> dict:
+    """A valid create-assignment payload: the API requires an audience (program,
+    batch, section), an official subject, a deadline and a rubric that adds up to
+    the total marks."""
+    import datetime
+
+    due_at = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=7)).replace(tzinfo=None)
+    return {
+        "title": title,
+        "instructions": "Implement insert/delete/search.",
+        "total_marks": total_marks,
+        "subject_id": structure["subject_id"],
+        "target_course_id": structure["course_id"],
+        "target_batch_id": structure["batch_id"],
+        "target_section_id": structure["section_id"],
+        "due_at": due_at.isoformat(),
+        "rubric": [{"title": "Correctness", "description": "Works as specified", "max_marks": total_marks}],
+    }
+
+
 @requires_docker
 class TestAssignments:
-    def test_teacher_creates_assignment(self, client, seed_user, login):
+    def test_teacher_creates_assignment(self, client, seed_user, seed_academic, login):
         teacher = seed_user(role="teacher", email="creator@example.edu")
         token = login(teacher["email"], teacher["password"])
         headers = {"Authorization": f"Bearer {token}"}
 
         response = client.post(
             "/assignments/teacher",
-            json={"title": "Binary Search Trees", "instructions": "Implement insert/delete/search.", "total_marks": 20},
+            json=_assignment_body(seed_academic(), "Binary Search Trees"),
             headers=headers,
         )
 
@@ -92,19 +112,19 @@ class TestAssignments:
         assert listing.status_code == 200
         assert any(a["id"] == assignment["id"] for a in listing.json()["assignments"])
 
-    def test_student_cannot_create_assignment(self, client, seed_user, login):
+    def test_student_cannot_create_assignment(self, client, seed_user, seed_academic, login):
         student = seed_user(role="student", email="not-a-teacher@example.edu")
         token = login(student["email"], student["password"])
 
         response = client.post(
             "/assignments/teacher",
-            json={"title": "Should not work", "instructions": "n/a", "total_marks": 10},
+            json=_assignment_body(seed_academic(), "Should not work", 10),
             headers={"Authorization": f"Bearer {token}"},
         )
 
         assert response.status_code == 403
 
-    def test_teacher_cannot_read_another_teachers_assignment(self, client, seed_user, login):
+    def test_teacher_cannot_read_another_teachers_assignment(self, client, seed_user, seed_academic, login):
         owner = seed_user(role="teacher", email="owner@example.edu")
         other = seed_user(role="teacher", email="other-teacher@example.edu")
         owner_token = login(owner["email"], owner["password"])
@@ -112,7 +132,7 @@ class TestAssignments:
 
         created = client.post(
             "/assignments/teacher",
-            json={"title": "Owner Only", "instructions": "n/a", "total_marks": 10},
+            json=_assignment_body(seed_academic(), "Owner Only", 10),
             headers={"Authorization": f"Bearer {owner_token}"},
         ).json()["assignment"]
 

@@ -1,4 +1,4 @@
-"""Sprint 5, IMPLEMENTATION_PLAN.md "Done when": a program admin scoped to
+"""Sprint 5, the original implementation plan "Done when": a program admin scoped to
 one program gets an empty list for another program's batches — asserted
 against real rows in a real (migrated) Postgres database, not just a status
 code. Docker-gated like every other real-database test in this project;
@@ -19,7 +19,10 @@ def _seed_course_with_batch(*, course_name: str, course_code: str, batch_start_y
         if async_session_factory is None:
             raise RuntimeError("Async test database is unavailable")
         async with async_session_factory() as session:
-            course = SqlCourse(id=str(uuid.uuid4()), name=course_name, code=course_code)
+            # Unique per call: the test database is shared by the whole session and
+            # programs have unique names and codes.
+            tag = uuid.uuid4().hex[:6]
+            course = SqlCourse(id=str(uuid.uuid4()), name=f"{course_name} {tag}", code=f"{course_code}-{tag}")
             session.add(course)
             await session.flush()
             batch = SqlBatch(id=str(uuid.uuid4()), course_id=course.id, start_year=batch_start_year, end_year=batch_start_year + 4)

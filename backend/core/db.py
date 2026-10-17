@@ -1,4 +1,4 @@
-"""The async session dependency new routes should use (Sprint 2, IMPLEMENTATION_PLAN.md).
+"""The async session dependency new routes should use (Sprint 2, the original implementation plan).
 
 `models/database.py` already built the async engine, `async_session_factory`,
 and a `get_db()` generator with the right transaction semantics (commit on

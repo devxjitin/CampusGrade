@@ -14,7 +14,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 lib64/
 parts/
 sdist/
@@ -195,3 +195,11 @@ frontend/dist/
 CampusGradeV2/
 =2.6
 frontend/test-results/
+
+# Production Docker stack: generated secrets and local backups never go in git
+/secrets/*
+!/secrets/.gitkeep
+/backups/
+.env.prod
+.deployed-version
+.env.prod

@@ -1,22 +1,19 @@
 import type { NextConfig } from "next";
 
-// Mirrors the dev proxy that used to live in frontend-legacy/vite.config.js:
-// the browser calls same-origin `/api/*`, Next.js strips the prefix and
-// forwards to the FastAPI backend. In production, set NEXT_PUBLIC_API_URL
-// and/or terminate this rewrite at your reverse proxy instead.
+// Development only: `next dev` has no reverse proxy in front of it, so the
+// browser's same-origin `/api/*` calls are forwarded to the FastAPI backend
+// here. In production the Caddy proxy routes `/api/*` to the API containers
+// itself (the Next.js image never talks to the browser's `/api` path), so no
+// rewrite is emitted into the production build.
 const BACKEND_ORIGIN = process.env.BACKEND_ORIGIN || "http://127.0.0.1:5001";
 
 const nextConfig: NextConfig = {
+  output: "standalone",
+  poweredByHeader: false,
   async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${BACKEND_ORIGIN}/:path*`,
-      },
-    ];
+    if (process.env.NODE_ENV === "production") return [];
+    return [{ source: "/api/:path*", destination: `${BACKEND_ORIGIN}/:path*` }];
   },
-  // Mirrors legacy's <Navigate replace to="/login" /> routes for these two
-  // old paths (App.jsx lines 36-37).
   async redirects() {
     return [
       { source: "/login/student", destination: "/login", permanent: false },
