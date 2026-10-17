@@ -34,7 +34,7 @@ async def publish_results() -> int:
     from routes_fastapi.assignment_routes import publish_ready_assignment_results
 
     async with database.async_session_factory() as db:
-        released = await db.run_sync(publish_ready_assignment_results)
+        released = await publish_ready_assignment_results(db)
         for assignment in released:
             await write_audit_log(
                 db, "system", "assignment.results_published_automatically", assignment.id, {"release_mode": assignment.result_release_mode}

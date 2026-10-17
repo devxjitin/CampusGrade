@@ -79,3 +79,51 @@ def test_rate_limit_counters_are_shared_through_the_database(database_url, monke
     results = asyncio.run(scenario())
     assert sum(1 for allowed, _ in results if allowed) == 3
     assert all(retry >= 1 for allowed, retry in results if not allowed)
+
+
+@requires_docker
+class TestAdminUserDetailsStats:
+    """`/admin/user/{id}/details` computes assignment stats with the async helpers (S2-07)."""
+
+    def test_teacher_details_include_assignment_progress(self, client, seed_user, login, database_url):
+        import datetime
+        import uuid
+
+        from models.assignment import SqlAssignment
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import Session
+
+        admin = seed_user(role="super_admin", email="details-admin@example.edu")
+        teacher = seed_user(role="teacher", email="details-teacher@example.edu")
+        token = login(admin["email"], admin["password"])
+        due = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=2)
+        engine = create_engine(database_url)
+        with Session(engine) as session:
+            session.add(
+                SqlAssignment(
+                    id=str(uuid.uuid4()),
+                    title="Stats assignment",
+                    instructions="",
+                    short_description="",
+                    difficulty="intermediate",
+                    total_marks=10,
+                    due_at=due,
+                    status="published",
+                    created_by=teacher["id"],
+                )
+            )
+            session.commit()
+        engine.dispose()
+
+        response = client.get(f"/admin/user/{teacher['id']}/details", headers=_auth(token))
+
+        assert response.status_code == 200, response.text
+        user = response.json()["user"]
+        assert user["owned_assignments"][0]["title"] == "Stats assignment"
+        assert set(user["assignment_summary"]) >= {"created", "closed_eligible", "submissions", "missed", "overdue_evaluations"}
+        assert user["subject_progress"] and user["evaluation_overdue"] is False
+
+    def test_unknown_user_is_404(self, client, seed_user, login):
+        admin = seed_user(role="super_admin", email="details-admin2@example.edu")
+        token = login(admin["email"], admin["password"])
+        assert client.get("/admin/user/nope/details", headers=_auth(token)).status_code == 404
