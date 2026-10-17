@@ -145,7 +145,7 @@ jobs:
       # The vulnerability database is downloaded once and shared by both scans (a mounted
       # cache directory) and kept between runs (actions/cache).
       - name: Cache Trivy database
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/trivy
           key: trivy-db-${{ github.run_id }}
