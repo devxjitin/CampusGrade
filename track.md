@@ -25,3 +25,4 @@ Naye entries neeche add hote hain. Purani lines edit mat karo.
 [2026-10-18 07:00] [Claude] [Fix: seed_dev.py now fills teachers' assignments so courses show in UI]
 [2026-10-18 07:13] [Claude] [Update: UI polish - motion, shared StatTile/IconAction/table styles, students+teachers tables, dashboard grid]
 [2026-10-18 07:15] [Claude] [Fix: date range filter bars misaligned; add shared DateField]
+[2026-10-18 07:18] [Claude] [Fix: header and sidebar top bar same height and border colour]

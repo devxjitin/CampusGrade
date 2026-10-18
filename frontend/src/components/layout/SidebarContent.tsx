@@ -69,7 +69,7 @@ export const SidebarContent = ({
   const iconOnly = sidebarCollapsed && !mobile;
   return (
     <div className="relative z-50 flex h-full flex-col bg-white">
-      <div className={`flex h-[76px] shrink-0 items-center border-b border-slate-100 ${iconOnly ? "justify-center" : "px-4"}`}>
+      <div className={`flex h-[72px] shrink-0 items-center border-b border-slate-200 ${iconOnly ? "justify-center" : "px-4"}`}>
         <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-white">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/krmu-logo-short.webp" alt="KRMU" className="h-7 w-7 object-contain" />

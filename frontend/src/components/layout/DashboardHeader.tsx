@@ -56,7 +56,7 @@ export const DashboardHeader = ({
   notifications: NotificationItem[];
   openNotification: (notification: NotificationItem) => void;
 }) => (
-<header className="relative z-30 flex h-[68px] shrink-0 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6 md:px-8">
+<header className="relative z-30 flex h-[72px] shrink-0 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6 md:px-8">
           <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
@@ -124,7 +124,7 @@ export const DashboardHeader = ({
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -6, scale: 0.97 }}
                   transition={{ duration: 0.16, ease: "easeOut" }}
-                  className="origin-top-right fixed inset-x-3 top-[76px] z-50 flex max-h-[min(70vh,28rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-96">
+                  className="origin-top-right fixed inset-x-3 top-[80px] z-50 flex max-h-[min(70vh,28rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-96">
                   <div className="flex shrink-0 items-center justify-between border-b border-slate-100 p-4">
                     <div>
                       <p className="font-bold text-slate-900">Notifications</p>
