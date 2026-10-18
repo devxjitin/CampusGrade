@@ -2,27 +2,60 @@
 
 // Ported from frontend-legacy/src/components/MarkdownPreview.jsx
 import { useEffect, useId, useState } from "react";
+import { fenceLanguage } from "@/lib/markdownFence";
+import { texToText } from "@/lib/texToText";
 
-const inline = (text: unknown) => {
-  const parts = String(text || "").split(/(`[^`]+`|\*\*[^*]+\*\*|\[[^\]]+\]\(https?:\/\/[^)]+\))/g);
-  return parts.map((part, index) => {
-    if (part.startsWith("`") && part.endsWith("`"))
-      return (
-        <code key={index} className="rounded bg-slate-100 px-1 py-0.5 text-[0.9em]">
-          {part.slice(1, -1)}
-        </code>
+// Inline tokens, leftmost wins: `code`, $math$ / $$math$$ / \(math\), **bold**, *italic*, [link](url).
+// A `$` only opens math when not followed by a space and the closing `$` is not followed by a digit, so "$5 and $10" stays text.
+const INLINE_TOKEN = /`[^`]+`|\$\$[^$]+\$\$|\$(?!\s)[^$\n]*?[^\s$]\$(?!\d)|\\\([^\n]+?\\\)|\*\*(?:[^*]|\*(?!\*))+?\*\*|\*[^*\s](?:[^*]*[^*\s])?\*|\[[^\]]+\]\(https?:\/\/[^)]+\)/g;
+
+const inline = (text: unknown, keyPrefix = "i"): React.ReactNode[] => {
+  const source = String(text || "");
+  const nodes: React.ReactNode[] = [];
+  let last = 0;
+  for (const match of source.matchAll(INLINE_TOKEN)) {
+    const token = match[0];
+    const key = `${keyPrefix}-${match.index}`;
+    if (match.index > last) nodes.push(source.slice(last, match.index));
+    last = match.index + token.length;
+    if (token.startsWith("`")) {
+      nodes.push(
+        <code key={key} className="rounded bg-slate-100 px-1 py-0.5 text-[0.9em]">
+          {token.slice(1, -1)}
+        </code>,
       );
-    if (part.startsWith("**") && part.endsWith("**")) return <strong key={index}>{part.slice(2, -2)}</strong>;
-    const link = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/);
-    if (link)
-      return (
-        <a key={index} href={link[2]} target="_blank" rel="noreferrer" className="font-semibold text-primary-700 underline">
-          {link[1]}
-        </a>
-      );
-    return part;
-  });
+    } else if (token.startsWith("$$")) {
+      nodes.push(<span key={key} className="italic">{texToText(token.slice(2, -2))}</span>);
+    } else if (token.startsWith("$")) {
+      nodes.push(<span key={key} className="italic">{texToText(token.slice(1, -1))}</span>);
+    } else if (token.startsWith("\\(")) {
+      nodes.push(<span key={key} className="italic">{texToText(token.slice(2, -2))}</span>);
+    } else if (token.startsWith("**")) {
+      nodes.push(<strong key={key}>{inline(token.slice(2, -2), key)}</strong>);
+    } else if (token.startsWith("*")) {
+      nodes.push(<em key={key}>{inline(token.slice(1, -1), key)}</em>);
+    } else {
+      const link = token.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/);
+      if (link)
+        nodes.push(
+          <a key={key} href={link[2]} target="_blank" rel="noreferrer" className="font-semibold text-primary-700 underline">
+            {link[1]}
+          </a>,
+        );
+    }
+  }
+  if (last < source.length) nodes.push(source.slice(last));
+  return nodes;
 };
+
+const tableCells = (line: string) =>
+  line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+const TABLE_SEPARATOR = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 
 const MermaidDiagram = ({ chart }: { chart: string }) => {
   const [svg, setSvg] = useState("");
@@ -78,57 +111,105 @@ export default function MarkdownPreview({ source, emptyText = "Nothing to previe
   let codeLanguage = "";
   const code: string[] = [];
   const nodes: React.ReactNode[] = [];
-  lines.forEach((rawLine, index) => {
-    // AI tools sometimes indent a fence or escape its backticks; treat those as a normal fence.
-    const line = /^\s*(\\?`){3}/.test(rawLine) ? rawLine.trim().replace(/\\`/g, "`") : rawLine;
-    if (line.startsWith("```")) {
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    // AI tools sometimes indent a fence, escape its backticks or use too few of them; see fenceLanguage.
+    const fence = fenceLanguage(line);
+    if (fence !== null) {
       if (inCode) {
         nodes.push(codeBlock(code.join("\n"), codeLanguage, `code-${index}`));
         code.length = 0;
         codeLanguage = "";
       } else {
-        codeLanguage = line.slice(3).trim().toLowerCase();
+        codeLanguage = fence;
       }
       inCode = !inCode;
-      return;
+      continue;
     }
     if (inCode) {
-      code.push(rawLine);
-      return;
+      code.push(line);
+      continue;
     }
-    if (line.startsWith("### "))
+    const key = `b-${index}`;
+    const heading = line.match(/^(#{1,4})\s+(.*)$/);
+    const bullet = line.match(/^(\s*)[-*+]\s+(.*)$/);
+    const ordered = line.match(/^(\s*)(\d+)[.)]\s+(.*)$/);
+    const quote = line.match(/^\s*>\s?(.*)$/);
+    if (heading) {
+      const level = heading[1].length;
+      const className = level === 1 ? "mt-6 text-xl font-bold" : level === 2 ? "mt-6 text-lg font-bold" : level === 3 ? "mt-5 text-base font-bold" : "mt-4 text-sm font-bold";
       nodes.push(
-        <h3 key={index} className="mt-5 text-base font-bold">
-          {inline(line.slice(4))}
-        </h3>,
+        level === 1 ? (
+          <h1 key={key} className={className}>{inline(heading[2], key)}</h1>
+        ) : level === 2 ? (
+          <h2 key={key} className={className}>{inline(heading[2], key)}</h2>
+        ) : level === 3 ? (
+          <h3 key={key} className={className}>{inline(heading[2], key)}</h3>
+        ) : (
+          <h4 key={key} className={className}>{inline(heading[2], key)}</h4>
+        ),
       );
-    else if (line.startsWith("## "))
+    } else if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) {
+      nodes.push(<hr key={key} className="my-3 border-slate-200" />);
+    } else if (line.trim().startsWith("|") && index + 1 < lines.length && TABLE_SEPARATOR.test(lines[index + 1])) {
+      const header = tableCells(line);
+      const rows: string[][] = [];
+      let next = index + 2;
+      while (next < lines.length && lines[next].trim().startsWith("|")) {
+        rows.push(tableCells(lines[next]));
+        next += 1;
+      }
       nodes.push(
-        <h2 key={index} className="mt-6 text-lg font-bold">
-          {inline(line.slice(3))}
-        </h2>,
-      );
-    else if (line.startsWith("# "))
-      nodes.push(
-        <h1 key={index} className="mt-6 text-xl font-bold">
-          {inline(line.slice(2))}
-        </h1>,
-      );
-    else if (/^[-*] /.test(line))
-      nodes.push(
-        <div key={index} className="flex gap-2">
-          <span>•</span>
-          <p>{inline(line.slice(2))}</p>
+        <div key={key} className="overflow-x-auto">
+          <table className="w-full border-collapse text-left text-sm">
+            <thead>
+              <tr>
+                {header.map((cell, column) => (
+                  <th key={column} className="border border-slate-200 bg-slate-50 px-3 py-2 font-bold">{inline(cell, `${key}-h${column}`)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={rowIndex}>
+                  {row.map((cell, column) => (
+                    <td key={column} className="border border-slate-200 px-3 py-2">{inline(cell, `${key}-${rowIndex}-${column}`)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>,
       );
-    else if (line.trim())
+      index = next - 1;
+    } else if (bullet) {
       nodes.push(
-        <p key={index} className="leading-7">
-          {inline(line)}
+        <div key={key} className="flex gap-2" style={{ paddingLeft: `${Math.min(4, Math.floor(bullet[1].length / 2)) * 1.25}rem` }}>
+          <span aria-hidden="true">•</span>
+          <p className="leading-7">{inline(bullet[2], key)}</p>
+        </div>,
+      );
+    } else if (ordered) {
+      nodes.push(
+        <div key={key} className="flex gap-2" style={{ paddingLeft: `${Math.min(4, Math.floor(ordered[1].length / 2)) * 1.25}rem` }}>
+          <span className="shrink-0 font-semibold">{ordered[2]}.</span>
+          <p className="leading-7">{inline(ordered[3], key)}</p>
+        </div>,
+      );
+    } else if (quote) {
+      nodes.push(
+        <blockquote key={key} className="border-l-4 border-slate-300 pl-3 text-slate-600">
+          {inline(quote[1], key)}
+        </blockquote>,
+      );
+    } else if (line.trim()) {
+      nodes.push(
+        <p key={key} className="leading-7">
+          {inline(line, key)}
         </p>,
       );
-    else nodes.push(<div key={index} className="h-2" />);
-  });
+    } else nodes.push(<div key={key} className="h-2" />);
+  }
   if (code.length) nodes.push(codeBlock(code.join("\n"), codeLanguage, "code-final"));
   return <div className="space-y-2 text-sm text-slate-700">{nodes}</div>;
 }
