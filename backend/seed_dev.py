@@ -26,6 +26,7 @@ from models.sql_models import (
     SqlTeacherSessionAllocation,
     SqlUser,
 )
+from services.admin_helpers import _build_batch_label
 from services.identity_service import sync_profile
 from sqlalchemy import delete, select
 
@@ -86,6 +87,7 @@ async def _create(db) -> None:
         await sync_profile(db, teacher)
 
     roll = 0
+    assignments: dict[str, list[dict]] = {teacher.id: [] for teacher in teachers}
     teacher_cursor = 0
     sections_made = subjects_made = students_made = 0
     for program_index, (name, code, years, subject_names) in enumerate(PROGRAMS):
@@ -117,13 +119,21 @@ async def _create(db) -> None:
                         section_id=section.id, subject_ids=[subject.id for subject in subjects[:2]],
                     )
                 )
+                assignments[teacher.id].append(
+                    {
+                        "program_id": course.id, "program": course.name, "course": course.name, "batch_id": batch.id,
+                        "batch": _build_batch_label(batch.start_year, batch.end_year, batch.name), "section_id": section.id,
+                        "section": section.name, "subject_ids": [subject.id for subject in subjects[:2]],
+                        "subjects": [subject.name for subject in subjects[:2]],
+                    }
+                )
                 for _ in range(3):
                     roll += 1
                     first = FIRST_NAMES[roll % len(FIRST_NAMES)]
                     last = LAST_NAMES[(roll * 3) % len(LAST_NAMES)]
                     student = SqlUser(
                         id=_id(), name=f"{first} {last}", email=f"student{roll:03d}@{DOMAIN}", role="student", is_active=True,
-                        roll_no=f"SEED-{code}-{start_year}-{roll:03d}", course_id=course.id, batch_id=batch.id, section_id=section.id,
+                        roll_no=f"SEED-{code}-{start_year}-{roll:03d}", course=course.name, batch=_build_batch_label(batch.start_year, batch.end_year, batch.name), course_id=course.id, batch_id=batch.id, section_id=section.id,
                         year=study_year, semester=semester, github_username=f"{first}{last}{roll}".lower(),
                     )
                     db.add(student)
@@ -136,6 +146,9 @@ async def _create(db) -> None:
                         )
                     )
                     students_made += 1
+
+    for teacher in teachers:
+        teacher.assignments = assignments[teacher.id]  # the list the teacher screens read
 
     admin = SqlUser(id=_id(), name="Demo Admin (limited)", email=f"admin1@{DOMAIN}", role="admin", is_active=True)
     db.add(admin)

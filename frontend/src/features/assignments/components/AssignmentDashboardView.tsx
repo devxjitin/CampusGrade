@@ -17,7 +17,7 @@ import { useAssignmentDashboard } from "./dashboard/useAssignmentDashboard";
 import { AssignmentList } from "./dashboard/AssignmentList";
 import { StudentSubjectsPanel } from "./dashboard/StudentSubjectsPanel";
 import { DashboardHeader } from "./dashboard/DashboardHeader";
-import { LoadingState } from "@/components/ui";
+import { LoadingState, StatGrid, StatTile } from "@/components/ui";
 
 export default function AssignmentDashboardView({ initialView = "overview" }: { initialView?: string }) {
   const {
@@ -136,15 +136,11 @@ export default function AssignmentDashboardView({ initialView = "overview" }: { 
                   </h2>
                   <p className="mt-0.5 text-xs text-slate-500">People and academic structure across the university.</p>
                 </div>
-                <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+                <StatGrid>
                   {universityStats.map(([label, value, Icon]) => (
-                    <div key={label} className="card p-5">
-                      <Icon className="mb-3 h-5 w-5 text-primary-600" />
-                      <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p>
-                      <p className="mt-1 text-2xl font-bold">{value}</p>
-                    </div>
+                    <StatTile key={label} label={label} value={value} icon={Icon} />
                   ))}
-                </div>
+                </StatGrid>
               </section>
               <section aria-labelledby="assignment-summary-heading">
                 <div className="mb-3">
@@ -153,28 +149,22 @@ export default function AssignmentDashboardView({ initialView = "overview" }: { 
                   </h2>
                   <p className="mt-0.5 text-xs text-slate-500">Current assignment, submission, and grading activity.</p>
                 </div>
-                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <StatGrid>
                   {adminAssignmentStats.map(([label, value, Icon]) => (
-                    <div key={label} className="card p-5">
-                      <Icon className="mb-3 h-5 w-5 text-primary-600" />
-                      <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p>
-                      <p className="mt-1 text-2xl font-bold">{value}</p>
-                    </div>
+                    <StatTile key={label} label={label} value={value} icon={Icon} />
                   ))}
-                </div>
+                </StatGrid>
               </section>
             </div>
           )}
           {isAdminOverviewPage && <AdminMonitoring data={adminDashboard} allAssignments={assignments} range={adminRange} setRange={setAdminRange} refresh={() => load(true)} navigate={navigate} />}
           {!isAdminAllAssignmentsPage && !isAdminOverviewPage && (
-            <div className={`mb-7 grid grid-cols-2 gap-4 ${user.role === "teacher" && summary ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
-              {stats.map(([label, value, Icon]) => (
-                <div key={label} className="card p-5">
-                  <Icon className="mb-3 h-5 w-5 text-primary-600" />
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p>
-                  <p className="mt-1 text-2xl font-bold">{value}</p>
-                </div>
-              ))}
+            <div className="mb-7">
+              <StatGrid>
+                {stats.map(([label, value, Icon]) => (
+                  <StatTile key={label} label={label} value={value} icon={Icon} />
+                ))}
+              </StatGrid>
             </div>
           )}
           {!isAdminAllAssignmentsPage && !loading && user.role === "teacher" && <TeacherScopeCharts scope={teacherScope} summary={summary} />}

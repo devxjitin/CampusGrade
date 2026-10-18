@@ -117,7 +117,7 @@ export const SidebarContent = ({
       <div className="relative shrink-0 border-t border-slate-200 p-2">
         {profileOpen && (
           <div
-            className={`absolute bottom-[calc(100%+0.5rem)] z-[70] w-60 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl ${
+            className={`pop-in absolute bottom-[calc(100%+0.5rem)] z-[70] w-60 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl ${
               iconOnly ? "left-[calc(100%+0.5rem)]" : "inset-x-2"
             }`}
           >
@@ -140,7 +140,7 @@ export const SidebarContent = ({
           aria-label={iconOnly ? "Open account menu" : undefined}
           aria-haspopup="menu"
           aria-expanded={profileOpen}
-          className={`flex min-h-11 w-full items-center rounded-xl p-1.5 text-left hover:bg-slate-100 ${iconOnly ? "justify-center" : "gap-2.5"}`}
+          className={`flex min-h-11 w-full items-center rounded-xl p-1.5 text-left transition-colors hover:bg-slate-100 ${iconOnly ? "justify-center" : "gap-2.5"}`}
         >
           <UserAvatar avatar={effectiveUserAvatar} name={effectiveUserName} imageFailed={imageFailed} onImageError={() => setImageFailed(true)} size="h-8 w-8" />
           {!iconOnly && (

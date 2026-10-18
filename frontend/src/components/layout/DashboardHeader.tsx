@@ -1,6 +1,7 @@
 "use client";
 
 import type { Dispatch, RefObject, SetStateAction } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Bell, CalendarRange, Menu, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { ACTION_LABELS } from "@/lib/labels";
 import { isAdminRole } from "@/lib/session";
@@ -82,7 +83,7 @@ export const DashboardHeader = ({
           <div className="flex items-center gap-2">
             {isAdminRole(role) && academicSessions.length > 0 && (
               <label
-                className="hidden items-center gap-1.5 rounded-xl border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 sm:flex"
+                className="hidden items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500/20 sm:flex"
                 title="This only changes what you're viewing — it doesn't change which session is current. Use Session rollover to advance the current session."
               >
                 <CalendarRange className="h-4 w-4 text-slate-400" />
@@ -90,7 +91,7 @@ export const DashboardHeader = ({
                 <select
                   value={selectedSessionId}
                   onChange={(event) => handleSessionChange(event.target.value)}
-                  className="bg-transparent text-xs font-semibold text-slate-700 focus:outline-none"
+                  className="cursor-pointer bg-transparent text-xs font-semibold text-slate-700 focus:outline-none"
                   aria-label="Viewing academic session"
                 >
                   {academicSessions.map((item) => (
@@ -111,13 +112,19 @@ export const DashboardHeader = ({
               >
                 <Bell className="h-[18px] w-[18px]" />
                 {unreadCount > 0 && (
-                  <span className="absolute -right-1 -top-1 min-w-4 rounded-full bg-primary-600 px-1 text-center text-[10px] font-bold leading-4 text-white">
+                  <span key={unreadCount} className="badge-pop absolute -right-1 -top-1 min-w-4 rounded-full bg-primary-600 px-1 text-center text-[10px] font-bold leading-4 text-white">
                     {Math.min(unreadCount, 99)}
                   </span>
                 )}
               </button>
+              <AnimatePresence>
               {notificationOpen && (
-                <div className="fixed inset-x-3 top-[76px] z-50 flex max-h-[min(70vh,28rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-96">
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                  transition={{ duration: 0.16, ease: "easeOut" }}
+                  className="origin-top-right fixed inset-x-3 top-[76px] z-50 flex max-h-[min(70vh,28rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-96">
                   <div className="flex shrink-0 items-center justify-between border-b border-slate-100 p-4">
                     <div>
                       <p className="font-bold text-slate-900">Notifications</p>
@@ -137,7 +144,7 @@ export const DashboardHeader = ({
                         <button
                           key={item.id}
                           type="button"
-                          className={`block w-full border-b border-slate-100 p-4 text-left hover:bg-slate-50 ${item.is_read ? "" : "bg-primary-50/60"}`}
+                          className={`block w-full border-b border-slate-100 p-4 text-left transition-colors hover:bg-slate-50 ${item.is_read ? "" : "bg-primary-50/60"}`}
                           onClick={() => openNotification(item)}
                         >
                           <p className="text-sm font-bold text-slate-900">{item.title}</p>
@@ -146,8 +153,9 @@ export const DashboardHeader = ({
                       ))
                     )}
                   </div>
-                </div>
+                </motion.div>
               )}
+              </AnimatePresence>
             </div>
           </div>
         </header>

@@ -264,7 +264,7 @@ const DashboardLayout = ({ children, role: roleProp, userName, userEmail, userAv
         <WorkspaceTabs tabs={navigation.tabs} activePath={navigation.activeTab?.path} onNavigate={(path) => router.push(path)} label={`${navigation.workspace} workspace pages`} />
 
         <div className="app-content min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 md:p-8">
-          <div className="relative z-[1] animate-fadeIn mx-auto w-full max-w-[1600px]">{children}</div>
+          <div key={pathname} className="page-enter relative z-[1] mx-auto w-full max-w-[1600px]">{children}</div>
         </div>
       </main>
     </div>

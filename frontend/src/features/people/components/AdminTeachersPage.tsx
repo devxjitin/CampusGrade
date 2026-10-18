@@ -1,11 +1,10 @@
 "use client";
 
 // Ported from frontend-legacy/src/pages/AdminTeachers.jsx
-import Link from "next/link";
 import { getCachedUser } from "@/lib/session";
 import { canAccess } from "@/lib/permissions";
-import { Eye, Pencil, Trash2, Upload } from "lucide-react";
-import { LoadingState, PageHeader } from "@/components/ui";
+import { Eye, Pencil, Power, Trash2, Upload } from "lucide-react";
+import { FilterToolbar, IconAction, LoadingState, PageHeader, SearchField, SelectField, StatusBadge } from "@/components/ui";
 import { useAdminTeachers } from "./adminTeachers/useAdminTeachers";
 import { assignmentSummary } from "./adminTeachers/shared";
 import { AddTeacherDialog } from "./adminTeachers/AddTeacherDialog";
@@ -55,95 +54,105 @@ export default function AdminTeachersPage() {
           }
         />
 
-        <div className="ui-toolbar flex-wrap items-end">
-          <div className="flex-1 min-w-[220px]">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search Teacher</label>
-            <input type="text" value={searchTeacher} onChange={(e) => setSearchTeacher(e.target.value)} className="input-field" placeholder="By ID, name or email" />
-          </div>
-          <div className="w-56">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Designation</label>
-            <select value={filterDesignation} onChange={(e) => setFilterDesignation(e.target.value)} className="w-full border border-gray-300 rounded-md p-2">
-              <option value="">All Designations</option>
-              {designationOptions.map((designation) => (
-                <option key={designation} value={designation}>
-                  {designation}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="w-40">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="w-full border border-gray-300 rounded-md p-2">
-              <option value="all">All</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-        </div>
+        <FilterToolbar
+          search={<SearchField value={searchTeacher} onChange={(e) => setSearchTeacher(e.target.value)} placeholder="Search by ID, name or email" aria-label="Search teachers" />}
+          filters={
+            <>
+              <SelectField aria-label="Designation" value={filterDesignation} onChange={(e) => setFilterDesignation(e.target.value)}>
+                <option value="">All designations</option>
+                {designationOptions.map((designation) => (
+                  <option key={designation} value={designation}>{designation}</option>
+                ))}
+              </SelectField>
+              <SelectField aria-label="Status" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                <option value="all">All statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </SelectField>
+            </>
+          }
+          resultSummary={loading ? undefined : `${filteredTeachers.length} teacher${filteredTeachers.length === 1 ? "" : "s"}`}
+        />
 
-        <div className="ui-data-card overflow-x-auto">
+        <div className="ui-data-card">
           {loading ? (
             <LoadingState label="Loading teachers…" />
           ) : error ? (
-            <div className="p-6 text-center text-red-500">{error}</div>
+            <div className="p-6 text-center text-red-500" role="alert">{error}</div>
           ) : (
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teacher ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Designation</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignments</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredTeachers.length === 0 ? (
+            <div className="ui-table-wrap">
+              <table className="ui-table">
+                <thead>
                   <tr>
-                    <td colSpan={6} className="px-6 py-4 text-center text-sm text-gray-500">
-                      No teachers found.
-                    </td>
+                    <th>Teacher</th>
+                    <th>Designation</th>
+                    <th>Assignments</th>
+                    <th>Status</th>
+                    <th className="text-right">Actions</th>
                   </tr>
-                ) : (
-                  filteredTeachers.map((teacher) => (
-                    <tr key={getTeacherId(teacher)} className={teacher.evaluation_overdue ? "bg-red-50" : ""}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{teacher.name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{teacher.teacher_id || "N/A"}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{teacher.designation || "N/A"}</td>
-                      <td className="max-w-xs px-6 py-4 text-sm text-gray-500">
-                        {teacher.assignments?.length ? teacher.assignments.map(assignmentSummary).join(" | ") : "Unassigned"}
-                        {teacher.evaluation_overdue && <span className="mt-1 block font-bold text-red-700">{teacher.overdue_evaluations} evaluation(s) overdue 24h</span>}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${teacher.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
-                          {teacher.is_active ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center gap-4">
-                          <Link href={`/admin/users/${getTeacherId(teacher)}`} className="text-primary-600 hover:text-primary-800" title="View teacher details">
-                            <Eye className="h-4 w-4" />
-                          </Link>
-                          {canEdit && (<><button onClick={() => handleOpenEditTeacher(teacher)} className="text-indigo-600 hover:text-indigo-900" title="Edit teacher">
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleToggleStatus(getTeacherId(teacher), teacher.is_active)}
-                            className={teacher.is_active ? "text-red-600 hover:text-red-900" : "text-green-600 hover:text-green-900"}
-                          >
-                            {teacher.is_active ? "Deactivate" : "Activate"}
-                          </button></>)}
-                          {canDelete && <button onClick={() => handleDeleteTeacher(teacher)} className="text-red-700 hover:text-red-900" title="Remove teacher">
-                            <Trash2 className="h-4 w-4" />
-                          </button>}
-                        </div>
-                      </td>
+                </thead>
+                <tbody>
+                  {filteredTeachers.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-10 text-center text-slate-500">No teachers found.</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    filteredTeachers.map((teacher) => (
+                      <tr key={getTeacherId(teacher)} className={teacher.evaluation_overdue ? "bg-red-50/70" : ""}>
+                        <td>
+                          <p className="cell-primary">{teacher.name}</p>
+                          <p className="cell-muted">{teacher.teacher_id || "No teacher ID"}</p>
+                        </td>
+                        <td className="whitespace-nowrap">{teacher.designation || "N/A"}</td>
+                        <td className="min-w-[15rem] max-w-md">
+                          {teacher.assignments?.length ? (
+                            <ul className="space-y-1">
+                              {teacher.assignments.map((item, index) => (
+                                <li key={index} className="text-xs leading-5 text-slate-600">{assignmentSummary(item)}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span className="text-slate-400">Unassigned</span>
+                          )}
+                          {teacher.evaluation_overdue && (
+                            <span className="mt-1 block text-xs font-bold text-red-700">{teacher.overdue_evaluations} evaluation(s) overdue 24h</span>
+                          )}
+                        </td>
+                        <td>
+                          <StatusBadge status={teacher.is_active ? "active" : "inactive"} />
+                        </td>
+                        <td>
+                          <div className="flex items-center justify-end gap-1">
+                            <IconAction label="View teacher details" tone="info" href={`/admin/users/${getTeacherId(teacher)}`}>
+                              <Eye className="h-4 w-4" />
+                            </IconAction>
+                            {canEdit && (
+                              <>
+                                <IconAction label="Edit teacher" onClick={() => handleOpenEditTeacher(teacher)}>
+                                  <Pencil className="h-4 w-4" />
+                                </IconAction>
+                                <IconAction
+                                  label={teacher.is_active ? "Deactivate teacher" : "Activate teacher"}
+                                  tone={teacher.is_active ? "danger" : "success"}
+                                  onClick={() => handleToggleStatus(getTeacherId(teacher), teacher.is_active)}
+                                >
+                                  <Power className="h-4 w-4" />
+                                </IconAction>
+                              </>
+                            )}
+                            {canDelete && (
+                              <IconAction label="Remove teacher" tone="danger" onClick={() => handleDeleteTeacher(teacher)}>
+                                <Trash2 className="h-4 w-4" />
+                              </IconAction>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
