@@ -2357,10 +2357,21 @@ export interface components {
              */
             require_readme: boolean;
         };
-        /** ExternalAIProposalValidate */
+        /**
+         * ExternalAIProposalValidate
+         * @description Validate AI JSON. With a draft_token it must match that prompt; without one (the teacher's own JSON) the class is given as IDs.
+         */
         ExternalAIProposalValidate: {
             /** Draft Token */
-            draft_token: string;
+            draft_token?: string | null;
+            /** Program Id */
+            program_id?: string | null;
+            /** Batch Id */
+            batch_id?: string | null;
+            /** Section Id */
+            section_id?: string | null;
+            /** Subject Id */
+            subject_id?: string | null;
             /** Proposal */
             proposal: {
                 [key: string]: unknown;

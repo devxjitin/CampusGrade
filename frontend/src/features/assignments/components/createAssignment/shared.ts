@@ -14,11 +14,11 @@ export type ContextProgram = { id: string; name: string; batches: ContextBatch[]
 export const TABS: [string, string, typeof FileText][] = [
   ["context", "Class & subject", GraduationCap],
   ["basics", "Basics", FileText],
-  ["audience", "Audience & schedule", CalendarClock],
+  ["audience", "Schedule", CalendarClock],
   ["rubric", "Rubric", BookOpen],
-  ["results", "Result release", CheckCircle2],
+  ["results", "Results", CheckCircle2],
   ["resources", "Resources", Link2],
-  ["review", "Review & publish", CheckCircle2],
+  ["review", "Review", CheckCircle2],
 ];
 
 export const blank = (): AnyRecord => ({

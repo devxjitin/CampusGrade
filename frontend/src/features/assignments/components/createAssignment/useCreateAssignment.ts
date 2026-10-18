@@ -185,6 +185,12 @@ export const useCreateAssignment = () => {
       setGeneratingAI(false);
     }
   };
+  const startWithOwnJson = () => {
+    setDraftToken("");
+    setExternalPrompt("");
+    setAiProblems([]);
+    setAiStep(2);
+  };
   const copyExternalPrompt = async () => {
     try {
       await navigator.clipboard.writeText(externalPrompt);
@@ -204,7 +210,10 @@ export const useCreateAssignment = () => {
     try {
       // parseExternalJson strips optional ```json...``` fences before parsing.
       const parsed = parseExternalJson(externalJson) as Record<string, unknown>;
-      const result = await validateExternalAIProposal(draftToken, parsed);
+      const result = await validateExternalAIProposal(
+        draftToken ? { draftToken } : { programId: form.target_course_id, batchId: form.target_batch_id, sectionId: form.target_section_id, subjectId: form.subject_id },
+        parsed,
+      );
       setAiPreview(result.proposal);
       setAiWarnings(result.warnings ?? []);
       setAiStep(3);
@@ -403,6 +412,7 @@ export const useCreateAssignment = () => {
     aiStep,
     setAiStep,
     draftToken,
+    startWithOwnJson,
     aiProblems,
     aiWarnings,
     generatingAI,

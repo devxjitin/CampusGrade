@@ -6,8 +6,17 @@ import { request, type ApiRequestBody } from "@/types/api-client";
 export const generateExternalAIPrompt = async (body: ApiRequestBody<"/assignments/teacher-tools/external-ai-prompt", "post">) =>
   request.post<"/assignments/teacher-tools/external-ai-prompt">("/assignments/teacher-tools/external-ai-prompt", body, { timeout: 30000 });
 
-export const validateExternalAIProposal = async (draftToken: string, proposal: Record<string, unknown>) =>
-  request.post<"/assignments/teacher-tools/external-ai-proposal/validate">("/assignments/teacher-tools/external-ai-proposal/validate", { draft_token: draftToken, proposal });
+// With a draft token the JSON must answer that prompt; without one (the teacher's own JSON) the class is sent as IDs.
+export const validateExternalAIProposal = async (
+  source: { draftToken: string } | { programId: string; batchId: string; sectionId: string; subjectId: string },
+  proposal: Record<string, unknown>,
+) =>
+  request.post<"/assignments/teacher-tools/external-ai-proposal/validate">(
+    "/assignments/teacher-tools/external-ai-proposal/validate",
+    "draftToken" in source
+      ? { draft_token: source.draftToken, proposal }
+      : { program_id: source.programId, batch_id: source.batchId, section_id: source.sectionId, subject_id: source.subjectId, proposal },
+  );
 
 export const exportAssignmentExternalEvaluation = async (assignmentId: string) =>
   request.post<"/assignments/teacher/{assignment_id}/external-evaluation/export">(`/assignments/teacher/${assignmentId}/external-evaluation/export`);

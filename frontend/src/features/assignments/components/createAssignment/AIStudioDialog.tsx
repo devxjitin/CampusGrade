@@ -41,16 +41,35 @@ export const AIStudioDialog = ({ model }: { model: CreateAssignmentModel }) => {
     importExternalProposalJson,
     aiPreview,
     aiProblems,
+    startWithOwnJson,
+    draftToken,
     aiWarnings,
     applyAIPreview,
   } = model;
   const existingDraft = Boolean(form.title?.trim() || form.instructions?.trim());
-  const reachable = aiPreview ? 3 : externalPrompt ? 2 : 0;
+  const reachable = aiPreview ? 3 : 2;
   return (
-    <Dialog open={showAiStudio} onClose={() => !generatingAI && !importingProposal && setShowAiStudio(false)} title="External AI assistant" size="xl">
+    <Dialog
+      open={showAiStudio}
+      onClose={() => !generatingAI && !importingProposal && setShowAiStudio(false)}
+      title="External AI assistant"
+      size="xl"
+      footer={
+        aiStep === 3 && aiPreview ? (
+          <>
+            <button type="button" className="btn btn-outline" onClick={() => setAiStep(2)}>
+              Back to JSON
+            </button>
+            <button type="button" className="btn btn-primary" onClick={applyAIPreview}>
+              Apply proposal to assignment
+            </button>
+          </>
+        ) : undefined
+      }
+    >
       <div className="space-y-5">
         <p className="rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700">{contextLabel}</p>
-        <Stepper current={aiStep} onSelect={setAiStep} reachable={reachable} steps={AI_STEPS} label="AI assistant steps" />
+        <Stepper current={aiStep} onSelect={(index) => (index === 1 && !externalPrompt ? undefined : index === 2 && !externalPrompt ? startWithOwnJson() : setAiStep(index))} reachable={reachable} steps={AI_STEPS} label="AI assistant steps" />
 
         {aiStep === 0 && (
           <section aria-labelledby="ai-step-brief" className="space-y-5">
@@ -91,6 +110,12 @@ export const AIStudioDialog = ({ model }: { model: CreateAssignmentModel }) => {
               <Sparkles className="h-4 w-4" />
               {generatingAI ? "Preparing prompt…" : "Generate and copy prompt"}
             </button>
+            <p className="text-center text-sm text-slate-600">
+              Already have the assignment JSON?{" "}
+              <button type="button" className="font-semibold text-primary-700 underline" onClick={startWithOwnJson}>
+                Skip the brief and paste it
+              </button>
+            </p>
           </section>
         )}
 
@@ -121,11 +146,16 @@ export const AIStudioDialog = ({ model }: { model: CreateAssignmentModel }) => {
             <h3 id="ai-step-json" className="text-lg font-bold">
               Paste the JSON reply
             </h3>
+            <p className="text-sm text-slate-600">
+              {draftToken
+                ? "This reply must answer the prompt you copied: marks, number of criteria, difficulty and draft_ref have to match it."
+                : "Using your own JSON: total marks, number of criteria, difficulty and README rule are taken from it. Criteria marks must add up to total_marks."}
+            </p>
             <textarea aria-label="JSON reply from the external AI" className="input-field min-h-64 font-mono text-xs leading-5" value={externalJson} onChange={(event) => setExternalJson(event.target.value)} placeholder={JSON_PLACEHOLDER} />
             <ProblemList problems={aiProblems} />
             <div className="flex flex-wrap gap-2">
-              <button type="button" className="btn btn-outline" onClick={() => setAiStep(1)}>
-                Back to prompt
+              <button type="button" className="btn btn-outline" onClick={() => setAiStep(draftToken ? 1 : 0)}>
+                {draftToken ? "Back to prompt" : "Back to brief"}
               </button>
               <button type="button" className="btn btn-primary" disabled={importingProposal || !externalJson.trim()} onClick={importExternalProposalJson}>
                 {importingProposal ? "Validating JSON…" : "Validate pasted JSON"}
@@ -135,48 +165,46 @@ export const AIStudioDialog = ({ model }: { model: CreateAssignmentModel }) => {
         )}
 
         {aiStep === 3 && aiPreview && (
-          <section aria-labelledby="ai-step-review" className="space-y-4">
-            <h3 id="ai-step-review" className="text-lg font-bold">
+          <section aria-labelledby="ai-step-review" className="space-y-3">
+            <h3 id="ai-step-review" className="sr-only">
               Review the proposal
             </h3>
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-              <span className="text-xs font-bold uppercase tracking-wide text-emerald-700">Validated proposal</span>
-              <p className="mt-2 font-bold text-slate-900">{aiPreview.title}</p>
-              <p className="mt-1 text-sm text-slate-600">{aiPreview.short_description}</p>
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <div className="min-w-0">
+                <p className="font-bold text-slate-900 [overflow-wrap:anywhere]">{aiPreview.title}</p>
+                <p className="mt-0.5 text-sm text-slate-600 [overflow-wrap:anywhere]">{aiPreview.short_description}</p>
+              </div>
+              <span className="text-xs font-bold uppercase tracking-wide text-emerald-700">
+                Validated · {(aiPreview.rubric as AnyRecord[]).length} criteria · {aiPreview.total_marks} marks
+              </span>
             </div>
-            {aiWarnings.length > 0 && (
-              <ul className="list-disc space-y-1 rounded-xl border border-amber-200 bg-amber-50 p-4 pl-8 text-sm text-amber-900">
+            {(aiWarnings.length > 0 || existingDraft) && (
+              <ul className="list-disc space-y-0.5 rounded-xl border border-amber-200 bg-amber-50 py-2 pl-8 pr-4 text-xs text-amber-900">
                 {aiWarnings.map((warning) => (
                   <li key={warning}>{warning}</li>
                 ))}
+                {existingDraft && (
+                  <li>
+                    Applying replaces your current title, description, instructions and rubric ({form.rubric.length} criteria, {form.total_marks} marks).
+                  </li>
+                )}
               </ul>
             )}
-            {existingDraft && (
-              <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                Applying replaces your current title, description, instructions and rubric ({form.rubric.length} criteria, {form.total_marks} marks).
-              </p>
-            )}
-            <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 text-sm">
-              {(aiPreview.rubric as AnyRecord[]).map((item) => (
-                <li key={item.id} className="flex items-start justify-between gap-4 p-3">
-                  <span>
-                    <strong className="block">{item.title}</strong>
-                    <span className="text-slate-600">{item.description}</span>
-                  </span>
-                  <span className="shrink-0 font-bold">{item.max_marks}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="max-h-72 overflow-auto rounded-xl border border-slate-200 p-4">
-              <MarkdownPreview source={aiPreview.instructions} />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" className="btn btn-outline" onClick={() => setAiStep(2)}>
-                Back to JSON
-              </button>
-              <button type="button" className="btn btn-primary" onClick={applyAIPreview}>
-                Apply proposal to assignment
-              </button>
+            <div className="grid gap-3 lg:grid-cols-[2fr_3fr]">
+              <ul aria-label="Rubric" tabIndex={0} className="max-h-[42vh] divide-y divide-slate-200 overflow-y-auto rounded-xl border border-slate-200 text-sm">
+                {(aiPreview.rubric as AnyRecord[]).map((item) => (
+                  <li key={item.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
+                    <span className="min-w-0">
+                      <strong className="block [overflow-wrap:anywhere]">{item.title}</strong>
+                      <span className="text-slate-600 [overflow-wrap:anywhere]">{item.description}</span>
+                    </span>
+                    <span className="shrink-0 font-bold">{item.max_marks}</span>
+                  </li>
+                ))}
+              </ul>
+              <div role="region" aria-label="Instructions preview" tabIndex={0} className="max-h-[42vh] overflow-y-auto rounded-xl border border-slate-200 p-4">
+                <MarkdownPreview source={aiPreview.instructions} />
+              </div>
             </div>
           </section>
         )}
