@@ -78,7 +78,9 @@ export default function MarkdownPreview({ source, emptyText = "Nothing to previe
   let codeLanguage = "";
   const code: string[] = [];
   const nodes: React.ReactNode[] = [];
-  lines.forEach((line, index) => {
+  lines.forEach((rawLine, index) => {
+    // AI tools sometimes indent a fence or escape its backticks; treat those as a normal fence.
+    const line = /^\s*(\\?`){3}/.test(rawLine) ? rawLine.trim().replace(/\\`/g, "`") : rawLine;
     if (line.startsWith("```")) {
       if (inCode) {
         nodes.push(codeBlock(code.join("\n"), codeLanguage, `code-${index}`));
@@ -91,7 +93,7 @@ export default function MarkdownPreview({ source, emptyText = "Nothing to previe
       return;
     }
     if (inCode) {
-      code.push(line);
+      code.push(rawLine);
       return;
     }
     if (line.startsWith("### "))

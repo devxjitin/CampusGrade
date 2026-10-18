@@ -8,12 +8,18 @@ describe("parseExternalJson", () => {
   });
 
   it("repairs invalid escapes and raw line breaks inside strings", () => {
-    expect(parseExternalJson('{"a":"snake\_case and C:\src"}')).toEqual({ a: "snake\_case and C:\src" });
+    // JSON text: {"a":"snake\_case and C:\src"} -> \_ loses its backslash, \s (a Windows path) keeps it.
+    expect(parseExternalJson(String.raw`{"a":"snake\_case and C:\src"}`)).toEqual({ a: String.raw`snake_case and C:\src` });
     expect(parseExternalJson('{"a":"line one\nline two"}')).toEqual({ a: "line one\nline two" });
   });
 
+  it("drops the backslash before escaped punctuation so code fences survive", () => {
+    const parsed = parseExternalJson(String.raw`{"a":"\`\`\`mermaid\nflowchart TD"}`) as { a: string };
+    expect(parsed.a).toBe("```mermaid\nflowchart TD");
+  });
+
   it("keeps valid escapes unchanged", () => {
-    expect(parseExternalJson('{"a":"x\ny \\"q\\" \u0041"}')).toEqual({ a: 'x\ny "q" A' });
+    expect(parseExternalJson(String.raw`{"a":"x\ny \"q\" \u0041"}`)).toEqual({ a: 'x\ny "q" A' });
   });
 
   it("still throws for structurally broken JSON", () => {

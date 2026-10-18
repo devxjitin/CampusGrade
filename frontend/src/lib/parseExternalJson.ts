@@ -8,7 +8,7 @@
  * fenced block and get the same result.
  *
  * AI tools also commonly emit text that is almost JSON: a backslash that is not
- * a valid escape (`\_`, a Windows path) or a raw line break inside a string. If
+ * a valid escape (an escaped backtick or underscore, a Windows path) or a raw line break inside a string. If
  * strict parsing fails, only those string-literal faults are repaired and the
  * parse is retried. Structure and values are never touched, and the server still
  * validates every field.
@@ -35,6 +35,8 @@ export const repairJsonStrings = (text: string): string => {
       if (next !== undefined && VALID_ESCAPES.includes(next) && (next !== "u" || /^[0-9a-fA-F]{4}$/.test(text.slice(i + 2, i + 6)))) {
         out += char + next;
         i += 1;
+      } else if (next !== undefined && /[^A-Za-z0-9]/.test(next)) {
+        // An escaped punctuation mark such as \` or \_ (Markdown-style): keep the character, drop the backslash.
       } else {
         out += "\\\\";
       }
