@@ -53,3 +53,4 @@ Naye entries neeche add hote hain. Purani lines edit mat karo.
 [2026-10-18 09:42] [Claude] [Fix: show External AI evaluator once deadline passes; links mode no longer needs repository fetch]
 [2026-10-18 09:53] [Claude] [Fix: cohort lock never finalized fetch for early-frozen students, blocking publish-all; heal stuck cohorts]
 [2026-10-18 09:59] [Claude] [Update: StatGrid incomplete last row stretches to full width]
+[2026-10-18 10:14] [Claude] [Remove: stray local files (=2.6, CampusGradeV2/) and tool caches, all git-ignored]
