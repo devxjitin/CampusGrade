@@ -58,7 +58,7 @@ export const ProfileInformationCard = ({
               <div className="border-b border-gray-100 pb-4">
                 <label className="text-xs text-gray-500 font-bold mb-1 block">Email</label>
                 <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
-                  <Mail className="w-4 h-4 text-gray-400 flex-shrink-0" /> <span className="truncate">{formData.email}</span>
+                  <Mail className="w-4 h-4 text-gray-400 flex-shrink-0" /> <span className="[overflow-wrap:anywhere]">{formData.email}</span>
                 </div>
               </div>
 

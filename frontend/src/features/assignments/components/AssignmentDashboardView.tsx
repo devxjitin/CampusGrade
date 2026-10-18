@@ -112,7 +112,7 @@ export default function AssignmentDashboardView({ initialView = "overview" }: { 
                 {overdueEvaluationAlerts.map((item) => (
                   <div key={item.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
-                      <p className="truncate font-semibold text-slate-950">{item.title}</p>
+                      <p className="[overflow-wrap:anywhere] font-semibold text-slate-950">{item.title}</p>
                       <p className="mt-1 text-sm text-amber-800">
                         {item.teacher_name || "No teacher assigned"} has not graded {item.overdue_ungraded_submission_count} submitted
                         {Number(item.overdue_ungraded_submission_count) === 1 ? " assignment" : " assignments"}. Due {formatDateTime(item.due_at)}

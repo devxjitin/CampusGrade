@@ -145,8 +145,8 @@ export const SidebarContent = ({
           <UserAvatar avatar={effectiveUserAvatar} name={effectiveUserName} imageFailed={imageFailed} onImageError={() => setImageFailed(true)} size="h-8 w-8" />
           {!iconOnly && (
             <div className="min-w-0">
-              <p className="truncate text-xs font-bold text-slate-900">{effectiveUserName}</p>
-              <p className="truncate text-[11px] text-slate-500">{effectiveUserEmail || roleLabel(role)}</p>
+              <p className="[overflow-wrap:anywhere] text-xs font-bold text-slate-900">{effectiveUserName}</p>
+              <p className="[overflow-wrap:anywhere] text-[11px] text-slate-500">{effectiveUserEmail || roleLabel(role)}</p>
             </div>
           )}
         </button>

@@ -3,6 +3,7 @@
 // Ported from frontend-legacy/src/pages/CreateAssignment.jsx. Used by both
 // /assignments/create (no id param -> editing=false) and
 // /assignments/[id]/edit (id param present -> editing=true).
+import WrapInput from "@/components/ui/WrapInput";
 import { CheckCircle2, ChevronLeft, ChevronRight, Plus, Sparkles, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/ui";
 import DateTimeFields from "@/components/DateTimeFields";
@@ -82,7 +83,7 @@ export default function CreateAssignmentView() {
       <div className="mb-5 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
         <div className="flex min-w-max gap-1">
           {TABS.map(([key, label, Icon], index) => (
-            <button key={key} onClick={() => goToTab(key)} className={`flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm font-semibold ${tab === key ? "bg-slate-950 text-white" : "text-slate-500 hover:bg-slate-100"}`}>
+            <button key={key} onClick={() => goToTab(key)} className={`flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold ${tab === key ? "bg-slate-950 text-white" : "text-slate-500 hover:bg-slate-100"}`}>
               <Icon className="h-4 w-4" />
               <span>
                 {index + 1}. {label}
@@ -91,7 +92,7 @@ export default function CreateAssignmentView() {
           ))}
         </div>
       </div>
-      <section className="card min-h-[430px] p-6">
+      <section className="card min-h-[360px] p-5">
         <ContextPanel model={model} />
         <BasicsPanel model={model} />
         <AudiencePanel model={model} />
@@ -111,14 +112,14 @@ export default function CreateAssignmentView() {
             </div>
             <div className="space-y-3">
               {form.rubric.map((item: AnyRecord, index: number) => (
-                <div key={item.id} className="grid gap-3 rounded-xl border border-slate-200 p-4 md:grid-cols-[1fr_2fr_130px_auto]">
-                  <input
+                <div key={item.id} className="grid gap-3 items-start rounded-xl border border-slate-200 p-4 md:grid-cols-[1fr_2fr_130px_auto]">
+                  <WrapInput rows={2}
                     className="input-field"
                     value={item.title}
                     onChange={(e) => setForm({ ...form, rubric: form.rubric.map((x: AnyRecord, i: number) => (i === index ? { ...x, title: e.target.value } : x)) })}
                     placeholder="Criterion"
                   />
-                  <input
+                  <WrapInput rows={3}
                     className="input-field"
                     value={item.description}
                     onChange={(e) => setForm({ ...form, rubric: form.rubric.map((x: AnyRecord, i: number) => (i === index ? { ...x, description: e.target.value } : x)) })}

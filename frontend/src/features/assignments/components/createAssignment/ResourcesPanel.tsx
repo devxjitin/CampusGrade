@@ -1,5 +1,6 @@
 "use client";
 
+import WrapInput from "@/components/ui/WrapInput";
 import { Plus, Trash2, Upload } from "lucide-react";
 import { uploadAssignmentAttachment } from "@/features/assignments/api";
 import type { CreateAssignmentModel } from "./useCreateAssignment";
@@ -27,11 +28,11 @@ export const ResourcesPanel = ({ model }: { model: CreateAssignmentModel }) => {
             <div className="mb-6 grid gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-5 md:grid-cols-2">
               <label className="md:col-span-2">
                 <span className="ui-field-label">Starter repository (optional)</span>
-                <input className="input-field mt-1.5" value={form.starter_repository_url || ""} onChange={(e) => setForm({ ...form, starter_repository_url: e.target.value })} placeholder="https://github.com/organisation/starter-project" />
+                <WrapInput rows={2} className="input-field mt-1.5" value={form.starter_repository_url || ""} onChange={(e) => setForm({ ...form, starter_repository_url: e.target.value })} placeholder="https://github.com/organisation/starter-project" />
               </label>
               <label>
                 <span className="ui-field-label">Required files (comma separated)</span>
-                <input className="input-field mt-1.5" value={requiredFilesInput} onChange={(e) => setRequiredFilesInput(e.target.value)} placeholder="README.md, package.json, tests/" />
+                <WrapInput rows={3} className="input-field mt-1.5" value={requiredFilesInput} onChange={(e) => setRequiredFilesInput(e.target.value)} placeholder="README.md, package.json, tests/" />
               </label>
               <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4">
                 <input
@@ -57,9 +58,9 @@ export const ResourcesPanel = ({ model }: { model: CreateAssignmentModel }) => {
             </div>
             <div className="space-y-3">
               {form.links.map((link: AnyRecord, index: number) => (
-                <div key={index} className="grid gap-3 md:grid-cols-[1fr_2fr_auto]">
-                  <input className="input-field" value={link.label} onChange={(e) => setForm({ ...form, links: form.links.map((x: AnyRecord, i: number) => (i === index ? { ...x, label: e.target.value } : x)) })} placeholder="Link label" />
-                  <input className="input-field" value={link.url} onChange={(e) => setForm({ ...form, links: form.links.map((x: AnyRecord, i: number) => (i === index ? { ...x, url: e.target.value } : x)) })} placeholder="https://…" />
+                <div key={index} className="grid items-start gap-3 md:grid-cols-[1fr_2fr_auto]">
+                  <WrapInput rows={1} className="input-field" value={link.label} onChange={(e) => setForm({ ...form, links: form.links.map((x: AnyRecord, i: number) => (i === index ? { ...x, label: e.target.value } : x)) })} placeholder="Link label" />
+                  <WrapInput rows={2} className="input-field" value={link.url} onChange={(e) => setForm({ ...form, links: form.links.map((x: AnyRecord, i: number) => (i === index ? { ...x, url: e.target.value } : x)) })} placeholder="https://…" />
                   <button onClick={() => setForm({ ...form, links: form.links.filter((_: AnyRecord, i: number) => i !== index) })} className="ui-icon-button text-rose-600">
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -112,7 +113,7 @@ export const ResourcesPanel = ({ model }: { model: CreateAssignmentModel }) => {
               {uploadProgress && (
                 <div className="mt-3" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={uploadProgress.percent} aria-label={`Uploading ${uploadProgress.name}`}>
                   <div className="mb-1 flex justify-between text-xs text-slate-600">
-                    <span className="truncate">{uploadProgress.name}</span>
+                    <span className="[overflow-wrap:anywhere]">{uploadProgress.name}</span>
                     <span>{uploadProgress.percent}%</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-slate-200">

@@ -1,5 +1,6 @@
 "use client";
 
+import WrapInput from "@/components/ui/WrapInput";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, CalendarClock, ExternalLink, MessageSquare, Send } from "lucide-react";
@@ -226,7 +227,7 @@ export default function StudentAssignmentDetailPage() {
                 <MessageSquare className="h-5 w-5 text-primary-600" />
                 <h2 className="font-bold">Ask the teacher</h2>
               </div>
-              <input className="input-field mt-4" value={question.subject} onChange={(e) => setQuestion({ ...question, subject: e.target.value })} placeholder="Question subject" />
+              <WrapInput rows={2} className="input-field mt-4" value={question.subject} onChange={(e) => setQuestion({ ...question, subject: e.target.value })} placeholder="Question subject" />
               <textarea className="input-field mt-3 min-h-24" value={question.message} onChange={(e) => setQuestion({ ...question, message: e.target.value })} placeholder="Explain what you need help with…" />
               <button
                 className="btn btn-outline mt-3 w-full"

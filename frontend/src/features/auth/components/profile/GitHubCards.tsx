@@ -25,14 +25,14 @@ export const GitHubIdentityCard = ({ profile }: { profile: GitHubProfile }) => (
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={profile.avatar_url} alt={profile.login} className="w-14 h-14 lg:w-16 lg:h-16 rounded-[1rem] border border-gray-200 shadow-sm" />
       <div className="flex-1 min-w-0">
-        <h3 className="text-lg font-bold text-gray-900 truncate">{profile.name || profile.login}</h3>
-        <a href={profile.html_url} target="_blank" rel="noreferrer" className="text-sm font-medium text-blue-500 hover:text-blue-600 truncate flex items-center gap-1">
+        <h3 className="text-lg font-bold text-gray-900 [overflow-wrap:anywhere]">{profile.name || profile.login}</h3>
+        <a href={profile.html_url} target="_blank" rel="noreferrer" className="text-sm font-medium text-blue-500 hover:text-blue-600 [overflow-wrap:anywhere] flex items-center gap-1">
           @{profile.login} <ExternalLink className="w-3.5 h-3.5" />
         </a>
       </div>
     </div>
     {profile.bio ? (
-      <p className="text-[13px] text-gray-600 line-clamp-2 gap-2 mb-4">{profile.bio}</p>
+      <p className="text-[13px] text-gray-600 [overflow-wrap:anywhere] gap-2 mb-4">{profile.bio}</p>
     ) : (
       <p className="text-[13px] text-gray-400 italic mb-4">No bio provided</p>
     )}
@@ -79,7 +79,7 @@ export const GitHubReposCard = ({ repos }: { repos: GitHubRepo[] }) => (
             className="group p-3 md:p-4 border border-gray-100 rounded-[1.25rem] bg-gray-50/50 hover:border-gray-200 transition-all flex items-center justify-between"
           >
             <div className="flex flex-col min-w-0 pr-3">
-              <span className="text-[14px] font-bold text-gray-900 truncate group-hover:text-blue-500 transition-colors">{repo.name}</span>
+              <span className="text-[14px] font-bold text-gray-900 [overflow-wrap:anywhere] group-hover:text-blue-500 transition-colors">{repo.name}</span>
               {repo.language && (
                 <span className="flex items-center gap-1.5 text-[12px] text-gray-500 mt-1">
                   <span className="w-2 h-2 rounded-full" style={{ backgroundColor: LANG_COLORS[repo.language] || "#8b949e" }} />

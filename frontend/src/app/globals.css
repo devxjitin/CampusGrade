@@ -50,6 +50,11 @@
   --ui-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
 }
 
+html {
+  /* One notch below the 16px default: the whole rem-based UI scales down together. */
+  font-size: 15px;
+}
+
 body {
   font-family: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   scroll-behavior: smooth;
@@ -94,7 +99,7 @@ input[type="number"] {
 
 @layer components {
   .input-field {
-    @apply w-full px-4 py-2.5 border rounded-xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 shadow-sm focus:bg-white focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 outline-none transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed;
+    @apply min-h-[40px] w-full px-3 py-2 text-sm border rounded-xl bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 shadow-sm focus:bg-white focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500 outline-none transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed;
   }
 
   .input {
@@ -106,7 +111,7 @@ input[type="number"] {
   }
 
   .btn {
-    @apply relative min-h-[42px] overflow-hidden border border-transparent px-4 py-2.5 rounded-xl font-semibold transition-all duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-600/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:opacity-60 disabled:cursor-not-allowed;
+    @apply relative min-h-[38px] overflow-hidden border border-transparent px-3.5 py-2 text-sm rounded-xl font-semibold transition-all duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary-600/30 focus-visible:ring-offset-2 focus-visible:ring-offset-white disabled:opacity-60 disabled:cursor-not-allowed;
   }
 
   .btn-primary {
@@ -144,7 +149,7 @@ input[type="number"] {
   .stat-card {
     /* Tailwind v4 can't @apply a custom @layer components class (.card)
        from within another one, unlike v3 — inline its utilities instead. */
-    @apply bg-white rounded-2xl border border-slate-200/80 transition-all duration-300 p-6 flex flex-col justify-center;
+    @apply bg-white rounded-2xl border border-slate-200/80 transition-all duration-300 p-4 flex flex-col justify-center;
   }
 
   .ui-icon-button {
@@ -188,7 +193,7 @@ input[type="number"] {
   }
 
   .ui-search-field {
-    @apply flex min-h-[42px] min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-slate-400 shadow-sm transition focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500/20;
+    @apply flex min-h-[40px] min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-slate-400 shadow-sm transition focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-500/20;
   }
 
   .ui-search-field input {
@@ -216,7 +221,7 @@ input[type="number"] {
   }
 
   .ui-select-wrap select {
-    @apply min-h-[42px] w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm text-slate-900 shadow-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20;
+    @apply min-h-[40px] w-full appearance-none rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm text-slate-900 shadow-sm outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20;
   }
 
   .ui-select-wrap svg {
@@ -264,7 +269,7 @@ input[type="number"] {
   }
 
   .ui-action-bar {
-    @apply sticky bottom-0 z-10 -mx-4 mt-6 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] backdrop-blur sm:-mx-6 sm:px-6 md:-mx-8 md:px-8;
+    @apply sticky bottom-0 z-10 -mx-3 mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 bg-white/95 px-3 py-2.5 shadow-[0_-6px_18px_rgba(15,23,42,0.05)] backdrop-blur sm:-mx-5 sm:px-5 md:-mx-6 md:px-6;
   }
 
   .ui-status-badge {
@@ -288,7 +293,7 @@ input[type="number"] {
   }
 
   .ui-metric-card {
-    @apply flex items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm;
+    @apply flex items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm;
   }
 
   .ui-feedback-state {
@@ -312,7 +317,7 @@ input[type="number"] {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
     0 1px 2px rgba(15, 23, 42, 0.03),
-    0 10px 30px rgba(15, 23, 42, 0.045);
+    0 4px 14px rgba(15, 23, 42, 0.04);
 }
 
 .card-hover:hover,
@@ -326,16 +331,16 @@ a.card:hover {
 
 .btn-primary {
   background-image: linear-gradient(135deg, #e3000f 0%, #c4000d 72%, #a3000a 100%);
-  box-shadow: 0 8px 18px rgba(227, 0, 15, 0.18);
+  box-shadow: 0 3px 8px rgba(227, 0, 15, 0.16);
 }
 
 .btn-primary:hover {
-  box-shadow: 0 12px 24px rgba(227, 0, 15, 0.25);
+  box-shadow: 0 5px 12px rgba(227, 0, 15, 0.2);
 }
 
 .btn-secondary {
   background-image: linear-gradient(135deg, #1a70c0 0%, #0c3c8a 72%, #092d67 100%);
-  box-shadow: 0 8px 18px rgba(12, 60, 138, 0.18);
+  box-shadow: 0 3px 8px rgba(12, 60, 138, 0.16);
 }
 
 .btn-danger {
@@ -641,9 +646,9 @@ a.card:hover {
 .ui-table-wrap { @apply overflow-x-auto; }
 .ui-table { @apply w-full min-w-[720px] border-collapse text-sm; }
 .ui-table thead th {
-  @apply whitespace-nowrap border-b border-slate-200 bg-slate-50/80 px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500;
+  @apply whitespace-nowrap border-b border-slate-200 bg-slate-50/80 px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500;
 }
-.ui-table tbody td { @apply border-b border-slate-100 px-4 py-3.5 align-middle text-slate-600; }
+.ui-table tbody td { @apply border-b border-slate-100 px-4 py-2.5 align-middle text-slate-600; }
 .ui-table tbody tr { transition: background-color 0.15s ease; }
 .ui-table tbody tr:hover { @apply bg-primary-50/40; }
 .ui-table tbody tr:last-child td { @apply border-b-0; }
@@ -667,6 +672,6 @@ a.card:hover {
 }
 
 /* Toolbar filters: compact, even-width selects instead of stretching to the longest option. */
-.ui-toolbar .ui-select-wrap { min-width: 9rem; max-width: 13rem; }
+.ui-toolbar .ui-select-wrap { min-width: 9rem; max-width: 18rem; }
 .ui-toolbar .ui-select-wrap select { text-overflow: ellipsis; }
 .ui-table { min-width: 640px; }

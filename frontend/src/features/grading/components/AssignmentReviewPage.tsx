@@ -168,12 +168,12 @@ export default function AssignmentReviewPage() {
                   className={`mb-1 w-full rounded-xl p-3 text-left ${row.is_low_score ? "bg-red-50 ring-1 ring-red-200" : selectedId === row.student.id ? "bg-primary-50 ring-1 ring-primary-200" : "hover:bg-slate-50"}`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-sm font-semibold">{row.student.name}</p>
+                    <p className="[overflow-wrap:anywhere] text-sm font-semibold">{row.student.name}</p>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold capitalize ${statusTone[status] || statusTone.missing}`}>
                       {status === "pending_teacher" ? "awaiting analysis" : status === "draft" ? "evaluation saved" : status}
                     </span>
                   </div>
-                  <p className="mt-1 truncate text-xs text-slate-600">{row.student.roll_no || row.student.email}</p>
+                  <p className="mt-1 [overflow-wrap:anywhere] text-xs text-slate-600">{row.student.roll_no || row.student.email}</p>
                   {row.is_low_score && (
                     <p className="mt-1 text-xs font-bold text-red-700">
                       Below 50% · {row.score_percentage}%

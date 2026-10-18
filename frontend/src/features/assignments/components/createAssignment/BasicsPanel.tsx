@@ -1,7 +1,8 @@
 "use client";
 
+import WrapInput from "@/components/ui/WrapInput";
 import type { CreateAssignmentModel } from "./useCreateAssignment";
-import MarkdownPreview from "@/components/MarkdownPreview";
+import { InstructionsField } from "./InstructionsField";
 
 export const BasicsPanel = ({ model }: { model: CreateAssignmentModel }) => {
   const {
@@ -14,14 +15,14 @@ export const BasicsPanel = ({ model }: { model: CreateAssignmentModel }) => {
     setLearningOutcomesInput,
   } = model;
   return <>{tab === "basics" && (
-          <div className="grid gap-5 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2">
             <label className="lg:col-span-2">
               <span className="ui-field-label">Assignment title</span>
-              <input className="input-field mt-1.5" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Full-stack task tracker" />
+              <WrapInput rows={2} className="input-field mt-1.5" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Full-stack task tracker" />
             </label>
             <label className="lg:col-span-2">
               <span className="ui-field-label">Short description</span>
-              <textarea className="input-field mt-1.5 min-h-20" maxLength={500} value={form.short_description} onChange={(e) => setForm({ ...form, short_description: e.target.value })} placeholder="A concise summary students can scan from their dashboard" />
+              <textarea className="input-field mt-1.5 resize-none" rows={3} maxLength={500} value={form.short_description} onChange={(e) => setForm({ ...form, short_description: e.target.value })} placeholder="A concise summary students can scan from their dashboard" />
             </label>
             <label>
               <span className="ui-field-label">Total marks</span>
@@ -37,22 +38,13 @@ export const BasicsPanel = ({ model }: { model: CreateAssignmentModel }) => {
             </label>
             <label>
               <span className="ui-field-label">Tags (comma separated)</span>
-              <input className="input-field mt-1.5" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="React, REST API, testing" />
-            </label>
-            <label className="md:col-span-2">
-              <span className="ui-field-label">Learning outcomes (comma separated)</span>
-              <input className="input-field mt-1.5" value={learningOutcomesInput} onChange={(e) => setLearningOutcomesInput(e.target.value)} placeholder="Design APIs, document decisions" />
+              <WrapInput rows={3} className="input-field mt-1.5" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} placeholder="React, REST API, testing" />
             </label>
             <label>
-              <span className="ui-field-label">Instructions (Markdown)</span>
-              <textarea className="input-field mt-1.5 min-h-64" value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} placeholder={"# Objective\nBuild and document…"} />
+              <span className="ui-field-label">Learning outcomes (comma separated)</span>
+              <WrapInput rows={3} className="input-field mt-1.5" value={learningOutcomesInput} onChange={(e) => setLearningOutcomesInput(e.target.value)} placeholder="Design APIs, document decisions" />
             </label>
-            <div>
-              <span className="ui-field-label">Preview</span>
-              <div className="mt-1.5 h-64 overflow-y-auto rounded-xl border border-slate-200 p-4 pr-3">
-                <MarkdownPreview source={form.instructions} />
-              </div>
-            </div>
+            <InstructionsField value={form.instructions} onChange={(value) => setForm({ ...form, instructions: value })} />
           </div>
         )}</>;
 };

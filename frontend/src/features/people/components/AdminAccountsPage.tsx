@@ -181,7 +181,7 @@ export default function AdminAccountsPage() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex min-w-0 gap-3">
                   <span className="rounded-xl bg-primary-50 p-2.5 text-primary-700"><UserCog className="h-5 w-5" /></span>
-                  <div className="min-w-0"><h2 className="truncate font-bold text-slate-950">{admin.name}</h2><p className="truncate text-sm text-slate-500">{admin.email}</p></div>
+                  <div className="min-w-0"><h2 className="[overflow-wrap:anywhere] font-bold text-slate-950">{admin.name}</h2><p className="[overflow-wrap:anywhere] text-sm text-slate-500">{admin.email}</p></div>
                 </div>
                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">{admin.role === "super_admin" ? "Super Admin" : "Admin"}</span>
               </div>

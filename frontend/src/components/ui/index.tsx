@@ -183,11 +183,11 @@ export const Breadcrumbs = ({ items = [] }: { items?: BreadcrumbItem[] }) => (
           <li key={`${item.label}-${index}`} className="flex min-w-0 items-center gap-1.5">
             {index > 0 && <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-300" aria-hidden="true" />}
             {item.path && !isLast ? (
-              <Link href={item.path} className="truncate font-medium hover:text-primary-700">
+              <Link href={item.path} className="[overflow-wrap:anywhere] font-medium hover:text-primary-700">
                 {item.label}
               </Link>
             ) : (
-              <span className={`truncate ${isLast ? "font-semibold text-slate-900" : "font-medium"}`}>{item.label}</span>
+              <span className={`[overflow-wrap:anywhere] ${isLast ? "font-semibold text-slate-900" : "font-medium"}`}>{item.label}</span>
             )}
           </li>
         );

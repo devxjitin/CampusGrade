@@ -10,6 +10,7 @@
 // this route is student-only. This looks like dead/vestigial code from a
 // refactor rather than intentional behavior — flagged for the user, but
 // preserved as-is here for exact parity with frontend-legacy.
+import WrapInput from "@/components/ui/WrapInput";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { MessageSquare, Send } from "lucide-react";
@@ -195,7 +196,7 @@ export default function AssignmentWorkspacePage() {
                   ))}
                 </div>
                 <div className="mt-4 flex gap-2">
-                  <input className="input-field" value={reply[thread.id] || ""} onChange={(event) => setReply((old) => ({ ...old, [thread.id]: event.target.value }))} placeholder="Write a reply…" />
+                  <WrapInput rows={3} className="input-field" value={reply[thread.id] || ""} onChange={(event) => setReply((old) => ({ ...old, [thread.id]: event.target.value }))} placeholder="Write a reply…" />
                   <button className="btn btn-primary" onClick={() => postReply(thread.id)}>
                     <Send className="h-4 w-4" />
                   </button>

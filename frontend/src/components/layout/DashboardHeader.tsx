@@ -76,7 +76,7 @@ export const DashboardHeader = ({
             </button>
             <div className="min-w-0">
               <Breadcrumbs items={breadcrumbItems} />
-               <p className="mt-0.5 truncate text-xs text-slate-600 sm:hidden">{pageLabel}</p>
+               <p className="mt-0.5 [overflow-wrap:anywhere] text-xs text-slate-600 sm:hidden">{pageLabel}</p>
             </div>
           </div>
 
@@ -148,7 +148,7 @@ export const DashboardHeader = ({
                           onClick={() => openNotification(item)}
                         >
                           <p className="text-sm font-bold text-slate-900">{item.title}</p>
-                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{item.message}</p>
+                          <p className="mt-1 [overflow-wrap:anywhere] text-xs leading-5 text-slate-500">{item.message}</p>
                         </button>
                       ))
                     )}
