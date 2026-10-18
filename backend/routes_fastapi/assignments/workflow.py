@@ -15,7 +15,9 @@ from models.assignment import (
     SqlAssignmentSubmissionVersion,
 )
 from models.sql_models import SqlSubject, SqlUser
+from services import jobs
 from services.assignment_external_evaluation import sanitize_external_feedback
+from services.github_repository_service import EXTRACT_FINAL_JOB_TYPE
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,36 +47,33 @@ async def _lock_evaluation_cohort(db: AsyncSession, assignment, *, actor_id=None
     for student in students:
         submission = submissions.get(student.id)
         version_id = None
-        if submission and submission.repository_url:
-            target = (
-                await db.scalars(select(SqlAssignmentSubmissionVersion).filter_by(submission_id=submission.id, commit_sha=submission.latest_remote_sha))
-            ).first()
-            version_id = target.id if target else submission.active_version_id
-            submission.freeze_requested_at = now
-            submission.freeze_reason = "deadline"
-            submission.next_sync_at = None
-            if target and target.analysis_status == "ready":
-                submission.frozen_version_id, submission.frozen_at, submission.active_version_id, submission.sync_status = target.id, now, target.id, "frozen"
-            else:
-                submission.pending_version_id, submission.sync_status = version_id, "freeze_pending"
+        has_repository = bool(submission and submission.repository_url)
+        if has_repository:
+            version_id = submission.frozen_version_id
+            if not submission.freeze_requested_at:
+                # Evaluation was not started by a teacher: take the final snapshot from GitHub now.
+                submission.freeze_requested_at, submission.freeze_reason = now, "deadline"
+                submission.next_sync_at = None
+                submission.pending_version_id, submission.sync_status = None, "freeze_pending"
+                await jobs.enqueue(db, EXTRACT_FINAL_JOB_TYPE, {"submission_id": submission.id}, max_attempts=6)
         participant = (
             await db.scalars(select(SqlAssignmentEvaluationParticipant).filter_by(assignment_id=assignment.id, student_id=student.id))
         ).first()
         if participant:
             participant.submission_version_id = participant.submission_version_id or version_id
-            participant.status = "submitted" if participant.submission_version_id else "missing"
+            participant.status = "submitted" if (participant.submission_version_id or has_repository) else "missing"
         else:
             participant = SqlAssignmentEvaluationParticipant(
                 id=str(uuid.uuid4()),
                 assignment_id=assignment.id,
                 student_id=student.id,
                 submission_version_id=version_id,
-                status="submitted" if version_id else "missing",
+                status="submitted" if has_repository else "missing",
                 locked_at=now,
             )
             db.add(participant)
         participants.append(participant)
-        if trigger == "deadline" and not version_id:
+        if trigger == "deadline" and not has_repository:
             grade = (await db.scalars(select(SqlAssignmentGrade).filter_by(assignment_id=assignment.id, student_id=student.id))).first()
             if not grade:
                 rubric = await _rubric(db, assignment.id)
@@ -126,7 +125,8 @@ async def _evaluation_workflow(db: AsyncSession, assignment):
             statuses[row.analysis_status] = statuses.get(row.analysis_status, 0) + 1
     ready = statuses.get("ready", 0)
     failed = statuses.get("failed", 0)
-    pending = len(version_ids) - ready - failed
+    unresolved = sum(1 for row in participants if row.status == "submitted" and not row.submission_version_id)
+    pending = len(version_ids) - ready - failed + unresolved
     if not assignment.evaluation_locked_at:
         fetch_status = "eligible" if (all_submitted or deadline_passed) else "waiting_for_submissions"
     elif not assignment.repository_fetch_started_at:

@@ -24,6 +24,13 @@ async def analyze_repository(payload: dict) -> None:
     await analyze_repository_version(payload["version_id"])
 
 
+@register("repository.extract_final")
+async def extract_final_repository(payload: dict) -> None:
+    from services.github_repository_service import extract_final_snapshot
+
+    await extract_final_snapshot(payload["submission_id"])
+
+
 @register("email.notification")
 async def send_notification_email(payload: dict) -> None:
     from config import get_settings
