@@ -57,6 +57,18 @@ export const importStudents = async (file: File, options: { dryRun?: boolean } =
 
 export const getAdminUsers = (params: Record<string, unknown> = {}) => request.get<"/admin/users">("/admin/users", { params });
 
+// The API returns 20 users per page by default. Screens that filter or count on the client need every page.
+const ALL_USERS_PAGE_SIZE = 200;
+export const getAllAdminUsers = async (params: Record<string, unknown> = {}) => {
+  const first = await getAdminUsers({ ...params, page: 1, per_page: ALL_USERS_PAGE_SIZE });
+  const users = [...(first.users || [])];
+  for (let page = 2; page <= (first.total_pages || 1); page += 1) {
+    const next = await getAdminUsers({ ...params, page, per_page: ALL_USERS_PAGE_SIZE });
+    users.push(...(next.users || []));
+  }
+  return { ...first, users };
+};
+
 export const getAdminStudentProfile = (userId: string) => request.get<"/admin/user/{user_id}/profile">(`/admin/user/${userId}/profile`);
 
 export const getAdminUserDetails = (userId: string) => request.get<"/admin/user/{user_id}/details">(`/admin/user/${userId}/details`);

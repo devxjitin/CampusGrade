@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getBatches, getCourses, getSections, getSubjects } from "@/features/academics/api";
-import { addTeacher, deleteUser, getAdminUsers, importTeachers, toggleUserStatus, updateAdminUser } from "@/features/people/api";
+import { addTeacher, deleteUser, getAllAdminUsers, importTeachers, toggleUserStatus, updateAdminUser } from "@/features/people/api";
 import { useConfirm } from "@/components/ui";
 import {
   emptyAssignment,
@@ -77,7 +77,7 @@ export const useAdminTeachers = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await getAdminUsers({ role: "teacher" });
+      const data = await getAllAdminUsers({ role: "teacher" });
       setTeachers(data.users || []);
     } catch (err) {
       console.error(err);
