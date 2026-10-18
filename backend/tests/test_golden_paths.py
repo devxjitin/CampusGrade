@@ -234,6 +234,22 @@ class TestAssignments:
         assert bad.status_code == 422
         assert any(item["path"] == "rubric" for item in bad.json()["errors"])
 
+    def test_ai_proposal_validation_accepts_own_json_for_an_allocated_class(self, client, seed_user, seed_academic, login):
+        structure = seed_academic()
+        teacher = seed_user(role="teacher", email="own-json@example.edu", assignments=_allocation(structure))
+        outsider = seed_user(role="teacher", email="own-json-outsider@example.edu")
+        _, proposal = self._prompt_and_proposal(client, structure, {"Authorization": f"Bearer {login(teacher['email'])}"})
+        ids = {"program_id": structure["course_id"], "batch_id": structure["batch_id"], "section_id": structure["section_id"], "subject_id": structure["subject_id"]}
+        url = "/assignments/teacher-tools/external-ai-proposal/validate"
+        own = {key: value for key, value in proposal.items() if key not in ("draft_ref", "schema_version")}
+
+        headers = {"Authorization": f"Bearer {login(teacher['email'])}"}
+        assert client.post(url, json={**ids, "proposal": own}, headers=headers).status_code == 200
+        assert client.post(url, json={"proposal": own}, headers=headers).status_code == 422
+
+        outsider_headers = {"Authorization": f"Bearer {login(outsider['email'])}"}
+        assert client.post(url, json={**ids, "proposal": own}, headers=outsider_headers).status_code == 403
+
     def test_ai_proposal_validation_rejects_tampered_or_foreign_token(self, client, seed_user, seed_academic, login):
         structure = seed_academic()
         owner = seed_user(role="teacher", email="draft-owner@example.edu", assignments=_allocation(structure))

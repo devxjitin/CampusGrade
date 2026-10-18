@@ -677,8 +677,11 @@ async def generate_external_ai_prompt(body: ExternalAIPromptRequest, request: Re
 
 @router.post("/teacher-tools/external-ai-proposal/validate")
 async def validate_external_ai_proposal(body: ExternalAIProposalValidate, request: Request, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)):
-    draft = _decode_ai_draft(body.draft_token, request.app.state.secret_key, teacher["_id"])
-    # The teacher must still be allocated to the class the prompt was made for.
+    if body.draft_token:
+        draft = _decode_ai_draft(body.draft_token, request.app.state.secret_key, teacher["_id"])
+    else:
+        draft = {"draft_ref": None, "program_id": body.program_id, "batch_id": body.batch_id, "section_id": body.section_id, "subject_id": body.subject_id}
+    # The teacher must still be allocated to the class the prompt was made for (or the class of their own JSON).
     await _resolve_assignment_context(db, draft["program_id"], draft["batch_id"], draft["section_id"], draft["subject_id"], teacher)
     proposal, warnings, errors = validate_ai_proposal(body.proposal, draft)
     if errors:

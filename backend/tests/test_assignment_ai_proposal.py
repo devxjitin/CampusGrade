@@ -84,3 +84,51 @@ class AiProposalValidationTests(unittest.TestCase):
     def test_too_many_tags_is_an_error(self):
         _, _, errors = run(tags=[f"t{i}" for i in range(13)])
         self.assertIn("tags", paths(errors))
+
+
+OWN_JSON_DRAFT = {"draft_ref": None}
+
+
+class OwnJsonValidationTests(unittest.TestCase):
+    def test_own_json_needs_no_draft_ref_or_schema_version(self):
+        payload = copy.deepcopy(GOOD)
+        del payload["draft_ref"], payload["schema_version"]
+        proposal, _, errors = validate_ai_proposal(payload, OWN_JSON_DRAFT)
+        self.assertEqual([], errors)
+        self.assertEqual(20, proposal["total_marks"])
+        self.assertEqual(2, len(proposal["rubric"]))
+
+    def test_own_json_marks_must_still_add_up(self):
+        payload = copy.deepcopy(GOOD)
+        payload["rubric"][0]["max_marks"] = 15
+        _, _, errors = validate_ai_proposal(payload, OWN_JSON_DRAFT)
+        self.assertEqual({"rubric"}, paths(errors))
+
+    def test_own_json_settings_come_from_the_json(self):
+        payload = copy.deepcopy(GOOD)
+        payload.update(total_marks=10, difficulty="advanced")
+        payload["rubric"] = [{"title": "Only", "description": "All of it", "max_marks": 10}]
+        payload["repository_requirements"] = {"require_readme": False, "required_files": []}
+        proposal, _, errors = validate_ai_proposal(payload, OWN_JSON_DRAFT)
+        self.assertEqual([], errors)
+        self.assertEqual("advanced", proposal["difficulty"])
+        self.assertFalse(proposal["repository_requirements"]["require_readme"])
+
+    def test_own_json_with_unusable_settings_is_rejected(self):
+        payload = copy.deepcopy(GOOD)
+        payload.update(total_marks="twenty", rubric=[], difficulty="expert")
+        _, _, errors = validate_ai_proposal(payload, OWN_JSON_DRAFT)
+        self.assertEqual({"total_marks", "rubric", "difficulty"}, paths(errors))
+
+
+class MermaidDetectionTests(unittest.TestCase):
+    def test_short_or_escaped_fences_count_as_mermaid(self):
+        body = "Build and document the service. " * 5
+        for fence in ("```mermaid", "`mermaid", "  ```mermaid", "\`\`\`mermaid"):
+            _, warnings, errors = run(instructions=f"{body}\n{fence}\nflowchart TD\n A-->B\n```")
+            self.assertEqual([], errors)
+            self.assertNotIn("The instructions have no Mermaid diagram", warnings, fence)
+
+    def test_missing_diagram_still_warns(self):
+        _, warnings, _ = run(instructions="Build and document the service. " * 5)
+        self.assertIn("The instructions have no Mermaid diagram", warnings)

@@ -10,7 +10,8 @@ import uuid
 SCHEMA_VERSION = 1
 MARKS_TOLERANCE = 0.01
 MIN_INSTRUCTIONS_LENGTH = 100
-_MERMAID_BLOCK = re.compile(r"```\s*mermaid\b", re.IGNORECASE)
+# Tolerates indented, backslash-escaped or short (1-2 backtick) fences, as the preview does.
+_MERMAID_BLOCK = re.compile(r"^\s*(?:\\?`)+\s*mermaid\s*$", re.IGNORECASE | re.MULTILINE)
 
 
 def _number(value):
@@ -51,6 +52,27 @@ def _text_list(errors, path, value, *, max_items, max_length):
     return clean
 
 
+def settings_from_payload(payload: dict) -> tuple[dict, list[dict]]:
+    """Settings for JSON the teacher already has (no prompt): marks, criteria count, difficulty and README come from the JSON."""
+    errors: list[dict] = []
+    total = _number(payload.get("total_marks"))
+    if total is None or not 0 < total <= 10_000:
+        errors.append({"student": "", "criterion": None, "path": "total_marks", "message": "Must be a number between 0 and 10000"})
+    rubric = payload.get("rubric")
+    if not isinstance(rubric, list) or not 1 <= len(rubric) <= 20:
+        errors.append({"student": "", "criterion": None, "path": "rubric", "message": "Must be a list of 1 to 20 criteria"})
+    difficulty = payload.get("difficulty", "intermediate")
+    if difficulty not in ("beginner", "intermediate", "advanced"):
+        errors.append({"student": "", "criterion": None, "path": "difficulty", "message": "Must be beginner, intermediate or advanced"})
+    requirements = payload.get("repository_requirements")
+    require_readme = requirements.get("require_readme", True) if isinstance(requirements, dict) else True
+    if not isinstance(require_readme, bool):
+        errors.append({"student": "", "criterion": None, "path": "repository_requirements.require_readme", "message": "Must be true or false"})
+    if errors or not isinstance(rubric, list):
+        return {}, errors
+    return {"draft_ref": None, "difficulty": difficulty, "require_readme": require_readme, "total_marks": total, "rubric_count": len(rubric)}, []
+
+
 def validate_ai_proposal(payload, draft: dict) -> tuple[dict, list[str], list[dict]]:
     """Return (proposal, warnings, errors). `draft` holds the settings signed into the prompt's draft token.
 
@@ -66,10 +88,18 @@ def validate_ai_proposal(payload, draft: dict) -> tuple[dict, list[str], list[di
         problem("", "The response must be one JSON object")
         return {}, warnings, errors
 
-    if payload.get("schema_version") != SCHEMA_VERSION:
-        problem("schema_version", f"Must be {SCHEMA_VERSION}")
-    if payload.get("draft_ref") != draft["draft_ref"]:
-        problem("draft_ref", "Does not match this prompt. Use the reply to the prompt you copied, and keep draft_ref unchanged")
+    if draft.get("draft_ref") is None:
+        # The teacher's own JSON: no prompt was generated, so there is no draft_ref to match and schema_version is optional.
+        draft, setting_errors = settings_from_payload(payload)
+        if setting_errors:
+            return {}, warnings, setting_errors
+        if payload.get("schema_version", SCHEMA_VERSION) != SCHEMA_VERSION:
+            problem("schema_version", f"Must be {SCHEMA_VERSION}")
+    else:
+        if payload.get("schema_version") != SCHEMA_VERSION:
+            problem("schema_version", f"Must be {SCHEMA_VERSION}")
+        if payload.get("draft_ref") != draft["draft_ref"]:
+            problem("draft_ref", "Does not match this prompt. Use the reply to the prompt you copied, and keep draft_ref unchanged")
 
     title = _text(errors, "title", payload.get("title"), max_length=255)
     short_description = _text(errors, "short_description", payload.get("short_description"), max_length=500)

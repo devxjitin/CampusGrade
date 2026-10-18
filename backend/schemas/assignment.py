@@ -78,8 +78,20 @@ class AssignmentUpdate(AssignmentCreate):
 
 
 class ExternalAIProposalValidate(BaseModel):
-    draft_token: str = Field(min_length=1, max_length=4000)
+    """Validate AI JSON. With a draft_token it must match that prompt; without one (the teacher's own JSON) the class is given as IDs."""
+
+    draft_token: str | None = Field(default=None, max_length=4000)
+    program_id: str | None = Field(default=None, max_length=64)
+    batch_id: str | None = Field(default=None, max_length=64)
+    section_id: str | None = Field(default=None, max_length=64)
+    subject_id: str | None = Field(default=None, max_length=64)
     proposal: dict
+
+    @model_validator(mode="after")
+    def _needs_token_or_class(self):
+        if not self.draft_token and not all((self.program_id, self.batch_id, self.section_id, self.subject_id)):
+            raise ValueError("Provide draft_token, or program_id, batch_id, section_id and subject_id")
+        return self
 
 
 class ExternalAIPromptRequest(BaseModel):
