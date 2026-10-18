@@ -12,9 +12,9 @@ from models.assignment import (
     SqlAssignmentThread,
     SqlAssignmentThreadMessage,
 )
+from models.data_export import SqlDataExport
 from models.database import Base, get_db
 from models.notification import SqlNotification
-from models.password_reset import SqlPasswordResetToken
 from models.refresh_token import SqlRefreshToken
 from models.sql_models import (
     AppSetting,
@@ -39,7 +39,7 @@ __all__ = [
     "SqlSubject",
     "SqlUser",
     "SqlRefreshToken",
-    "SqlPasswordResetToken",
+    "SqlDataExport",
     "SqlNotification",
     "SqlUserPreference",
     "get_db",

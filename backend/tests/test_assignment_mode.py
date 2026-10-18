@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from models.assignment import SqlAssignmentSubmissionVersion
 from pydantic import ValidationError
-from routes_fastapi.assignments.common import _normalize_generated_assignment, _snapshot_grade
+from routes_fastapi.assignments.common import _snapshot_grade
 from routes_fastapi.assignments.payloads import _serialize_student_version
 from routes_fastapi.assignments.workflow import _overdue_ungraded_submission_count
 from schemas.assignment import AssignmentCreate, RepositoryResetRequest
@@ -84,26 +84,6 @@ class AssignmentSchemaTests(unittest.TestCase):
         due = datetime.now(timezone.utc) + timedelta(days=1)
         with self.assertRaises(ValidationError):
             AssignmentCreate(total_marks=20, due_at=due, result_release_mode="scheduled", result_release_at=due - timedelta(minutes=1), rubric=[{"title": "Implementation", "max_marks": 20}])
-
-    def test_ai_assignment_normalizes_five_criteria_to_twenty_marks(self):
-        draft = _normalize_generated_assignment({
-            "title": "API project", "instructions": "Build it", "difficulty": "advanced",
-            "rubric": [{"title": f"Criterion {index}", "max_marks": index + 1} for index in range(5)],
-        })
-        self.assertEqual(5, len(draft["rubric"]))
-        self.assertAlmostEqual(20, sum(item["max_marks"] for item in draft["rubric"]))
-        self.assertEqual(20, draft["total_marks"])
-
-    def test_ai_assignment_respects_requested_marks_and_rubric_count(self):
-        draft = _normalize_generated_assignment({
-            "title": "CLI project", "instructions": "Build it",
-            "rubric": [{"title": f"Criterion {index}", "max_marks": 1} for index in range(4)],
-        }, total_marks=10, rubric_count=4, difficulty="advanced", require_readme=False)
-        self.assertEqual(4, len(draft["rubric"]))
-        self.assertAlmostEqual(10, sum(item["max_marks"] for item in draft["rubric"]))
-        self.assertEqual(10, draft["total_marks"])
-        self.assertEqual("advanced", draft["difficulty"])
-        self.assertFalse(draft["repository_requirements"]["require_readme"])
 
 
 class RepositoryValidationTests(unittest.TestCase):

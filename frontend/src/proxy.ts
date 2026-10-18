@@ -15,12 +15,36 @@ const authMeUrl = (request: NextRequest): URL =>
     ? new URL("/auth/me", process.env.API_INTERNAL_URL)
     : new URL("/api/auth/me", request.url);
 
-type SessionRole = "super_admin" | "program_admin" | "teacher" | "student";
+type SessionRole = "super_admin" | "admin" | "teacher" | "student";
+
+type AccessLevels = Record<string, string>;
 
 const allowedRolesForPath = (pathname: string): SessionRole[] | null => {
   if (pathname.startsWith("/platform/")) return ["super_admin"];
-  if (pathname.startsWith("/admin/")) return ["super_admin", "program_admin"];
+  if (pathname.startsWith("/admin/")) return ["super_admin", "admin"];
+  if (pathname.startsWith("/assignments/admin")) return ["super_admin", "admin"];
   return null;
+};
+
+// What an `admin` needs to open an admin page: "super" = Super Admin only, otherwise the area a
+// Super Admin must have granted (any level; the API enforces view/edit/full per action).
+const adminRequirement = (pathname: string): "super" | string | null => {
+  const rules: Array<[string, "super" | string]> = [
+    ["/admin/programs", "super"],
+    ["/admin/courses", "super"],
+    ["/admin/academic-sessions", "super"],
+    ["/admin/session-rollover", "super"],
+    ["/admin/batches", "batches"],
+    ["/admin/sections", "sections"],
+    ["/admin/subjects", "subjects"],
+    ["/admin/students", "users"],
+    ["/admin/teachers", "users"],
+    ["/admin/users", "users"],
+    ["/admin/audit-log", "audit_log"],
+    ["/assignments/admin", "assignments"],
+  ];
+  const match = rules.find(([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  return match ? match[1] : null;
 };
 
 export async function proxy(request: NextRequest) {
@@ -50,9 +74,15 @@ export async function proxy(request: NextRequest) {
         return NextResponse.redirect(new URL("/login?session=expired", request.url));
       }
       if (!response.ok) return NextResponse.redirect(new URL("/login?session=unavailable", request.url));
-      const principal = (await response.json()) as { role?: SessionRole };
+      const principal = (await response.json()) as { role?: SessionRole; access?: AccessLevels };
       if (!principal.role || !allowedRoles.includes(principal.role)) {
         return NextResponse.redirect(new URL("/assignments?access=denied", request.url));
+      }
+      if (principal.role === "admin") {
+        const required = adminRequirement(request.nextUrl.pathname);
+        if (required && (required === "super" || !principal.access?.[required])) {
+          return NextResponse.redirect(new URL("/assignments?access=denied", request.url));
+        }
       }
     } catch {
       return NextResponse.redirect(new URL("/login?session=unavailable", request.url));

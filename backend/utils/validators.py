@@ -20,22 +20,6 @@ def parse_json_body(data=None, allow_empty=False):
     return data
 
 
-def validate_password(password):
-    if not password or len(password) < 8:
-        return False, "Password must be at least 8 characters long"
-    if len(password) > 128:
-        return False, "Password must not exceed 128 characters"
-    if not re.search(r"[A-Z]", password):
-        return False, "Password must contain at least one uppercase letter"
-    if not re.search(r"[a-z]", password):
-        return False, "Password must contain at least one lowercase letter"
-    if not re.search(r"\d", password):
-        return False, "Password must contain at least one digit"
-    if not re.search(r"[!@#$%^&*()_+\-=\[\]{};:'\",.<>?/\\|`~]", password):
-        return False, "Password must contain at least one special character"
-    return True, None
-
-
 def validate_email(email):
     if not email:
         return False, "Email is required"
@@ -54,8 +38,8 @@ def sanitize_string(value, max_length=500):
 
 def validate_role(role):
     # Sprint 5, the original implementation plan: "admin" split into "super_admin"/
-    # "program_admin" (see migration `canvasgrade_022`).
-    valid_roles = ["student", "teacher", "super_admin", "program_admin"]
+    # "admin" (see migrations `canvasgrade_022` and `canvasgrade_031`).
+    valid_roles = ["student", "teacher", "super_admin", "admin"]
     if role not in valid_roles:
         return False, f"Invalid role. Must be one of: {', '.join(valid_roles)}"
     return True, None

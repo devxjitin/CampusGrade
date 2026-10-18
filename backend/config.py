@@ -25,7 +25,7 @@ import os
 from functools import lru_cache
 
 from dotenv import dotenv_values
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 # `models/database.py` used to be the module every other module transitively
@@ -171,14 +171,12 @@ class Settings(BaseSettings):
     smtp_starttls: bool = True
     # Public URL of the web app, used for links in emails (no trailing slash).
     app_base_url: str = "http://localhost:3000"
-    password_reset_minutes: int = 30
 
     # --- sessions ---
     revoked_session_retention_days: int = 7
 
     # --- bootstrap admin (bootstrap_admin.py, run once per environment) ---
     bootstrap_admin_email: str | None = None
-    bootstrap_admin_password: str | None = None
     bootstrap_admin_name: str = "CampusGrade Administrator"
 
     @field_validator("secret_key")
@@ -188,6 +186,18 @@ class Settings(BaseSettings):
         if is_weak_secret(candidate):
             raise ValueError("SECRET_KEY must be a unique value of at least 32 characters")
         return candidate
+
+    @model_validator(mode="after")
+    def _no_passwordless_sign_in_in_production(self) -> Settings:
+        # Sign-in checks only the email address (there are no passwords), so anyone who knows an
+        # account's email gets in. That is acceptable on a developer machine and nowhere else:
+        # refuse to start in production until a real second factor (e.g. an emailed code) exists.
+        if (self.app_env or "").strip().lower() in {"production", "prod"}:
+            raise ValueError(
+                "APP_ENV=production is not allowed: sign-in has no password or other verification "
+                "(email address only). Add a verification step before deploying to production."
+            )
+        return self
 
     @field_validator("private_storage_backend")
     @classmethod

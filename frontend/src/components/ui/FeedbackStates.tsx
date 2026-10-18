@@ -1,5 +1,5 @@
 export const LoadingState = ({ label = "Loading…" }: { label?: React.ReactNode }) => (
-  <div className="ui-feedback-state" role="status">
+  <div className="ui-feedback-state page-enter" role="status">
     <span className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-primary-600" />
     <span>{label}</span>
   </div>
@@ -18,7 +18,7 @@ export const ErrorState = ({
   onRetry?: () => void;
   retryLabel?: React.ReactNode;
 }) => (
-  <div className="ui-feedback-state text-center" role="alert">
+  <div className="ui-feedback-state page-enter text-center" role="alert">
     <strong className="text-slate-900">{title}</strong>
     {description && <span>{description}</span>}
     {onRetry && (
@@ -34,7 +34,7 @@ export const ErrorState = ({
 // views — `SkeletonBlock` is the shared shimmer primitive, `SkeletonList`
 // composes `rows` of them for table/card lists while data loads.
 export const SkeletonBlock = ({ className = "" }: { className?: string }) => (
-  <div className={`animate-pulse rounded-md bg-slate-200/70 ${className}`} aria-hidden="true" />
+  <div className={`ui-skeleton rounded-md ${className}`} aria-hidden="true" />
 );
 
 export const SkeletonList = ({ rows = 5, rowClassName = "h-14" }: { rows?: number; rowClassName?: string }) => (

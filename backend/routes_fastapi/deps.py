@@ -61,16 +61,6 @@ async def get_current_user(
     if user.get("is_active") is False:
         raise HTTPException(status_code=403, detail="Your account has been suspended. Contact administration.")
 
-    if user.get("must_change_password") and request.url.path not in {
-        "/change-password",
-        "/logout",
-        "/auth/refresh",
-    }:
-        raise HTTPException(
-            status_code=403,
-            detail="You must change your temporary password before continuing.",
-        )
-
     # Tokens issued before device-session support remain valid only until they
     # expire. New tokens are bound to a refresh-token session and can be
     # revoked immediately from Settings.
@@ -98,12 +88,12 @@ class Permission(str, Enum):
 
 ROLE_PERMISSIONS = {
     # Sprint 5, the original implementation plan: "admin" split into "super_admin"/
-    # "program_admin". This legacy `Permission`/`require_permission` pair has
+    # "admin". This legacy `Permission`/`require_permission` pair has
     # no real caller left (confirmed by grep in Sprint 3 — every actual route
     # uses `require_roles`, now `core.policy.require`) but is kept
     # functionally in sync rather than left to silently drift.
     "super_admin": set(Permission),
-    "program_admin": set(Permission),
+    "admin": set(Permission),
     "teacher": {Permission.CREATE_ASSIGNMENT, Permission.GRADE_ASSIGNMENT, Permission.VIEW_ASSIGNMENT_REPORTS},
     "student": set(),
 }

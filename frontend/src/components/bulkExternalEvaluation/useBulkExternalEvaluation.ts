@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { exportAssignmentExternalEvaluation, saveAssignmentExternalEvaluations, validateAssignmentExternalEvaluation } from "@/features/ai/api";
 import { useToast } from "@/components/Toast";
 import { parseExternalJson } from "@/lib/parseExternalJson";
-import { downloadText, errorMessage, type AnyRecord } from "./shared";
+import { downloadText, errorMessage, validationProblems, type AnyRecord, type ValidationProblem } from "./shared";
 
 export const useBulkExternalEvaluation = ({
   assignmentId,
@@ -17,12 +17,14 @@ export const useBulkExternalEvaluation = ({
 }) => {
   const toast = useToast();
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"files" | "links">("links");
   const [busy, setBusy] = useState(false);
   const [exportData, setExportData] = useState<AnyRecord | null>(null);
   const [activeBatch, setActiveBatch] = useState(0);
   const [responses, setResponses] = useState<Record<number, string>>({});
   const [validated, setValidated] = useState<Record<number, AnyRecord>>({});
   const [confirmations, setConfirmations] = useState<Record<string, boolean>>({});
+  const [problems, setProblems] = useState<Record<number, ValidationProblem[]>>({});
 
   const batch = exportData?.batches?.[activeBatch];
   const reviewedStudents = useMemo(
@@ -50,15 +52,16 @@ export const useBulkExternalEvaluation = ({
     setResponses({});
     setValidated({});
     setConfirmations({});
+    setProblems({});
     setActiveBatch(0);
   };
   const generate = async () => {
     setBusy(true);
     reset();
     try {
-      const result = await exportAssignmentExternalEvaluation(assignmentId);
+      const result = await exportAssignmentExternalEvaluation(assignmentId, mode);
       setExportData(result);
-      toast.success(`${result.batches.length} secure evaluation batch${result.batches.length === 1 ? "" : "es"} prepared`);
+      toast.success(mode === "links" ? "Class evaluation prompt prepared" : `${result.batches.length} secure evaluation batch${result.batches.length === 1 ? "" : "es"} prepared`);
     } catch (error) {
       toast.error(errorMessage(error, "Could not prepare class evaluation"));
     } finally {
@@ -68,7 +71,7 @@ export const useBulkExternalEvaluation = ({
   const copyPrompt = async () => {
     try {
       await navigator.clipboard.writeText(batch.prompt);
-      toast.success(`Batch ${batch.batch_number} prompt copied`);
+      toast.success(mode === "links" ? "Prompt copied" : `Batch ${batch.batch_number} prompt copied`);
     } catch {
       downloadText(batch.prompt, batch.filename);
       toast.info("Clipboard was unavailable. The prompt was downloaded instead.");
@@ -79,8 +82,8 @@ export const useBulkExternalEvaluation = ({
     try {
       result = parseExternalJson(responses[batch.batch_number] || "");
     } catch {
-      toast.error("Paste valid raw JSON or a JSON Markdown block");
-      return;
+      setProblems((current) => ({ ...current, [batch.batch_number]: [{ student: "", criterion: null, path: "", message: "That is not valid JSON. Paste the raw JSON or a fenced JSON block from the AI tool." }] }));
+      return false;
     }
     setBusy(true);
     try {
@@ -89,14 +92,18 @@ export const useBulkExternalEvaluation = ({
         result: result as Record<string, unknown>,
       });
       setValidated((current) => ({ ...current, [batch.batch_number]: value }));
+      setProblems((current) => ({ ...current, [batch.batch_number]: [] }));
       toast.success(`Batch ${batch.batch_number} is valid`);
+      return true;
     } catch (error) {
+      const list = validationProblems(error);
+      setProblems((current) => ({ ...current, [batch.batch_number]: list.length ? list : [{ student: "", criterion: null, path: "", message: errorMessage(error, "The AI response is invalid") }] }));
       setValidated((current) => {
         const next = { ...current };
         delete next[batch.batch_number];
         return next;
       });
-      toast.error(errorMessage(error, "The AI response is invalid"));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -147,6 +154,8 @@ export const useBulkExternalEvaluation = ({
   return {
     open,
     setOpen,
+    mode,
+    setMode,
     busy,
     exportData,
     activeBatch,
@@ -155,6 +164,8 @@ export const useBulkExternalEvaluation = ({
     setResponses,
     validated,
     setValidated,
+    problems,
+    setProblems,
     confirmations,
     setConfirmations,
     batch,

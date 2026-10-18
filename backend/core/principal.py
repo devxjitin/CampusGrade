@@ -13,17 +13,15 @@ and added a `program_admin` role enforced by a DB `CHECK` constraint — so
 `core/policy.py::require(...)` (not `shadow_check`) is what decides a
 request's outcome from this sprint on.
 
-`program_ids` for a `program_admin` now comes from the real
-`admin_program_scopes` table (Sprint 4), not a legacy free-text field
-Sprint 3 used as a stand-in before that table, or before `program_admin`,
-existed. Sprint 8 will rename `courses` to `programs`; `program_id` here
-already points at `courses.id`, matching `admin_program_scopes.program_id`
-and `student_profiles.program_id`.
+An `admin` is not scoped to programs: they see every program, and what they may
+do is the per-resource `access` a Super Admin set in `admin_access` (see
+`core/policy.py::require_access`).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from enum import Enum
 
 from fastapi import Depends, Request
@@ -38,7 +36,7 @@ from core.errors import Unauthenticated
 # `routes_fastapi.deps.Permission` enum already uses.
 class Role(str, Enum):
     SUPER_ADMIN = "super_admin"
-    PROGRAM_ADMIN = "program_admin"
+    ADMIN = "admin"
     TEACHER = "teacher"
     STUDENT = "student"
 
@@ -55,17 +53,28 @@ class Principal:
     role: Role
     status: str  # "active" | "suspended" — mirrors SqlUser.is_active today
     session_id: str | None
-    program_ids: frozenset[str]  # course/program-id scope; ALL_PROGRAMS for super_admin
+    program_ids: frozenset[str]  # ALL_PROGRAMS for both admin tiers (admins are not scoped to programs)
     offering_ids: frozenset[str]  # subject_ids a teacher is allocated to teach
-    must_change_password: bool
+    # resource -> access level (1 view, 2 edit, 3 full) a Super Admin granted this `admin`.
+    access: Mapping[str, int] = field(default_factory=dict)
 
     @property
     def is_super(self) -> bool:
         return self.role is Role.SUPER_ADMIN
 
     @property
-    def is_program_admin(self) -> bool:
-        return self.role is Role.PROGRAM_ADMIN
+    def is_admin(self) -> bool:
+        return self.role is Role.ADMIN
+
+    @property
+    def is_admin_tier(self) -> bool:
+        return self.role in (Role.SUPER_ADMIN, Role.ADMIN)
+
+    def access_level(self, resource: str) -> int:
+        """0 = none. A Super Admin has full access to everything."""
+        if self.is_super:
+            return 3
+        return int(self.access.get(resource, 0)) if self.is_admin else 0
 
 
 def _role_from_string(value: str) -> Role:
@@ -87,7 +96,7 @@ async def build_principal(
     """Build a `Principal` for the already-authenticated request.
 
     Reuses `get_current_user`'s token/session validation (expiry, session
-    revocation, suspension, forced password change) rather than
+    revocation, suspension) rather than
     reimplementing it — this function only adds the extra query(ies)
     `get_current_user` doesn't fetch today: a teacher's subject allocation,
     or a program admin's program scopes.
@@ -100,12 +109,11 @@ async def build_principal(
 
     offering_ids = frozenset(current_user.get("_offering_ids") or ())
 
-    if role is Role.SUPER_ADMIN:
+    if role in (Role.SUPER_ADMIN, Role.ADMIN):
         program_ids = ALL_PROGRAMS
-    elif role is Role.PROGRAM_ADMIN:
-        program_ids = frozenset(current_user.get("_program_ids") or ())
     else:
         program_ids = frozenset()
+    access = dict(current_user.get("_access") or {}) if role is Role.ADMIN else {}
 
     return Principal(
         user_id=user_id,
@@ -114,7 +122,7 @@ async def build_principal(
         session_id=current_user.get("_session_id"),
         program_ids=program_ids,
         offering_ids=offering_ids,
-        must_change_password=bool(current_user.get("must_change_password")),
+        access=access,
     )
 
 

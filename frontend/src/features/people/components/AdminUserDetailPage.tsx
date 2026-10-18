@@ -68,7 +68,7 @@ export default function AdminUserDetailsPage() {
                   )}
                 </div>
                 <div className="min-w-0">
-                  <h2 className="truncate text-xl font-black text-slate-950">{data.name}</h2>
+                  <h2 className="[overflow-wrap:anywhere] text-xl font-black text-slate-950">{data.name}</h2>
                   <p className="mt-1 flex items-center gap-2 text-sm text-slate-600">
                     <Mail className="h-4 w-4" />
                     {data.email}
@@ -100,7 +100,7 @@ export default function AdminUserDetailsPage() {
             </div>
           </section>
 
-          <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+          <section className="grid gap-6 xl:grid-cols-2">
             <div className="card p-5">
               <h2 className="mb-4 text-base font-bold text-slate-900">Personal and contact information</h2>
               <div className="grid gap-3 sm:grid-cols-2">

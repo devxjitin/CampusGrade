@@ -31,7 +31,7 @@ def _auth(token):
 class TestAdminJobs:
     def test_lists_and_retries_dead_jobs(self, client, seed_user, login, database_url):
         admin = seed_user(role="super_admin", email="jobs-admin@example.edu")
-        token = login(admin["email"], admin["password"])
+        token = login(admin["email"])
         _sql(database_url, "DELETE FROM jobs")
         _sql(
             database_url,
@@ -54,12 +54,12 @@ class TestAdminJobs:
 
     def test_rejects_invalid_status_filter(self, client, seed_user, login):
         admin = seed_user(role="super_admin", email="jobs-admin2@example.edu")
-        token = login(admin["email"], admin["password"])
+        token = login(admin["email"])
         assert client.get("/admin/jobs?status=bogus", headers=_auth(token)).status_code == 422
 
     def test_students_cannot_see_jobs(self, client, seed_user, login):
         student = seed_user(role="student", email="jobs-student@example.edu")
-        token = login(student["email"], student["password"])
+        token = login(student["email"])
         assert client.get("/admin/jobs", headers=_auth(token)).status_code == 403
 
 
@@ -95,7 +95,7 @@ class TestAdminUserDetailsStats:
 
         admin = seed_user(role="super_admin", email="details-admin@example.edu")
         teacher = seed_user(role="teacher", email="details-teacher@example.edu")
-        token = login(admin["email"], admin["password"])
+        token = login(admin["email"])
         due = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(days=2)
         engine = create_engine(database_url)
         with Session(engine) as session:
@@ -125,5 +125,5 @@ class TestAdminUserDetailsStats:
 
     def test_unknown_user_is_404(self, client, seed_user, login):
         admin = seed_user(role="super_admin", email="details-admin2@example.edu")
-        token = login(admin["email"], admin["password"])
+        token = login(admin["email"])
         assert client.get("/admin/user/nope/details", headers=_auth(token)).status_code == 404

@@ -7,21 +7,19 @@ import { expect, test } from "@playwright/test";
 // AI proposals in Sprint 16, etc).
 
 const roles = [
-  { role: "super_admin", emailEnv: "E2E_SUPER_ADMIN_EMAIL", passwordEnv: "E2E_SUPER_ADMIN_PASSWORD", expectNav: "Programs" },
-  { role: "program_admin", emailEnv: "E2E_PROGRAM_ADMIN_EMAIL", passwordEnv: "E2E_PROGRAM_ADMIN_PASSWORD", expectNav: "Batches" },
-  { role: "teacher", emailEnv: "E2E_TEACHER_EMAIL", passwordEnv: "E2E_TEACHER_PASSWORD", expectNav: "Assignments" },
-  { role: "student", emailEnv: "E2E_STUDENT_EMAIL", passwordEnv: "E2E_STUDENT_PASSWORD", expectNav: "Assignments" },
+  { role: "super_admin", emailEnv: "E2E_SUPER_ADMIN_EMAIL", expectNav: "Programs" },
+  { role: "admin", emailEnv: "E2E_ADMIN_EMAIL", expectNav: "Batches" },
+  { role: "teacher", emailEnv: "E2E_TEACHER_EMAIL", expectNav: "Assignments" },
+  { role: "student", emailEnv: "E2E_STUDENT_EMAIL", expectNav: "Assignments" },
 ] as const;
 
-for (const { role, emailEnv, passwordEnv, expectNav } of roles) {
+for (const { role, emailEnv, expectNav } of roles) {
   test(`${role} can log in and see their dashboard`, async ({ page }) => {
     const email = process.env[emailEnv];
-    const password = process.env[passwordEnv];
-    test.skip(!email || !password, `${emailEnv}/${passwordEnv} not set — see e2e/README.md`);
+    test.skip(!email, `${emailEnv} not set — see e2e/README.md`);
 
     await page.goto("/login");
     await page.getByLabel(/university email/i).fill(email!);
-    await page.getByPlaceholder("Enter your password").fill(password!);
     await page.getByRole("button", { name: /sign in/i }).click();
 
     await expect(page).toHaveURL(/\/assignments/);
@@ -36,12 +34,10 @@ test("an unauthenticated visitor is redirected away from a protected page", asyn
 
 test("a student is redirected before an admin page renders", async ({ page }) => {
   const email = process.env.E2E_STUDENT_EMAIL;
-  const password = process.env.E2E_STUDENT_PASSWORD;
-  test.skip(!email || !password, "Student E2E credentials are not set");
+  test.skip(!email, "Student E2E email is not set");
 
   await page.goto("/login");
   await page.getByLabel(/university email/i).fill(email!);
-  await page.getByPlaceholder("Enter your password").fill(password!);
   await page.getByRole("button", { name: /sign in/i }).click();
   const response = await page.goto("/admin/students");
   const redirectRequest = response?.request().redirectedFrom();
@@ -52,8 +48,7 @@ test("a student is redirected before an admin page renders", async ({ page }) =>
 
 test("the persistent admin shell keeps notification polling mounted once", async ({ page }, testInfo) => {
   const email = process.env.E2E_SUPER_ADMIN_EMAIL;
-  const password = process.env.E2E_SUPER_ADMIN_PASSWORD;
-  test.skip(!email || !password, "E2E_ADMIN_EMAIL/E2E_ADMIN_PASSWORD not set — see e2e/README.md");
+  test.skip(!email, "E2E_SUPER_ADMIN_EMAIL not set — see e2e/README.md");
 
   let notificationRequests = 0;
   page.on("request", (request) => {
@@ -62,7 +57,6 @@ test("the persistent admin shell keeps notification polling mounted once", async
 
   await page.goto("/login");
   await page.getByLabel(/university email/i).fill(email!);
-  await page.getByPlaceholder("Enter your password").fill(password!);
   await page.getByRole("button", { name: /sign in/i }).click();
   await expect(page).toHaveURL(/\/assignments/);
   await expect.poll(() => notificationRequests).toBeGreaterThan(0);

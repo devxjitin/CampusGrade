@@ -66,6 +66,7 @@ CODE_SUFFIXES = {
 CODE_SIMILARITY_THRESHOLD = 0.70
 MAX_CODE_FINGERPRINTS = 50_000
 ANALYZE_JOB_TYPE = "repository.analyze"
+EXTRACT_FINAL_JOB_TYPE = "repository.extract_final"
 REPOSITORY_SYNC_INTERVAL_SECONDS = max(30, get_settings().repository_sync_interval_seconds)
 
 
@@ -419,6 +420,8 @@ def finalize_evaluation_fetch(db, assignment_id: str) -> bool:
     if not assignment or not assignment.evaluation_locked_at or not assignment.repository_fetch_started_at:
         return False
     participants = db.query(SqlAssignmentEvaluationParticipant).filter_by(assignment_id=assignment_id).all()
+    if any(row.status == "submitted" and not row.submission_version_id for row in participants):
+        return False  # a repository is still waiting for its final extraction
     version_ids = [row.submission_version_id for row in participants if row.submission_version_id]
     versions = (
         {row.id: row for row in db.query(SqlAssignmentSubmissionVersion).filter(SqlAssignmentSubmissionVersion.id.in_(version_ids)).all()}
@@ -492,6 +495,97 @@ def finalize_evaluation_fetch(db, assignment_id: str) -> bool:
     return True
 
 
+def _version_for_commit(db, submission, generation: int, preview: dict, source: str, now) -> SqlAssignmentSubmissionVersion:
+    """The version row for `preview`'s commit, created (queued for analysis) if it does not exist yet."""
+    version = (
+        db.query(SqlAssignmentSubmissionVersion)
+        .filter_by(submission_id=submission.id, repository_generation=generation, commit_sha=preview["commit_sha"])
+        .first()
+    )
+    if version:
+        return version
+    commit_at = datetime.datetime.fromisoformat(preview["commit_at"].replace("Z", "+00:00")).replace(tzinfo=None) if preview.get("commit_at") else None
+    version = SqlAssignmentSubmissionVersion(
+        id=str(uuid.uuid4()),
+        submission_id=submission.id,
+        repository_generation=generation,
+        detected_at=now,
+        detection_source=source,
+        repository_url=submission.repository_url,
+        repository_owner=submission.repository_owner,
+        repository_name=submission.repository_name,
+        default_branch=preview["default_branch"],
+        commit_sha=preview["commit_sha"],
+        commit_message=preview.get("commit_message"),
+        commit_at=commit_at,
+        submitted_at=now,
+        is_late=False,
+        seconds_late=0,
+        analysis_status="queued",
+    )
+    db.add(version)
+    db.flush()
+    return version
+
+
+def _extract_final_snapshot(db, submission_id: str) -> None:
+    """Take the repository's newest commit as the final snapshot and freeze the submission on it.
+
+    Runs once per submission, on the worker, when the deadline passes or a teacher starts evaluating
+    that student. If GitHub cannot be reached the last snapshot we already hold is used; with none,
+    the error propagates so the job retries.
+    """
+    now = utcnow()
+    submission = db.query(SqlAssignmentSubmission).filter_by(id=submission_id).with_for_update().first()
+    if not submission or not submission.repository_url or submission.frozen_version_id:
+        return
+    generation = submission.repository_generation
+    new_version = False
+    try:
+        preview = preview_repository(submission.repository_url, submission.repository_owner or "")
+    except GitHubRepositoryError:
+        version = db.query(SqlAssignmentSubmissionVersion).filter_by(id=submission.active_version_id).first() if submission.active_version_id else None
+        if not version:
+            raise
+    else:
+        known = (
+            db.query(SqlAssignmentSubmissionVersion.id)
+            .filter_by(submission_id=submission.id, repository_generation=generation, commit_sha=preview["commit_sha"])
+            .first()
+        )
+        version = _version_for_commit(db, submission, generation, preview, "final", now)
+        new_version = known is None
+        submission.default_branch = preview["default_branch"]
+    submission.latest_remote_sha = version.commit_sha
+    submission.last_sync_checked_at = now
+    submission.next_sync_at = None
+    participant = (
+        db.query(SqlAssignmentEvaluationParticipant).filter_by(assignment_id=submission.assignment_id, student_id=submission.student_id).first()
+    )
+    if participant:
+        participant.submission_version_id, participant.status = version.id, "submitted"
+    if version.analysis_status == "ready":
+        submission.frozen_version_id, submission.frozen_at, submission.active_version_id = version.id, now, version.id
+        submission.pending_version_id, submission.sync_status = None, "frozen"
+        db.flush()
+        finalize_evaluation_fetch(db, submission.assignment_id)
+    else:
+        submission.pending_version_id, submission.sync_status = version.id, "freeze_pending"
+        if version.analysis_status == "failed":
+            version.analysis_status, version.analysis_error, new_version = "queued", None, True
+        if new_version:
+            jobs.enqueue_sync(db, ANALYZE_JOB_TYPE, {"version_id": version.id}, max_attempts=4)
+    db.commit()
+
+
+async def extract_final_snapshot(submission_id: str) -> None:
+    """Job handler body for ``repository.extract_final``."""
+    if async_session_factory is None:
+        raise RuntimeError("Repository database is unavailable")
+    async with async_session_factory() as db:
+        await db.run_sync(lambda sync_db: _extract_final_snapshot(sync_db, submission_id))
+
+
 def _sync_submission_repository(db, submission_id: str, *, source: str = "automatic", force: bool = False) -> dict:
     """Detect and queue the latest commit for one canonical, unfrozen repository."""
     version_id = None
@@ -536,6 +630,7 @@ def _sync_submission_repository(db, submission_id: str, *, source: str = "automa
         submission.sync_failure_count = 0
         submission.sync_error = None
         submission.default_branch = preview["default_branch"]
+        head_changed = preview["commit_sha"] != submission.latest_remote_sha
         if preview["commit_sha"] == submission.latest_remote_sha:
             existing = (
                 db.query(SqlAssignmentSubmissionVersion)
@@ -550,33 +645,15 @@ def _sync_submission_repository(db, submission_id: str, *, source: str = "automa
                 db.commit()
                 return {"status": submission.sync_status, "unchanged": True}
 
-        commit_at = datetime.datetime.fromisoformat(preview["commit_at"].replace("Z", "+00:00")).replace(tzinfo=None) if preview.get("commit_at") else None
-        version = (
-            db.query(SqlAssignmentSubmissionVersion)
-            .filter_by(submission_id=submission.id, repository_generation=generation, commit_sha=preview["commit_sha"])
-            .first()
-        )
-        if not version:
-            version = SqlAssignmentSubmissionVersion(
-                id=str(uuid.uuid4()),
-                submission_id=submission.id,
-                repository_generation=generation,
-                detected_at=now,
-                detection_source=source,
-                repository_url=submission.repository_url,
-                repository_owner=submission.repository_owner,
-                repository_name=submission.repository_name,
-                default_branch=preview["default_branch"],
-                commit_sha=preview["commit_sha"],
-                commit_message=preview.get("commit_message"),
-                commit_at=commit_at,
-                submitted_at=now,
-                is_late=False,
-                seconds_late=0,
-                analysis_status="queued",
-            )
-            db.add(version)
-            db.flush()
+        if head_changed:
+            # While the assignment is open a student may push as often as they like. We only note
+            # the newest commit here (one cheap request); the repository is downloaded and analysed
+            # once, when the deadline passes or the teacher starts evaluating this student.
+            submission.latest_remote_sha = preview["commit_sha"]
+            submission.sync_status = "live" if submission.active_version_id else "syncing"
+            db.commit()
+            return {"status": submission.sync_status, "head_changed": True}
+        version = _version_for_commit(db, submission, generation, preview, source, now)
         submission.latest_remote_sha = preview["commit_sha"]
         submission.pending_version_id = version.id
         submission.sync_status = "syncing"
@@ -691,6 +768,13 @@ def _analyze_repository_version(db, version_id: str) -> None:
                     submission.pending_version_id = None
                     submission.last_sync_completed_at = utcnow()
                     submission.sync_status = "frozen" if submission.freeze_requested_at else "live"
+                elif not submission.active_version_id:
+                    # Newer commits are only noted, not analysed, so this is the snapshot we have.
+                    submission.active_version_id = version.id
+                    submission.last_sync_completed_at = utcnow()
+                    submission.sync_status = "frozen" if submission.freeze_requested_at else "live"
+                if submission.pending_version_id == version.id and submission.active_version_id == version.id:
+                    submission.pending_version_id = None
                 if is_frozen_target:
                     submission.frozen_version_id = version.id
                     submission.frozen_at = utcnow()

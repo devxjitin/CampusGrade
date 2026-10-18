@@ -2,7 +2,7 @@
 
 // Session rollover: promotes every student to the next academic session
 // (semester/year change), creates the new intake's batches on Odd terms,
-// auto-enrols compulsory subjects, and graduates final-year students.
+// and graduates final-year students.
 // See the original academic-sessions plan Part 4.
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRight, History, RotateCcw, Undo2 } from "lucide-react";
@@ -27,7 +27,6 @@ interface PreviewData {
   graduate_count: number;
   new_batches: { course_name: string; start_year: number; end_year: number }[];
   new_sections_count: number;
-  enrollment_count: number;
   teacher_allocation_count: number;
   warnings: string[];
 }
@@ -171,10 +170,6 @@ export default function AdminSessionRolloverPage() {
               <div className="rounded-xl border border-gray-100 p-4">
                 <div className="text-2xl font-bold text-gray-900">{preview.new_batches.length}</div>
                 <div className="text-xs font-medium text-gray-500">New batches to create</div>
-              </div>
-              <div className="rounded-xl border border-gray-100 p-4">
-                <div className="text-2xl font-bold text-gray-900">{preview.enrollment_count}</div>
-                <div className="text-xs font-medium text-gray-500">Subject enrolments to create</div>
               </div>
               <div className="rounded-xl border border-gray-100 p-4">
                 <div className="text-2xl font-bold text-gray-900">{preview.teacher_allocation_count}</div>

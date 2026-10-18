@@ -135,7 +135,7 @@ export default function AdminJobsPage() {
                               <span className="block text-xs font-normal text-slate-500">#{job.id}</span>
                             </span>
                           </button>
-                          {!open && job.last_error && <p className="mt-2 line-clamp-1 max-w-md pl-6 text-xs text-rose-600">{job.last_error}</p>}
+                          {!open && job.last_error && <p className="mt-2 [overflow-wrap:anywhere] max-w-md pl-6 text-xs text-rose-600">{job.last_error}</p>}
                         </td>
                         <td className="px-5 py-4">
                           <StatusBadge status={badge.status} label={badge.label} />

@@ -3,10 +3,11 @@
 // Ported from frontend-legacy/src/pages/AdminSections.jsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Edit2, GraduationCap, Plus, Trash2, Users } from "lucide-react";
-import { EntityCard, EntityCardGrid, PageHeader, useConfirm } from "@/components/ui";
+import { EmptyState, EntityCard, EntityCardGrid, ErrorState, FilterToolbar, LoadingState, PageHeader, SearchField, SelectField, useConfirm } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { batchHooks, courseHooks, sectionHooks, type AcademicRecord } from "@/features/academics/queries";
 import { getCachedUser } from "@/lib/session";
+import { canAccess } from "@/lib/permissions";
 import ViewingSessionBanner from "@/components/ViewingSessionBanner";
 import { ACADEMIC_SESSION_CHANGED_EVENT, getSelectedAcademicSessionId } from "@/lib/academicSession";
 import { SectionFormDialog } from "./dialogs/SectionFormDialog";
@@ -45,11 +46,13 @@ export default function AdminSectionsPage() {
     return () => window.removeEventListener(ACADEMIC_SESSION_CHANGED_EVENT, onSessionChanged);
   }, []);
 
-  const { data: sections = [], isLoading } = sectionHooks.useList(sessionId ? { session_id: sessionId } : undefined);
+  const { data: sections = [], isLoading, isError, refetch } = sectionHooks.useList(sessionId ? { session_id: sessionId } : undefined);
   const { data: courses = [] } = courseHooks.useList();
   const { data: batches = [] } = batchHooks.useList();
   const createMutation = sectionHooks.useCreate();
   const updateMutation = sectionHooks.useUpdate();
+  const canEdit = canAccess(getCachedUser(), "sections", "edit");
+  const canDelete = canAccess(getCachedUser(), "sections", "full");
   const deleteMutation = sectionHooks.useDelete();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -203,53 +206,50 @@ export default function AdminSectionsPage() {
         title="Sections"
         description="Manage student groups within a program and batch."
         actions={
-          <button onClick={() => handleOpenModal()} className="btn btn-primary">
+          !canEdit ? undefined : <button onClick={() => handleOpenModal()} className="btn btn-primary">
             <Plus className="h-4 w-4" />
             Add section
           </button>
         }
       />
 
-      <div className="ui-toolbar flex-wrap items-end">
-        <div className="flex-1 min-w-[220px]">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Search Section</label>
-          <input type="text" value={searchSection} onChange={(e) => setSearchSection(e.target.value)} className="input-field" placeholder="By section/program/batch" />
-        </div>
-        <div className="w-64">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Program</label>
-          <select
-            value={filterCourseId}
-            onChange={(e) => {
-              setFilterCourseId(e.target.value);
-              setFilterBatchId("");
-            }}
-            className="w-full border border-gray-300 rounded-md p-2"
-          >
-            <option value="">All Programs</option>
-            {courses.map((course) => (
-              <option key={course.id} value={course.id as string}>
-                {String(course.code || "").trim().toUpperCase() || (course.name as string)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="w-64">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Batch</label>
-          <select value={filterBatchId} onChange={(e) => setFilterBatchId(e.target.value)} className="w-full border border-gray-300 rounded-md p-2">
-            <option value="">All Batches</option>
-            {filterCourseBatches.map((batch) => (
-              <option key={batch.id} value={batch.id as string}>
-                {getBatchLabel(batch)}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <FilterToolbar
+        search={<SearchField value={searchSection} onChange={(e) => setSearchSection(e.target.value)} placeholder="Search by section, program or batch" aria-label="Search sections" />}
+        filters={
+          <>
+            <SelectField
+              aria-label="Program"
+              value={filterCourseId}
+              onChange={(e) => {
+                setFilterCourseId(e.target.value);
+                setFilterBatchId("");
+              }}
+            >
+              <option value="">All programs</option>
+              {courses.map((course) => (
+                <option key={course.id} value={course.id as string}>
+                  {String(course.code || "").trim().toUpperCase() || (course.name as string)}
+                </option>
+              ))}
+            </SelectField>
+            <SelectField aria-label="Batch" value={filterBatchId} onChange={(e) => setFilterBatchId(e.target.value)}>
+              <option value="">All batches</option>
+              {filterCourseBatches.map((batch) => (
+                <option key={batch.id} value={batch.id as string}>
+                  {getBatchLabel(batch)}
+                </option>
+              ))}
+            </SelectField>
+          </>
+        }
+      />
 
-      {isLoading ? (
-        <div className="card p-8 text-center text-sm text-gray-500">Loading...</div>
+      {isError ? (
+        <ErrorState title="Could not load sections" onRetry={() => refetch()} />
+      ) : isLoading ? (
+        <LoadingState label="Loading…" />
       ) : filteredSections.length === 0 ? (
-        <div className="card p-8 text-center text-sm text-gray-500">No sections found.</div>
+        <EmptyState title="No sections found" description="Add one to get started." />
       ) : (
         <EntityCardGrid>
           {filteredSections.map((section) => (
@@ -263,12 +263,12 @@ export default function AdminSectionsPage() {
               ]}
               actions={
                 <>
-                  <button onClick={() => handleOpenModal(section)} className="rounded-lg p-2 text-blue-600 transition-colors hover:text-blue-800">
+                  {canEdit && <button onClick={() => handleOpenModal(section)} className="rounded-lg p-2 text-blue-600 transition-colors hover:text-blue-800">
                     <Edit2 className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => handleDelete(section)} className="rounded-lg p-2 text-red-600 transition-colors hover:text-red-800">
+                  </button>}
+                  {canDelete && <button onClick={() => handleDelete(section)} className="rounded-lg p-2 text-red-600 transition-colors hover:text-red-800">
                     <Trash2 className="h-4 w-4" />
-                  </button>
+                  </button>}
                 </>
               }
             />

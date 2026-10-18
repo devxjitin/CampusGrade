@@ -1,7 +1,7 @@
 import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy.orm import Mapped, backref, mapped_column, relationship
 
 from models.database import Base
 
@@ -46,13 +46,9 @@ class SqlUser(Base, TimestampedModel):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(254), nullable=False, unique=True, index=True)
-    password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
     session_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    login_attempts: Mapped[int] = mapped_column(nullable=False, default=0)
-    locked_until: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
     last_login: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
     created_by: Mapped[str | None] = mapped_column(ForeignKey("users.id", name="fk_users_created_by", onupdate="RESTRICT", ondelete="SET NULL"), nullable=True)
     teacher_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -102,7 +98,7 @@ class SqlUserProfile(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
 
-    user: Mapped[SqlUser] = relationship(foreign_keys=[user_id], backref="profile")
+    user: Mapped[SqlUser] = relationship(foreign_keys=[user_id], backref=backref("profile", cascade="all, delete-orphan", passive_deletes=True))
 
 
 class SqlStudentProfile(Base):
@@ -118,7 +114,7 @@ class SqlStudentProfile(Base):
     admission_year: Mapped[int] = mapped_column(Integer, nullable=False)
     enrollment_status: Mapped[str] = mapped_column(Text, nullable=False, default="active")
 
-    user: Mapped[SqlUser] = relationship(foreign_keys=[user_id], backref="student_profile")
+    user: Mapped[SqlUser] = relationship(foreign_keys=[user_id], backref=backref("student_profile", cascade="all, delete-orphan", passive_deletes=True))
     program: Mapped["SqlCourse"] = relationship(foreign_keys=[program_id])
 
 
@@ -130,7 +126,7 @@ class SqlTeacherProfile(Base):
     employee_code: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     designation: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    user: Mapped[SqlUser] = relationship(foreign_keys=[user_id], backref="teacher_profile")
+    user: Mapped[SqlUser] = relationship(foreign_keys=[user_id], backref=backref("teacher_profile", cascade="all, delete-orphan", passive_deletes=True))
 
 
 class SqlAdminProgramScope(Base):
@@ -145,6 +141,20 @@ class SqlAdminProgramScope(Base):
     __tablename__ = "admin_program_scopes"
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     program_id: Mapped[str] = mapped_column(ForeignKey("programs.id", ondelete="CASCADE"), primary_key=True)
+
+
+class SqlAdminAccess(Base):
+    """What an `admin` account may do, set by a Super Admin: one row per resource.
+
+    `level` is "view" (read only), "edit" (also create and change) or "full" (also delete).
+    A resource with no row is not accessible. Super Admins ignore this table.
+    """
+
+    __tablename__ = "admin_access"
+    __table_args__ = (CheckConstraint("level IN ('view','edit','full')", name="ck_admin_access_level"),)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    resource: Mapped[str] = mapped_column(String(40), primary_key=True)
+    level: Mapped[str] = mapped_column(String(10), nullable=False)
 
 
 class SqlCourse(Base, TimestampedModel):
@@ -213,7 +223,10 @@ class SqlAcademicSession(Base, TimestampedModel):
     tagged with a session. See the original changes plan Option A."""
 
     __tablename__ = "academic_sessions"
-    __table_args__ = (UniqueConstraint("label", "term", name="uq_academic_sessions_label_term"),)
+    __table_args__ = (
+        UniqueConstraint("label", "term", name="uq_academic_sessions_label_term"),
+        Index("uq_academic_sessions_single_current", "is_current", unique=True, postgresql_where=text("is_current")),
+    )
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     label: Mapped[str] = mapped_column(String(50), nullable=False)
     term: Mapped[str] = mapped_column(String(10), nullable=False)
@@ -233,6 +246,10 @@ class SqlStudentSubjectEnrollment(Base):
     # Nullable so pre-existing rows created before session tagging remain valid;
     # every new enrollment should set this from the current session.
     session_id: Mapped[str | None] = mapped_column(ForeignKey("academic_sessions.id", ondelete="SET NULL"), nullable=True, index=True)
+    # Set when the rollover engine auto-enrolled the student, so an undo removes only those rows.
+    # No foreign key on purpose: the baseline migration builds this table from the live models
+    # before rollover_runs exists, and a stale tag is harmless.
+    rollover_run_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     enrolled_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     student: Mapped[SqlUser] = relationship()
     subject: Mapped[SqlSubject] = relationship(back_populates="enrollments")

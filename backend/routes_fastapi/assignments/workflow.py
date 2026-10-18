@@ -14,8 +14,10 @@ from models.assignment import (
     SqlAssignmentSubmission,
     SqlAssignmentSubmissionVersion,
 )
-from models.sql_models import SqlSubject, SqlUser
+from models.sql_models import SqlBatch, SqlCourse, SqlSection, SqlSubject, SqlUser
+from services import jobs
 from services.assignment_external_evaluation import sanitize_external_feedback
+from services.github_repository_service import EXTRACT_FINAL_JOB_TYPE, finalize_evaluation_fetch
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,36 +47,33 @@ async def _lock_evaluation_cohort(db: AsyncSession, assignment, *, actor_id=None
     for student in students:
         submission = submissions.get(student.id)
         version_id = None
-        if submission and submission.repository_url:
-            target = (
-                await db.scalars(select(SqlAssignmentSubmissionVersion).filter_by(submission_id=submission.id, commit_sha=submission.latest_remote_sha))
-            ).first()
-            version_id = target.id if target else submission.active_version_id
-            submission.freeze_requested_at = now
-            submission.freeze_reason = "deadline"
-            submission.next_sync_at = None
-            if target and target.analysis_status == "ready":
-                submission.frozen_version_id, submission.frozen_at, submission.active_version_id, submission.sync_status = target.id, now, target.id, "frozen"
-            else:
-                submission.pending_version_id, submission.sync_status = version_id, "freeze_pending"
+        has_repository = bool(submission and submission.repository_url)
+        if has_repository:
+            version_id = submission.frozen_version_id
+            if not submission.freeze_requested_at:
+                # Evaluation was not started by a teacher: take the final snapshot from GitHub now.
+                submission.freeze_requested_at, submission.freeze_reason = now, "deadline"
+                submission.next_sync_at = None
+                submission.pending_version_id, submission.sync_status = None, "freeze_pending"
+                await jobs.enqueue(db, EXTRACT_FINAL_JOB_TYPE, {"submission_id": submission.id}, max_attempts=6)
         participant = (
             await db.scalars(select(SqlAssignmentEvaluationParticipant).filter_by(assignment_id=assignment.id, student_id=student.id))
         ).first()
         if participant:
             participant.submission_version_id = participant.submission_version_id or version_id
-            participant.status = "submitted" if participant.submission_version_id else "missing"
+            participant.status = "submitted" if (participant.submission_version_id or has_repository) else "missing"
         else:
             participant = SqlAssignmentEvaluationParticipant(
                 id=str(uuid.uuid4()),
                 assignment_id=assignment.id,
                 student_id=student.id,
                 submission_version_id=version_id,
-                status="submitted" if version_id else "missing",
+                status="submitted" if has_repository else "missing",
                 locked_at=now,
             )
             db.add(participant)
         participants.append(participant)
-        if trigger == "deadline" and not version_id:
+        if trigger == "deadline" and not has_repository:
             grade = (await db.scalars(select(SqlAssignmentGrade).filter_by(assignment_id=assignment.id, student_id=student.id))).first()
             if not grade:
                 rubric = await _rubric(db, assignment.id)
@@ -107,6 +106,9 @@ async def _lock_evaluation_cohort(db: AsyncSession, assignment, *, actor_id=None
     assignment.evaluation_locked_by = actor_id
     assignment.evaluation_lock_trigger = trigger
     assignment.repository_fetch_started_at = assignment.repository_fetch_started_at or now
+    # Students a teacher already froze have no extract job left to complete the fetch, so try now.
+    await db.flush()
+    await db.run_sync(lambda session: finalize_evaluation_fetch(session, assignment.id))
     return participants
 
 
@@ -126,7 +128,8 @@ async def _evaluation_workflow(db: AsyncSession, assignment):
             statuses[row.analysis_status] = statuses.get(row.analysis_status, 0) + 1
     ready = statuses.get("ready", 0)
     failed = statuses.get("failed", 0)
-    pending = len(version_ids) - ready - failed
+    unresolved = sum(1 for row in participants if row.status == "submitted" and not row.submission_version_id)
+    pending = len(version_ids) - ready - failed + unresolved
     if not assignment.evaluation_locked_at:
         fetch_status = "eligible" if (all_submitted or deadline_passed) else "waiting_for_submissions"
     elif not assignment.repository_fetch_started_at:
@@ -182,20 +185,53 @@ async def _assert_evaluation_allowed(db: AsyncSession, assignment, student_id=No
     raise HTTPException(409, "Wait for every repository fetch and analysis to finish before evaluation")
 
 
-async def _validate_assignment_subject(db: AsyncSession, body, user):
-    if not body.subject_id:
-        raise HTTPException(400, "Select an official subject")
-    subject = (await db.scalars(select(SqlSubject).filter_by(id=body.subject_id))).first()
+def _check_context_rows(course, batch, section, subject) -> None:
+    """Validate that program, batch, section and subject form one consistent chain."""
+    if not course:
+        raise HTTPException(404, "Program not found")
+    if not batch or batch.course_id != course.id:
+        raise HTTPException(400, "Batch does not belong to the selected program")
+    if not section or section.batch_id != batch.id or section.course_id != course.id:
+        raise HTTPException(400, "Section does not belong to the selected batch")
     if not subject:
         raise HTTPException(404, "Subject not found")
-    if subject.course_id and body.target_course_id and subject.course_id != body.target_course_id:
+    if subject.course_id != course.id:
         raise HTTPException(400, "Subject does not belong to the selected program")
-    if user.get("role") == "teacher":
-        allocations = user.get("assignments") or []
-        allowed_ids = {str(subject_id) for allocation in allocations if isinstance(allocation, dict) for subject_id in allocation.get("subject_ids", [])}
-        allowed_names = {str(name).casefold() for allocation in allocations if isinstance(allocation, dict) for name in (allocation.get("subjects") or [])}
-        if allocations and str(subject.id) not in allowed_ids and subject.name.casefold() not in allowed_names:
-            raise HTTPException(403, "You are not allocated to this subject")
+    if subject.batch_id and subject.batch_id != batch.id:
+        raise HTTPException(400, "Subject does not belong to the selected batch")
+
+
+def _teacher_allocated(allocations, program_id: str, batch_id: str, section_id: str, subject_id: str) -> bool:
+    for item in allocations or []:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("program_id") or item.get("course_id") or "") != program_id:
+            continue
+        if str(item.get("batch_id") or "") != batch_id or str(item.get("section_id") or "") != section_id:
+            continue
+        if subject_id in {str(value) for value in item.get("subject_ids") or []}:
+            return True
+    return False
+
+
+async def _resolve_assignment_context(db: AsyncSession, program_id, batch_id, section_id, subject_id, user):
+    """Load and validate program > batch > section > subject; teachers must also be allocated to the combination."""
+    program_id, batch_id, section_id, subject_id = (str(value or "") for value in (program_id, batch_id, section_id, subject_id))
+    if not (program_id and batch_id and section_id and subject_id):
+        raise HTTPException(400, "Select program, batch, section and subject first")
+    course = await db.get(SqlCourse, program_id)
+    batch = await db.get(SqlBatch, batch_id)
+    section = await db.get(SqlSection, section_id)
+    subject = await db.get(SqlSubject, subject_id)
+    _check_context_rows(course, batch, section, subject)
+    if user.get("role") == "teacher" and not _teacher_allocated(user.get("assignments"), program_id, batch_id, section_id, subject_id):
+        raise HTTPException(403, "You are not allocated to this program, batch, section and subject")
+    return course, batch, section, subject
+
+
+async def _validate_assignment_subject(db: AsyncSession, body, user):
+    """Validate the audience context of an assignment and set its subject name."""
+    *_, subject = await _resolve_assignment_context(db, body.target_course_id, body.target_batch_id, body.target_section_id, body.subject_id, user)
     body.subject = subject.name
     return subject
 
@@ -354,6 +390,22 @@ async def _sync_rubric_and_links(db: AsyncSession, assignment, body):
     await db.execute(delete(SqlAssignmentResource).where(SqlAssignmentResource.assignment_id == assignment.id, SqlAssignmentResource.kind == "link"))
     for position, item in enumerate(body.links):
         db.add(SqlAssignmentResource(id=str(uuid.uuid4()), assignment_id=assignment.id, kind="link", label=item.label, url=str(item.url), position=position))
+
+
+AI_DRAFT_TOKEN_TYPE = "assignment_ai_draft"
+
+
+def _decode_ai_draft(token, secret_key, teacher_id):
+    """Verify the signed token issued with an AI assignment prompt; it binds the context and settings."""
+    try:
+        payload = jwt.decode(token, secret_key, algorithms=["HS256"])
+    except jwt.ExpiredSignatureError as exc:
+        raise HTTPException(409, "This AI prompt expired. Generate a new prompt") from exc
+    except jwt.PyJWTError as exc:
+        raise HTTPException(400, "Invalid AI prompt reference") from exc
+    if payload.get("type") != AI_DRAFT_TOKEN_TYPE or payload.get("teacher_id") != teacher_id:
+        raise HTTPException(400, "Invalid AI prompt reference")
+    return payload
 
 
 def _decode_external_batch(token, secret_key):

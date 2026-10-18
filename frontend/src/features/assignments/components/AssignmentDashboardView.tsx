@@ -1,9 +1,6 @@
 "use client";
 
 // Ported from frontend-legacy/src/pages/AssignmentDashboard.jsx
-// Note: the legacy "/assignments/discussions" route passes initialView="discussions",
-// but no branch below checks for that value — it silently falls through to the
-// default "overview" rendering, same as legacy. Preserved as-is for parity.
 import {
   AlertTriangle,
   RefreshCw,
@@ -16,15 +13,16 @@ import { AssignmentInsights, TeacherScopeCharts } from "./dashboard/AssignmentIn
 import { useAssignmentDashboard } from "./dashboard/useAssignmentDashboard";
 import { AssignmentList } from "./dashboard/AssignmentList";
 import { StudentSubjectsPanel } from "./dashboard/StudentSubjectsPanel";
+import { StudentHome } from "./dashboard/StudentHome";
+import { TeacherSummary } from "./dashboard/TeacherSummary";
 import { DashboardHeader } from "./dashboard/DashboardHeader";
+import { DateField, LoadingState, StatGrid, StatTile } from "@/components/ui";
 
 export default function AssignmentDashboardView({ initialView = "overview" }: { initialView?: string }) {
   const {
     user,
     loading,
     refreshing,
-    filter,
-    setFilter,
     teacherFilter,
     setTeacherFilter,
     adminStatusFilter,
@@ -85,8 +83,10 @@ export default function AssignmentDashboardView({ initialView = "overview" }: { 
       />
       {isStudentSubjectsPage ? (
         <StudentSubjectsPanel loading={loading} subjects={studentSubjects} openItem={openItem} />
+      ) : user.role === "student" ? (
+        <StudentHome user={user} loading={loading} assignments={assignments} openItem={openItem} navigate={navigate} />
       ) : isAnalyticsPage ? (
-        loading ? <div className="card p-10 text-center text-slate-500">Loading analytics…</div> : <AssignmentAnalytics assignments={assignments} />
+        loading ? <LoadingState label="Loading analytics…" /> : <AssignmentAnalytics assignments={assignments} />
       ) : (
         <>
           {overdueEvaluationAlerts.length > 0 && (
@@ -111,7 +111,7 @@ export default function AssignmentDashboardView({ initialView = "overview" }: { 
                 {overdueEvaluationAlerts.map((item) => (
                   <div key={item.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
-                      <p className="truncate font-semibold text-slate-950">{item.title}</p>
+                      <p className="[overflow-wrap:anywhere] font-semibold text-slate-950">{item.title}</p>
                       <p className="mt-1 text-sm text-amber-800">
                         {item.teacher_name || "No teacher assigned"} has not graded {item.overdue_ungraded_submission_count} submitted
                         {Number(item.overdue_ungraded_submission_count) === 1 ? " assignment" : " assignments"}. Due {formatDateTime(item.due_at)}
@@ -135,15 +135,11 @@ export default function AssignmentDashboardView({ initialView = "overview" }: { 
                   </h2>
                   <p className="mt-0.5 text-xs text-slate-500">People and academic structure across the university.</p>
                 </div>
-                <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+                <StatGrid>
                   {universityStats.map(([label, value, Icon]) => (
-                    <div key={label} className="card p-5">
-                      <Icon className="mb-3 h-5 w-5 text-primary-600" />
-                      <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p>
-                      <p className="mt-1 text-2xl font-bold">{value}</p>
-                    </div>
+                    <StatTile key={label} label={label} value={value} icon={Icon} />
                   ))}
-                </div>
+                </StatGrid>
               </section>
               <section aria-labelledby="assignment-summary-heading">
                 <div className="mb-3">
@@ -152,49 +148,27 @@ export default function AssignmentDashboardView({ initialView = "overview" }: { 
                   </h2>
                   <p className="mt-0.5 text-xs text-slate-500">Current assignment, submission, and grading activity.</p>
                 </div>
-                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <StatGrid>
                   {adminAssignmentStats.map(([label, value, Icon]) => (
-                    <div key={label} className="card p-5">
-                      <Icon className="mb-3 h-5 w-5 text-primary-600" />
-                      <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p>
-                      <p className="mt-1 text-2xl font-bold">{value}</p>
-                    </div>
+                    <StatTile key={label} label={label} value={value} icon={Icon} />
                   ))}
-                </div>
+                </StatGrid>
               </section>
             </div>
           )}
           {isAdminOverviewPage && <AdminMonitoring data={adminDashboard} allAssignments={assignments} range={adminRange} setRange={setAdminRange} refresh={() => load(true)} navigate={navigate} />}
+          {user.role === "teacher" && !loading && <TeacherSummary user={user} summary={summary} onReview={() => setTeacherFilter("awaiting_grading")} />}
           {!isAdminAllAssignmentsPage && !isAdminOverviewPage && (
-            <div className={`mb-7 grid grid-cols-2 gap-4 ${user.role === "teacher" && summary ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
-              {stats.map(([label, value, Icon]) => (
-                <div key={label} className="card p-5">
-                  <Icon className="mb-3 h-5 w-5 text-primary-600" />
-                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p>
-                  <p className="mt-1 text-2xl font-bold">{value}</p>
-                </div>
-              ))}
+            <div className="mb-7">
+              <StatGrid>
+                {stats.map(([label, value, Icon]) => (
+                  <StatTile key={label} label={label} value={value} icon={Icon} />
+                ))}
+              </StatGrid>
             </div>
           )}
           {!isAdminAllAssignmentsPage && !loading && user.role === "teacher" && <TeacherScopeCharts scope={teacherScope} summary={summary} />}
           {!isAdminAllAssignmentsPage && !isAdminOverviewPage && !loading && assignments.length > 0 && <AssignmentInsights assignments={assignments} summary={summary} role={user.role} />}
-          {user.role === "student" && (
-            <div className="mb-5 flex flex-wrap gap-2">
-              {(
-                [
-                  ["all", "All"],
-                  ["upcoming", "Upcoming"],
-                  ["open", "Open"],
-                  ["submitted", "Submitted"],
-                  ["results", "Results"],
-                ] as [string, string][]
-              ).map(([value, label]) => (
-                <button key={value} onClick={() => setFilter(value)} className={`btn ${filter === value ? "btn-primary" : "btn-outline"}`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
           {user.role === "teacher" && (
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
               <input value={query} onChange={(event) => setQuery(event.target.value)} className="input-field sm:max-w-sm" placeholder="Search assignments or subjects" />
@@ -217,15 +191,9 @@ export default function AssignmentDashboardView({ initialView = "overview" }: { 
                   Refresh
                 </button>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <label>
-                  <span className="ui-field-label">Due from</span>
-                  <input type="date" className="input-field mt-1 w-auto" value={adminFromDate} onChange={(event) => setAdminFromDate(event.target.value)} />
-                </label>
-                <label>
-                  <span className="ui-field-label">Due to</span>
-                  <input type="date" className="input-field mt-1 w-auto" value={adminToDate} onChange={(event) => setAdminToDate(event.target.value)} />
-                </label>
+              <div className="mt-3 flex flex-wrap items-end gap-3">
+                <DateField label="Due from" value={adminFromDate} onChange={(event) => setAdminFromDate(event.target.value)} />
+                <DateField label="Due to" value={adminToDate} onChange={(event) => setAdminToDate(event.target.value)} />
                 <select className="input-field w-auto" value={adminProgramFilter} onChange={(event) => setAdminProgramFilter(event.target.value)}>
                   <option value="all">All programs</option>
                   {adminFilterOptions.programs.map((item) => (

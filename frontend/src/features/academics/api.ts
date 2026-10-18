@@ -4,6 +4,8 @@ import { request, type ApiRequestBody } from "@/types/api-client";
 
 export const getTeacherCourses = () => request.get<"/assignments/teacher-tools/targets">("/assignments/teacher-tools/targets");
 
+export const getTeacherContextOptions = () => request.get<"/assignments/teacher-tools/context-options">("/assignments/teacher-tools/context-options");
+
 // ─── Admin: User management ──────────────────────────────────────────────
 
 export const getCourses = (params: Record<string, unknown> = {}) => request.get<"/admin/courses">("/admin/courses", { params });

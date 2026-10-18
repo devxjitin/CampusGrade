@@ -77,8 +77,30 @@ class AssignmentUpdate(AssignmentCreate):
     pass
 
 
-class ExternalAIAssignmentProposalImport(BaseModel):
+class ExternalAIProposalValidate(BaseModel):
+    """Validate AI JSON. With a draft_token it must match that prompt; without one (the teacher's own JSON) the class is given as IDs."""
+
+    draft_token: str | None = Field(default=None, max_length=4000)
+    program_id: str | None = Field(default=None, max_length=64)
+    batch_id: str | None = Field(default=None, max_length=64)
+    section_id: str | None = Field(default=None, max_length=64)
+    subject_id: str | None = Field(default=None, max_length=64)
     proposal: dict
+
+    @model_validator(mode="after")
+    def _needs_token_or_class(self):
+        if not self.draft_token and not all((self.program_id, self.batch_id, self.section_id, self.subject_id)):
+            raise ValueError("Provide draft_token, or program_id, batch_id, section_id and subject_id")
+        return self
+
+
+class ExternalAIPromptRequest(BaseModel):
+    program_id: str = Field(min_length=1, max_length=64)
+    batch_id: str = Field(min_length=1, max_length=64)
+    section_id: str = Field(min_length=1, max_length=64)
+    subject_id: str = Field(min_length=1, max_length=64)
+    brief: str = Field(min_length=1, max_length=12_000)
+    guidance: str = Field(default="", max_length=4_000)
     total_marks: float = Field(default=20, gt=0, le=10_000)
     rubric_count: int = Field(default=5, ge=1, le=20)
     difficulty: Literal["beginner", "intermediate", "advanced"] = "intermediate"
@@ -102,6 +124,12 @@ class GradeInput(BaseModel):
     rubric_feedback: dict[str, dict] = Field(default_factory=dict)
     expected_revision: int | None = Field(default=None, ge=1)
     missing: bool = False
+
+
+class ExternalEvaluationExportRequest(BaseModel):
+    """`files` embeds every repository file (batches of up to 10); `links` sends one GitHub link per student for the whole class."""
+
+    mode: Literal["files", "links"] = "files"
 
 
 class ExternalEvaluationValidateInput(BaseModel):
@@ -141,20 +169,7 @@ class AnnouncementInput(BaseModel):
     body: str = Field(min_length=1, max_length=20_000)
 
 
-class ThreadInput(BaseModel):
-    subject: str = Field(min_length=1, max_length=200)
-    message: str = Field(min_length=1, max_length=20_000)
-
-
-class ThreadMessageInput(BaseModel):
-    message: str = Field(min_length=1, max_length=20_000)
-
-
-class ThreadStatusInput(BaseModel):
-    status: Literal["open", "resolved"]
-
-
 class AdminAssignmentActionInput(BaseModel):
-    action: Literal["reassign", "lock", "unlock", "archive", "remind"]
+    action: Literal["reassign", "lock", "unlock", "archive"]
     teacher_id: str | None = Field(default=None, max_length=64)
     reason: str = Field(default="", max_length=2000)

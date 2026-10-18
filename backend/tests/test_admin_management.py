@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import Request
-from models.sql_models import SqlAdminProgramScope
+from models.sql_models import SqlAdminAccess
 from routes_fastapi.admin import admins as admin_routes
 
 
@@ -26,9 +26,7 @@ class _CreateAdminSession:
 
     async def scalars(self, _statement):
         self.scalar_calls += 1
-        if self.scalar_calls == 1:
-            return _ScalarResult(first=None)
-        return _ScalarResult(rows=("program-1",))
+        return _ScalarResult(first=None)
 
     def add(self, value):
         self.added.append(value)
@@ -41,8 +39,8 @@ class _CreateAdminSession:
 
 
 @pytest.mark.asyncio
-async def test_create_program_admin_flushes_user_before_scope(monkeypatch):
-    """The scope FK cannot be inserted until the new users row exists."""
+async def test_create_admin_flushes_user_before_access(monkeypatch):
+    """The access FK cannot be inserted until the new users row exists."""
     session = _CreateAdminSession()
 
     async def fake_sync_profile(db, user):
@@ -50,8 +48,6 @@ async def test_create_program_admin_flushes_user_before_scope(monkeypatch):
         assert user in db.added
 
     monkeypatch.setattr(admin_routes, "sync_profile", fake_sync_profile)
-    monkeypatch.setattr(admin_routes, "encrypt_password", lambda _password: "hashed")
-    monkeypatch.setattr(admin_routes, "_generate_temporary_password", lambda: "Temporary-123!")
     async def fake_write_audit_log(*_args, **_kwargs):
         return None
 
@@ -59,17 +55,27 @@ async def test_create_program_admin_flushes_user_before_scope(monkeypatch):
 
     response = await admin_routes.create_admin(
         admin_routes.AdminCreate(
-            name="Program Administrator",
-            email="program-admin@example.edu",
-            role="program_admin",
-            program_ids=["program-1"],
+            name="Administrator",
+            email="admin@example.edu",
+            role="admin",
+            access={"batches": "full", "audit_log": "view"},
         ),
         Request({"type": "http", "client": ("127.0.0.1", 50000)}),
         principal=SimpleNamespace(user_id="super-admin-1"),
         db=session,
     )
 
-    assert response["user"]["program_ids"] == ["program-1"]
+    assert response["user"]["access"] == {"batches": "full", "audit_log": "view"}
     assert len(session.flush_snapshots) == 2
-    assert SqlAdminProgramScope not in session.flush_snapshots[0]
-    assert SqlAdminProgramScope in session.flush_snapshots[1]
+    assert SqlAdminAccess not in session.flush_snapshots[0]
+    assert SqlAdminAccess in session.flush_snapshots[1]
+
+
+def test_access_levels_are_validated():
+    with pytest.raises(ValueError):
+        admin_routes.AdminCreate(name="A", email="a@example.edu", role="admin", access={"batches": "owner"})
+    with pytest.raises(ValueError):
+        admin_routes.AdminCreate(name="A", email="a@example.edu", role="admin", access={"payroll": "view"})
+    with pytest.raises(ValueError):
+        admin_routes.AdminCreate(name="A", email="a@example.edu", role="admin", access={"audit_log": "edit"})  # read only
+    assert admin_routes.AdminCreate(name="A", email="a@example.edu", role="admin", access={"batches": " EDIT "}).access == {"batches": "edit"}

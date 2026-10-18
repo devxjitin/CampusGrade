@@ -19,10 +19,10 @@ docker compose -f compose.yaml -f compose.dev.yaml up --build
 
 - App: http://localhost:3000 API: http://localhost:5001 (docs at `/docs`)
 - Backend and frontend hot-reload from your working tree.
-- Create the first admin (the password never touches a file):
+- Create the first admin (accounts have no passwords; you sign in with the email address, which is why the app refuses `APP_ENV=production`):
 
 ```powershell
-docker compose -f compose.yaml -f compose.dev.yaml run --rm -e BOOTSTRAP_ADMIN_EMAIL=you@example.com -e BOOTSTRAP_ADMIN_PASSWORD=<12+ chars> api python bootstrap_admin.py
+docker compose -f compose.yaml -f compose.dev.yaml run --rm -e BOOTSTRAP_ADMIN_EMAIL=you@example.com api python bootstrap_admin.py
 ```
 
 ## Run it like production
@@ -69,7 +69,7 @@ uv run mypy
 cd frontend; npm ci; npm run lint; npx vitest run; npm run build
 ```
 
-End-to-end browser tests: see [frontend/e2e/README.md](frontend/e2e/README.md). CI (`.github/workflows/ci.yml`) runs all of the above, builds and scans the images, starts the production stack and runs Playwright against it. A merge to `main` pushes the exact images that just passed those tests to GHCR (tags `main` and `sha-<commit>`). Pushing a version tag (`git tag -a v0.2.0 <commit on main> -m ... && git push origin v0.2.0`) runs `.github/workflows/release.yml`, which waits for that commit's tested images and re-tags them `v0.2.0` (and `latest` for stable versions) without rebuilding.
+End-to-end browser tests: see [frontend/e2e/README.md](frontend/e2e/README.md). Everything runs locally: `scripts\check-local.ps1` and `scripts\test-e2e-local.ps1` (there is no hosted CI).
 
 ## Repository layout
 
@@ -81,7 +81,6 @@ End-to-end browser tests: see [frontend/e2e/README.md](frontend/e2e/README.md). 
 | `docker/caddy/Caddyfile` | HTTPS reverse proxy configuration |
 | `scripts/` | `init-secrets`, `deploy`, `bootstrap-admin`, `trust-caddy-ca` |
 | `secrets/` | Generated secret files (git-ignored) |
-| `.github/workflows/ci.yml` | CI/CD pipeline |
 
 ## Repository synchronization
 

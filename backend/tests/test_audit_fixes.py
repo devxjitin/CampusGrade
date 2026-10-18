@@ -26,7 +26,7 @@ from routes_fastapi.assignments.payloads import _teacher_assignment
 from routes_fastapi.assignments.workflow import _evaluation_workflow
 from routes_fastapi.auth_routes import login
 from schemas.auth import LoginRequest
-from schemas.user import TemporaryCredentialResponse, UserStatusUpdate
+from schemas.user import CreatedUserResponse, UserStatusUpdate
 from services.admin_helpers import (
     _assert_admin_continuity,
     _lock_user_safety_context,
@@ -140,11 +140,10 @@ def test_user_status_requires_is_active():
         UserStatusUpdate.model_validate({})
 
 
-def test_temporary_credential_contract_uses_consistent_wire_field():
-    response = TemporaryCredentialResponse.model_validate(
+def test_created_user_contract_has_no_credential_field():
+    response = CreatedUserResponse.model_validate(
         {
             "message": "Created",
-            "temporary_password": "OneTime!Password123",
             "user": {
                 "id": "student-1",
                 "name": "Student One",
@@ -154,9 +153,9 @@ def test_temporary_credential_contract_uses_consistent_wire_field():
         }
     )
 
-    assert response.model_dump()["temporary_password"] == "OneTime!Password123"
+    assert "temporary_password" not in response.model_dump()
     operation = app.openapi()["paths"]["/admin/add-student"]["post"]
-    assert operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith("TemporaryCredentialResponse")
+    assert operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith("CreatedUserResponse")
 
 
 def test_login_role_filter_rejects_account_from_wrong_sign_in_page():
@@ -179,7 +178,7 @@ def test_login_role_filter_rejects_account_from_wrong_sign_in_page():
         with pytest.raises(HTTPException) as raised:
             asyncio.run(
                 login(
-                    LoginRequest(email="teacher@example.com", password="ValidPassword!123"),
+                    LoginRequest(email="teacher@example.com"),
                     request,
                     Response(),
                     role="student",
@@ -242,8 +241,8 @@ def test_concurrent_scheduled_publishers_release_an_assignment_once():
     def seed(setup):
         setup.add_all(
             [
-                SqlUser(id=teacher_id, name="Concurrency Teacher", email=f"{teacher_id}@example.com", password="test", role="teacher", is_active=True),
-                SqlUser(id=student_id, name="Concurrency Student", email=f"{student_id}@example.com", password="test", role="student", is_active=True),
+                SqlUser(id=teacher_id, name="Concurrency Teacher", email=f"{teacher_id}@example.com", role="teacher", is_active=True),
+                SqlUser(id=student_id, name="Concurrency Student", email=f"{student_id}@example.com", role="student", is_active=True),
             ]
         )
         setup.flush()
@@ -390,7 +389,7 @@ def test_concurrent_admin_removals_cannot_delete_every_active_admin():
             return False
         setup.add_all(
             [
-                SqlUser(id=admin_id, name=f"Admin {index}", email=f"{admin_id}@example.com", password="test", role="super_admin", is_active=True)
+                SqlUser(id=admin_id, name=f"Admin {index}", email=f"{admin_id}@example.com", role="super_admin", is_active=True)
                 for index, admin_id in enumerate(admin_ids)
             ]
         )

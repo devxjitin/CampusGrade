@@ -5,7 +5,7 @@
 // current; the topbar dropdown in DashboardLayout reads this same list.
 import { useEffect, useMemo, useState } from "react";
 import { CalendarRange, CheckCircle2, Edit2, Plus, Trash2 } from "lucide-react";
-import { Dialog, EntityCard, EntityCardGrid, PageHeader, useConfirm } from "@/components/ui";
+import { Dialog, EmptyState, EntityCard, EntityCardGrid, LoadingState, PageHeader, useConfirm } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { createAcademicSession, deleteAcademicSession, getAcademicSessions, updateAcademicSession } from "@/features/academics/api";
 import { getCachedUser } from "@/lib/session";
@@ -156,9 +156,9 @@ export default function AdminAcademicSessionsPage() {
       />
 
       {loading ? (
-        <div className="card p-8 text-center text-sm text-gray-500">Loading...</div>
+        <LoadingState label="Loading academic sessions…" />
       ) : sessions.length === 0 ? (
-        <div className="card p-8 text-center text-sm text-gray-500">No academic sessions yet. Add one to enable the topbar switcher.</div>
+        <EmptyState title="No academic sessions yet" description="Add one to enable the topbar switcher." />
       ) : (
         <EntityCardGrid>
           {sessions.map((session) => (
@@ -181,15 +181,15 @@ export default function AdminAcademicSessionsPage() {
                     <button
                       onClick={() => handleSetCurrent(session)}
                       title="Mark as current session"
-                      className="rounded-lg p-2 text-emerald-600 transition-colors hover:text-emerald-800"
+                      className="rounded-lg p-2 text-emerald-700 transition-colors hover:text-emerald-800"
                     >
                       <CheckCircle2 className="h-4 w-4" />
                     </button>
                   )}
-                  <button onClick={() => handleOpenModal(session)} className="rounded-lg p-2 text-blue-600 transition-colors hover:text-blue-800">
+                  <button onClick={() => handleOpenModal(session)} aria-label={`Edit ${session.display_name}`} title="Edit session" className="rounded-lg p-2 text-blue-700 transition-colors hover:text-blue-800">
                     <Edit2 className="h-4 w-4" />
                   </button>
-                  <button onClick={() => handleDelete(session)} className="rounded-lg p-2 text-red-600 transition-colors hover:text-red-800">
+                  <button onClick={() => handleDelete(session)} aria-label={`Delete ${session.display_name}`} title="Delete session" className="rounded-lg p-2 text-red-700 transition-colors hover:text-red-800">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </>

@@ -3,7 +3,7 @@
 // Ported from frontend-legacy/src/pages/AdminAuditLog.jsx
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, ClipboardList, Clock3, MapPin, Search, ShieldCheck, UserRound } from "lucide-react";
-import { EmptyState, PageHeader } from "@/components/ui";
+import { EmptyState, LoadingState, PageHeader } from "@/components/ui";
 import { getAuditLog } from "@/features/reporting/api";
 import { useToast } from "@/components/Toast";
 import { formatDateTime } from "@/lib/datetime";
@@ -86,7 +86,7 @@ export default function AdminAuditLogPage() {
         </div>
 
         {loading ? (
-          <div className="p-10 text-center text-sm text-slate-500">Loading activity history…</div>
+          <LoadingState label="Loading activity history…" />
         ) : data.logs.length === 0 ? (
           <EmptyState title="No matching activities" description="Try a different activity search." />
         ) : (

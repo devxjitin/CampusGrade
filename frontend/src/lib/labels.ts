@@ -19,13 +19,13 @@ export const ACTION_LABELS = Object.freeze({
   markAllRead: "Mark all as read",
 });
 
-export type Role = "super_admin" | "program_admin" | "teacher" | "student";
+export type Role = "super_admin" | "admin" | "teacher" | "student";
 
 export const roleLabel = (role?: string | null): string =>
   (
     {
-      super_admin: "Administrator",
-      program_admin: "Program Admin",
+      super_admin: "Super Admin",
+      admin: "Admin",
       teacher: "Teacher",
       student: "Student",
     } as Record<string, string>

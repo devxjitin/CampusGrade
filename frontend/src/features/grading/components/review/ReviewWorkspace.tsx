@@ -138,7 +138,7 @@ export const ReviewWorkspace = ({ model }: { model: NonNullable<ReturnType<typeo
                                 ))}
                               </div>
                             ) : (
-                              <p className="mt-3 text-sm text-emerald-600">No basic duplicate flags found.</p>
+                              <p className="mt-3 text-sm text-emerald-700">No basic duplicate flags found.</p>
                             )}
                           </div>
                         </div>
@@ -155,7 +155,7 @@ export const ReviewWorkspace = ({ model }: { model: NonNullable<ReturnType<typeo
                             {filteredFiles.map((item: AnyRecord) => (
                               <button key={item.path} onClick={() => openFile(item)} className={`flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-xs ${selectedPath === item.path ? "bg-primary-50 text-primary-700" : "hover:bg-slate-50"}`}>
                                 <File className="h-3.5 w-3.5 flex-none" />
-                                <span className="truncate">{item.path}</span>
+                                <span className="[overflow-wrap:anywhere]">{item.path}</span>
                               </button>
                             ))}
                           </div>
@@ -195,7 +195,7 @@ export const ReviewWorkspace = ({ model }: { model: NonNullable<ReturnType<typeo
                             <div className="mt-3 max-h-72 space-y-2 overflow-y-auto">
                               {(version.analysis_summary?.recent_commits || []).map((commit: AnyRecord) => (
                                 <div key={commit.sha} className="rounded-lg bg-slate-50 p-3 text-sm">
-                                  <p className="truncate font-semibold">{commit.message}</p>
+                                  <p className="[overflow-wrap:anywhere] font-semibold">{commit.message}</p>
                                   <p className="mt-1 text-xs text-slate-500">
                                     {commit.author || "Unknown"} · {String(commit.sha).slice(0, 8)} · {formatDateTime(commit.date)}
                                   </p>

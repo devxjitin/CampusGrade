@@ -174,18 +174,16 @@ def seed_user(client):
 
     There is no self-registration endpoint — accounts are always created by
     an admin — so tests need a way to seed a login-ready user without going
-    through `/admin/add-student` and its side effects (temp-password email,
-    audit log, etc). Returns a small factory; call it once per user needed.
+    through `/admin/add-student` and its side effects (audit log, etc). Returns a small factory; call it once per user needed.
     """
     import uuid
 
     from models.database import async_session_factory
     from models.sql_models import SqlUser
-    from utils.security_utils import hash_password
 
     created_ids: list[str] = []
 
-    def _create(*, role: str, email: str, password: str = "Test-Password-123!", **fields):
+    def _create(*, role: str, email: str, **fields):
         async def create_user():
             if async_session_factory is None:
                 raise RuntimeError("Async test database is unavailable")
@@ -196,10 +194,8 @@ def seed_user(client):
                         id=user_id,
                         name=fields.pop("name", email.split("@")[0].title()),
                         email=email,
-                        password=hash_password(password),
                         role=role,
                         is_active=True,
-                        must_change_password=False,
                         **fields,
                     )
                 )
@@ -211,7 +207,7 @@ def seed_user(client):
         # with "attached to a different loop".
         user_id = client.portal.call(create_user)
         created_ids.append(user_id)
-        return {"id": user_id, "email": email, "password": password, "role": role}
+        return {"id": user_id, "email": email, "role": role}
 
     yield _create
 
@@ -269,8 +265,8 @@ def seed_academic(client):
 
 @pytest.fixture
 def login(client):
-    def _login(email: str, password: str):
-        response = client.post("/login", json={"email": email, "password": password})
+    def _login(email: str):
+        response = client.post("/login", json={"email": email})
         assert response.status_code == 200, response.text
         # Like the real frontend: echo the readable CSRF cookie as a header on every
         # later mutating request (core/csrf.py enforces the double-submit check).

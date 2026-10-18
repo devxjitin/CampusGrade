@@ -5,10 +5,9 @@ from models.assignment import (
     SqlAssignmentGrade,
     SqlAssignmentSubmission,
     SqlAssignmentSubmissionVersion,
-    SqlAssignmentThreadMessage,
 )
 from models.job import Job
-from models.sql_models import SqlBatch, SqlCourse, SqlSection, SqlSubject, SqlUser
+from models.sql_models import SqlBatch, SqlCourse, SqlSection, SqlSubject
 from services.github_repository_service import ANALYZE_JOB_TYPE
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -253,33 +252,3 @@ def _serialize_student_version(version):
         "seconds_late": version.seconds_late,
     }
 
-
-async def _serialize_thread(db: AsyncSession, row):
-    student = (await db.scalars(select(SqlUser).filter_by(id=row.student_id))).first()
-    messages = (await db.scalars(select(SqlAssignmentThreadMessage).filter_by(thread_id=row.id).order_by(SqlAssignmentThreadMessage.created_at))).all()
-    authors = {}
-    for item in messages:
-        if item.author_id not in authors:
-            authors[item.author_id] = (await db.scalars(select(SqlUser).filter_by(id=item.author_id))).first()
-    return {
-        "id": row.id,
-        "assignment_id": row.assignment_id,
-        "student": None if not student else {"id": student.id, "name": student.name, "roll_no": student.roll_no},
-        "subject": row.subject,
-        "status": row.status,
-        "created_at": row.created_at,
-        "updated_at": row.updated_at,
-        "messages": [
-            {
-                "id": item.id,
-                "body": item.body,
-                "created_at": item.created_at,
-                "author": {
-                    "id": item.author_id,
-                    "name": authors[item.author_id].name if authors.get(item.author_id) else "User",
-                    "role": authors[item.author_id].role if authors.get(item.author_id) else "unknown",
-                },
-            }
-            for item in messages
-        ],
-    }

@@ -132,7 +132,7 @@ export const AddStudentDialog = ({ model }: { model: AdminStudentsModel }) => {
                       </select>
                     </div>
                     {addFormErrors.course && <p className="mt-1 text-xs text-red-500">{addFormErrors.course}</p>}
-                    {courses.length === 0 && <p className="mt-1 text-xs text-amber-600">No programs available. Add one in the Programs page first.</p>}
+                    {courses.length === 0 && <p className="mt-1 text-xs text-amber-700">No programs available. Add one in the Programs page first.</p>}
                   </div>
 
                   <div>
@@ -155,7 +155,7 @@ export const AddStudentDialog = ({ model }: { model: AdminStudentsModel }) => {
                         className="input-field mt-2"
                       />
                     ) : (
-                      selectedCourseId && addCourseBatches.length === 0 && <p className="mt-1 text-xs text-amber-600">No batches found for this program. Add one below, or pick a new admission year.</p>
+                      selectedCourseId && addCourseBatches.length === 0 && <p className="mt-1 text-xs text-amber-700">No batches found for this program. Add one below, or pick a new admission year.</p>
                     )}
                     {addFormErrors.batch && <p className="mt-1 text-xs text-red-500">{addFormErrors.batch}</p>}
                   </div>
@@ -181,7 +181,7 @@ export const AddStudentDialog = ({ model }: { model: AdminStudentsModel }) => {
                       </select>
                     )}
                     {selectedAddBatchId && selectedAddBatchId !== NEW_BATCH_SENTINEL && addCourseSections.length === 0 && (
-                      <p className="mt-1 text-xs text-amber-600">No sections found for this batch. Add one in the Sections page.</p>
+                      <p className="mt-1 text-xs text-amber-700">No sections found for this batch. Add one in the Sections page.</p>
                     )}
                     {addFormErrors.section_id && <p className="mt-1 text-xs text-red-500">{addFormErrors.section_id}</p>}
                   </div>

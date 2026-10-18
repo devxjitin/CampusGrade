@@ -20,7 +20,7 @@ observe-only mode.
 from __future__ import annotations
 
 import logging
-from enum import Enum
+from enum import Enum, IntEnum
 
 from fastapi import Depends, Request
 
@@ -38,26 +38,41 @@ class Permission(str, Enum):
     ADMIN_MANAGE = "admin.manage"
     SETTINGS_MANAGE = "settings.manage"
     JOBS_MANAGE = "jobs.manage"
-    BATCH_MANAGE = "batch.manage"
-    SECTION_MANAGE = "section.manage"
-    SUBJECT_MANAGE = "subject.manage"
-    OFFERING_MANAGE = "offering.manage"
-    USER_MANAGE = "user.manage"
+    DATA_EXPORT = "data.export"
     ASSIGNMENT_CREATE = "assignment.create"
     ASSIGNMENT_GRADE = "assignment.grade"
     GRADE_PUBLISH = "grade.publish"
-    ASSIGNMENT_ADMIN_OVERRIDE = "assignment.admin_override"
     INTEGRITY_REVIEW = "integrity.review"
     AI_EVALUATE = "ai.evaluate"
     SUBMISSION_CREATE = "submission.create"
     REPORT_VIEW = "report.view"
-    AUDIT_VIEW = "audit.view"
     TEACHER_PORTAL = "portal.teacher"
     STUDENT_PORTAL = "portal.student"
-    DISCUSSION_PARTICIPATE = "discussion.participate"
 
 
-S, P, T, U = Role.SUPER_ADMIN, Role.PROGRAM_ADMIN, Role.TEACHER, Role.STUDENT
+# What an `admin` may do beyond the platform-wide permissions above is not a fixed role
+# matrix: a Super Admin grants each admin a level (view / edit / full) per resource.
+class Resource(str, Enum):
+    BATCHES = "batches"
+    SECTIONS = "sections"
+    SUBJECTS = "subjects"
+    USERS = "users"  # students and teachers: accounts, allocations
+    ASSIGNMENTS = "assignments"  # the institution-wide assignment overview and overrides
+    AUDIT_LOG = "audit_log"
+
+
+class Access(IntEnum):
+    """The level a route needs: VIEW reads, EDIT creates and changes, FULL also deletes."""
+
+    VIEW = 1
+    EDIT = 2
+    FULL = 3
+
+
+# Resources where "edit" and "full" make no sense (read-only data).
+VIEW_ONLY_RESOURCES = frozenset({Resource.AUDIT_LOG})
+
+S, A, T, U = Role.SUPER_ADMIN, Role.ADMIN, Role.TEACHER, Role.STUDENT
 
 PERMISSIONS: dict[Permission, frozenset[Role]] = {
     # Institution-wide, structural, or destructive — super admin only.
@@ -72,27 +87,17 @@ PERMISSIONS: dict[Permission, frozenset[Role]] = {
     Permission.ADMIN_MANAGE: frozenset({S}),
     Permission.SETTINGS_MANAGE: frozenset({S}),
     Permission.JOBS_MANAGE: frozenset({S}),
-    # Scoped to whichever programs the admin manages — super admin sees
-    # everything, program admin sees only their own (enforced in SQL by
-    # `core/scoping.py::scope_to_programs`, not just at the permission gate).
-    Permission.BATCH_MANAGE: frozenset({S, P}),
-    Permission.SECTION_MANAGE: frozenset({S, P}),
-    Permission.SUBJECT_MANAGE: frozenset({S, P}),
-    Permission.OFFERING_MANAGE: frozenset({S, P}),
-    Permission.USER_MANAGE: frozenset({S, P}),
-    Permission.ASSIGNMENT_ADMIN_OVERRIDE: frozenset({S, P}),
-    Permission.AUDIT_VIEW: frozenset({S, P}),
+    Permission.DATA_EXPORT: frozenset({S}),
     # Teacher-only actions on their own assignments.
     Permission.ASSIGNMENT_CREATE: frozenset({T}),
     Permission.ASSIGNMENT_GRADE: frozenset({T}),
     Permission.GRADE_PUBLISH: frozenset({T}),
     Permission.AI_EVALUATE: frozenset({T}),
-    Permission.INTEGRITY_REVIEW: frozenset({S, P, T}),
+    Permission.INTEGRITY_REVIEW: frozenset({S, A, T}),
     Permission.SUBMISSION_CREATE: frozenset({U}),
-    Permission.REPORT_VIEW: frozenset({S, P, T, U}),
+    Permission.REPORT_VIEW: frozenset({S, A, T, U}),
     Permission.TEACHER_PORTAL: frozenset({T}),
     Permission.STUDENT_PORTAL: frozenset({U}),
-    Permission.DISCUSSION_PARTICIPATE: frozenset({T, U}),
 }
 
 
@@ -112,6 +117,48 @@ def require(permission: Permission):
         return principal
 
     dependency.__campusgrade_permission__ = permission  # type: ignore[attr-defined]
+    return dependency
+
+
+def access_summary(principal: Principal) -> dict[str, str]:
+    """resource -> "view" | "edit" | "full" for what the principal may do (the UI uses it to
+    show or hide screens; the server still checks every request). Empty for teachers and students."""
+    summary: dict[str, str] = {}
+    for resource in Resource:
+        level = principal.access_level(resource.value)
+        if level:
+            summary[resource.value] = Access(min(level, Access.VIEW if resource in VIEW_ONLY_RESOURCES else Access.FULL)).name.lower()
+    return summary
+
+
+def require_access(resource: Resource, level: Access):
+    """Gate a route by the access a Super Admin granted: a Super Admin always passes, an
+    `admin` passes if their level on `resource` is at least `level`, everyone else is refused.
+    Returns the `Principal`."""
+
+    async def dependency(principal: Principal = Depends(require_principal)) -> Principal:
+        from core.errors import Forbidden
+
+        if principal.access_level(resource.value) < level:
+            raise Forbidden(f"This action needs {level.name.lower()} access to {resource.value.replace('_', ' ')}")
+        return principal
+
+    dependency.__campusgrade_permission__ = f"{resource.value}.{level.name.lower()}"  # type: ignore[attr-defined]
+    return dependency
+
+
+def require_user_access(resource: Resource, level: Access):
+    """`require_access` for route bodies that still read the legacy user dict (`admin["_id"]`)."""
+    from routes_fastapi.deps import get_current_user
+
+    async def dependency(
+        current_user=Depends(get_current_user),
+        principal: Principal = Depends(require_access(resource, level)),
+    ):
+        del principal
+        return current_user
+
+    dependency.__campusgrade_permission__ = f"{resource.value}.{level.name.lower()}"  # type: ignore[attr-defined]
     return dependency
 
 
@@ -141,7 +188,6 @@ def require_roles(*roles: str):
     permission = {
         frozenset({"teacher"}): Permission.TEACHER_PORTAL,
         frozenset({"student"}): Permission.STUDENT_PORTAL,
-        frozenset({"teacher", "student"}): Permission.DISCUSSION_PARTICIPATE,
     }.get(role_set)
     if permission is None:
         raise ValueError(f"No canonical portal permission for roles: {sorted(role_set)}")

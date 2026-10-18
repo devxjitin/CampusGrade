@@ -34,7 +34,7 @@ const UserAvatar = ({
 // a real latent bug (it silently resets any local state SidebarContent
 // would ever hold), not just style.
 export interface SidebarContentProps {
-  role: "super_admin" | "program_admin" | "teacher" | "student";
+  role: "super_admin" | "admin" | "teacher" | "student";
   sections: NavSection[];
   navigation: NavigationContext;
   pathname: string;
@@ -69,7 +69,7 @@ export const SidebarContent = ({
   const iconOnly = sidebarCollapsed && !mobile;
   return (
     <div className="relative z-50 flex h-full flex-col bg-white">
-      <div className={`flex h-[76px] shrink-0 items-center border-b border-slate-100 ${iconOnly ? "justify-center" : "px-4"}`}>
+      <div className={`flex h-[72px] shrink-0 items-center border-b border-slate-200 ${iconOnly ? "justify-center" : "px-4"}`}>
         <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border border-slate-200 bg-white">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/krmu-logo-short.webp" alt="KRMU" className="h-7 w-7 object-contain" />
@@ -77,7 +77,7 @@ export const SidebarContent = ({
         {!iconOnly && (
           <div className="ml-3 min-w-0">
             <p className="truncate text-base font-bold text-primary-600">CampusGrade</p>
-            <p className="truncate text-[11px] font-medium text-slate-400">{roleLabel(role)} workspace</p>
+            <p className="truncate text-[11px] font-medium text-slate-600">{roleLabel(role)} workspace</p>
           </div>
         )}
       </div>
@@ -86,7 +86,7 @@ export const SidebarContent = ({
         {sections.map((section) => (
           <section key={section.title} className="mb-5">
             {!iconOnly && (
-              <h2 className="mb-1.5 px-6 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">{section.title}</h2>
+              <h2 className="mb-1.5 px-6 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600">{section.title}</h2>
             )}
             <div className="space-y-0.5 px-2">
               {section.items.map((item) => {
@@ -117,7 +117,7 @@ export const SidebarContent = ({
       <div className="relative shrink-0 border-t border-slate-200 p-2">
         {profileOpen && (
           <div
-            className={`absolute bottom-[calc(100%+0.5rem)] z-[70] w-60 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl ${
+            className={`pop-in absolute bottom-[calc(100%+0.5rem)] z-[70] w-60 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl ${
               iconOnly ? "left-[calc(100%+0.5rem)]" : "inset-x-2"
             }`}
           >
@@ -137,15 +137,16 @@ export const SidebarContent = ({
           type="button"
           onClick={() => setProfileOpen((open) => !open)}
           title={iconOnly ? effectiveUserName : undefined}
-          aria-label="Open account menu"
+          aria-label={iconOnly ? "Open account menu" : undefined}
+          aria-haspopup="menu"
           aria-expanded={profileOpen}
-          className={`flex min-h-11 w-full items-center rounded-xl p-1.5 text-left hover:bg-slate-100 ${iconOnly ? "justify-center" : "gap-2.5"}`}
+          className={`flex min-h-11 w-full items-center rounded-xl p-1.5 text-left transition-colors hover:bg-slate-100 ${iconOnly ? "justify-center" : "gap-2.5"}`}
         >
           <UserAvatar avatar={effectiveUserAvatar} name={effectiveUserName} imageFailed={imageFailed} onImageError={() => setImageFailed(true)} size="h-8 w-8" />
           {!iconOnly && (
             <div className="min-w-0">
-              <p className="truncate text-xs font-bold text-slate-900">{effectiveUserName}</p>
-              <p className="truncate text-[11px] text-slate-500">{effectiveUserEmail || roleLabel(role)}</p>
+              <p className="[overflow-wrap:anywhere] text-xs font-bold text-slate-900">{effectiveUserName}</p>
+              <p className="[overflow-wrap:anywhere] text-[11px] text-slate-500">{effectiveUserEmail || roleLabel(role)}</p>
             </div>
           )}
         </button>

@@ -3,11 +3,12 @@ import secrets
 
 from config import get_settings
 from core.db import db_session
+from core.policy import access_summary
 from core.principal import Principal, require_principal
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from schemas.auth import ForgotPasswordRequest, LoginRequest, LoginResponse, ResetPasswordRequest
+from schemas.auth import LoginRequest, LoginResponse
 from schemas.common import MessageResponse
-from services import password_reset_service, rate_limiter
+from services import rate_limiter
 from services.auth_service import AuthService
 from services.identity_service import get_user_by_id
 from services.session_service import REFRESH_DAYS, create_session, revoke_session, rotate_session
@@ -40,14 +41,6 @@ async def _enforce_refresh_rate_limit(request: Request):
     await _enforce_rate_limit(request, "refresh", 30, "Too many session refreshes. Please try again shortly.")
 
 
-async def _enforce_forgot_password_rate_limit(request: Request):
-    await _enforce_rate_limit(request, "forgot-password", 5, "Too many reset requests. Please try again shortly.")
-
-
-async def _enforce_reset_password_rate_limit(request: Request):
-    await _enforce_rate_limit(request, "reset-password", 10, "Too many attempts. Please try again shortly.")
-
-
 def _build_user_response(user):
     return {
         "id": str(user["_id"]),
@@ -59,7 +52,6 @@ def _build_user_response(user):
         "roll_no": user.get("roll_no"),
         "assignments": user.get("assignments", []),
         "avatar": user.get("avatar"),
-        "must_change_password": bool(user.get("must_change_password")),
     }
 
 
@@ -113,12 +105,11 @@ async def login(body: LoginRequest, request: Request, response: Response, role: 
     await _enforce_login_rate_limit(request)
 
     identifier = sanitize_string(str(body.email), 254).lower().strip()
-    password = body.password
 
-    user = await auth_service.authenticate(identifier, password, db)
+    user = await auth_service.authenticate(identifier, db)
     # Sprint 5, the original implementation plan: both admin roles count as "staff"
     # for the sign-in page split, same as the single "admin" role did before.
-    if role == "staff" and user["role"] not in {"teacher", "super_admin", "program_admin"}:
+    if role == "staff" and user["role"] not in {"teacher", "super_admin", "admin"}:
         raise HTTPException(status_code=403, detail="Use the student sign-in page for this account.")
     if role and role != "staff" and user["role"] != role:
         raise HTTPException(status_code=403, detail=f"Use the {user['role']} sign-in page for this account.")
@@ -136,29 +127,6 @@ async def login(body: LoginRequest, request: Request, response: Response, role: 
     # it from here and sends it as an `Authorization` header, which
     # `get_bearer_token` still accepts as a fallback. Removed in Sprint 10.
     return {"message": "Login successful", "token": token, "user": _build_user_response(user), "session_id": device_session.id}
-
-
-@router.post("/auth/forgot-password", response_model=MessageResponse)
-async def forgot_password(body: ForgotPasswordRequest, request: Request, db: AsyncSession = Depends(db_session)):
-    """Always answers 200 with the same text, so the response never reveals whether an email has an account."""
-    await _enforce_forgot_password_rate_limit(request)
-    email = sanitize_string(body.email, 254).lower().strip()
-    client_ip = request.client.host if request.client else None
-    await password_reset_service.request_reset(db, email, client_ip)
-    return {"message": "If that email belongs to an account, a reset link has been sent."}
-
-
-@router.post("/auth/reset-password", response_model=MessageResponse)
-async def reset_password(body: ResetPasswordRequest, request: Request, db: AsyncSession = Depends(db_session)):
-    await _enforce_reset_password_rate_limit(request)
-    client_ip = request.client.host if request.client else None
-    try:
-        await password_reset_service.reset_password(db, body.token.strip(), body.new_password, client_ip)
-    except password_reset_service.InvalidResetToken:
-        raise HTTPException(status_code=400, detail="This reset link is invalid or has expired. Request a new one.") from None
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"message": "Password updated. You can now sign in."}
 
 
 @router.post("/auth/refresh", response_model=LoginResponse)
@@ -205,5 +173,5 @@ async def read_current_principal(principal: Principal = Depends(require_principa
         "status": principal.status,
         "program_ids": sorted(principal.program_ids),
         "offering_ids": sorted(principal.offering_ids),
-        "must_change_password": principal.must_change_password,
+        "access": access_summary(principal),
     }

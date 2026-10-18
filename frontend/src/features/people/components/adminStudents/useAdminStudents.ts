@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getBatches, getCourses, getSections } from "@/features/academics/api";
-import { addStudent, deleteUser, getAdminUsers, importStudents, resetAdminUserPassword, toggleUserStatus, updateAdminUser } from "@/features/people/api";
+import { addStudent, deleteUser, getAllAdminUsers, importStudents, toggleUserStatus, updateAdminUser } from "@/features/people/api";
 import { useConfirm } from "@/components/ui";
 import { ACADEMIC_SESSION_CHANGED_EVENT, getSelectedAcademicSessionId } from "@/lib/academicSession";
 import {
@@ -21,7 +21,6 @@ import {
   type Batch,
   type Course,
   type EditStudentForm,
-  type PasswordResetResult,
   type Section,
   type Student,
   type UploadResult,
@@ -32,8 +31,6 @@ export const useAdminStudents = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [passwordResetResult, setPasswordResetResult] = useState<PasswordResetResult | null>(null);
-  const [resettingPasswordId, setResettingPasswordId] = useState("");
 
   const [searchName, setSearchName] = useState("");
   const [filterCourse, setFilterCourse] = useState("");
@@ -159,11 +156,19 @@ export const useAdminStudents = () => {
   const fetchReferenceData = useCallback(async () => {
     try {
       const [coursesData, batchesData, sectionsData] = await Promise.all([
-        getCourses(),
+        // An admin without access to programs gets 403 here; batches and sections still carry the program names.
+        getCourses().catch(() => ({ courses: [] as Course[] })),
         getBatches().catch(() => ({ batches: [] })),
         getSections().catch(() => ({ sections: [] })),
       ]);
-      const normalizedCourses = (coursesData.courses || []).map((course: Course) => ({
+      const knownCourses: Course[] = coursesData.courses || [];
+      const derivedCourses = new Map<string, Course>();
+      for (const row of [...(batchesData.batches || []), ...(sectionsData.sections || [])] as Array<{ course_id?: string; course_name?: string; course_code?: string }>) {
+        if (row.course_id && !knownCourses.some((course) => course.id === row.course_id) && !derivedCourses.has(row.course_id)) {
+          derivedCourses.set(row.course_id, { id: row.course_id, name: row.course_name, code: row.course_code });
+        }
+      }
+      const normalizedCourses = [...knownCourses, ...derivedCourses.values()].map((course: Course) => ({
         ...course,
         year: Number(course.year) || 1,
         display_name: buildCourseLabel(course),
@@ -181,7 +186,7 @@ export const useAdminStudents = () => {
       setLoading(true);
       setError(null);
       const sessionId = getSelectedAcademicSessionId();
-      const data = await getAdminUsers({ role: "student", ...(sessionId ? { session_id: sessionId } : {}) });
+      const data = await getAllAdminUsers({ role: "student", ...(sessionId ? { session_id: sessionId } : {}) });
       setStudents(data.users || []);
     } catch (err) {
       console.error(err);
@@ -243,28 +248,6 @@ export const useAdminStudents = () => {
     } catch (err) {
       console.error("Failed to delete student", err);
       setError(getApiErrorMessage(err, "Failed to remove student."));
-    }
-  };
-
-  const handleResetPassword = async (student: Student) => {
-    const studentId = getStudentId(student);
-    if (!studentId) return;
-    const confirmed = await confirm({
-      title: "Reset student password?",
-      description: "A one-time temporary password will be generated and all existing sessions will be revoked.",
-      details: `${student.name} (${student.email})`,
-      confirmLabel: "Generate password",
-      tone: "danger",
-    });
-    if (!confirmed) return;
-    try {
-      setError(null);
-      setResettingPasswordId(studentId);
-      setPasswordResetResult(await resetAdminUserPassword(studentId));
-    } catch (err) {
-      setError(getApiErrorMessage(err, "Failed to reset student password."));
-    } finally {
-      setResettingPasswordId("");
     }
   };
 
@@ -530,9 +513,8 @@ export const useAdminStudents = () => {
     };
 
     try {
-      const result = await addStudent(payload);
+      await addStudent(payload);
       handleCloseAddModal();
-      setPasswordResetResult(result);
       await fetchStudents();
     } catch (err) {
       console.error(err);
@@ -576,9 +558,27 @@ export const useAdminStudents = () => {
     [students, searchName, filterCourse, filterBatch],
   );
 
-  const courseFilterOptions = useMemo(() => uniqueSorted(studentsForCourseOptions.map((student) => student.course)), [studentsForCourseOptions]);
-  const batchFilterOptions = useMemo(() => uniqueSorted(studentsForBatchOptions.map((student) => student.batch)), [studentsForBatchOptions]);
-  const sectionFilterOptions = useMemo(() => uniqueSorted(studentsForSectionOptions.map((student) => student.section_name)), [studentsForSectionOptions]);
+  // Filter options come from the academic structure first, so a program, batch or section that has no
+  // students yet (or none in the selected session) is still listed. Names found on students are merged in
+  // for older records whose label no longer matches the structure.
+  const selectedFilterCourse = useMemo(() => courses.find((course) => String(course.name || "").trim() === filterCourse), [courses, filterCourse]);
+  const selectedFilterBatch = useMemo(() => batches.find((batch) => getBatchLabel(batch) === filterBatch && (!selectedFilterCourse || batch.course_id === selectedFilterCourse.id)), [batches, filterBatch, selectedFilterCourse]);
+  const courseFilterOptions = useMemo(
+    () => uniqueSorted([...courses.map((course) => course.name), ...studentsForCourseOptions.map((student) => student.course)]),
+    [courses, studentsForCourseOptions],
+  );
+  const batchFilterOptions = useMemo(
+    () => uniqueSorted([...batches.filter((batch) => !selectedFilterCourse || batch.course_id === selectedFilterCourse.id).map((batch) => getBatchLabel(batch)), ...studentsForBatchOptions.map((student) => student.batch)]),
+    [batches, selectedFilterCourse, studentsForBatchOptions],
+  );
+  const sectionFilterOptions = useMemo(
+    () =>
+      uniqueSorted([
+        ...sections.filter((section) => (!selectedFilterCourse || section.course_id === selectedFilterCourse.id) && (!selectedFilterBatch || section.batch_id === selectedFilterBatch.id)).map((section) => section.name),
+        ...studentsForSectionOptions.map((student) => student.section_name),
+      ]),
+    [sections, selectedFilterCourse, selectedFilterBatch, studentsForSectionOptions],
+  );
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -616,9 +616,6 @@ export const useAdminStudents = () => {
     students,
     loading,
     error,
-    passwordResetResult,
-    setPasswordResetResult,
-    resettingPasswordId,
     searchName,
     setSearchName,
     filterCourse,
@@ -660,7 +657,6 @@ export const useAdminStudents = () => {
     selectedEditBatchId,
     handleToggleStatus,
     handleDeleteStudent,
-    handleResetPassword,
     handleOpenEditStudent,
     handleEditInputChange,
     handleEditSubmit,

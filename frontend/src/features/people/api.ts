@@ -1,21 +1,24 @@
 // Admin user management (students/teachers/user directory).
 // Sprint 7: split out of src/lib/api.ts.
+import type { AccessLevel, AccessResource } from "@/lib/session";
 import { request, type ApiRequestBody } from "@/types/api-client";
+
+export type AdminAccess = Partial<Record<AccessResource, AccessLevel>>;
 
 export interface AdminAccount {
   id: string;
   name: string;
   email: string;
-  role: "super_admin" | "program_admin";
+  role: "super_admin" | "admin";
   is_active: boolean;
-  program_ids: string[];
+  access: AdminAccess;
 }
 
 export interface AdminCreateInput {
   name: string;
   email: string;
-  role: "program_admin";
-  program_ids: string[];
+  role: "admin";
+  access: AdminAccess;
 }
 
 export const getAdmins = () =>
@@ -24,14 +27,13 @@ export const getAdmins = () =>
 export const createAdmin = (data: AdminCreateInput) =>
   request.post<"/admin/admins">("/admin/admins", data) as Promise<{
     message: string;
-    temporary_password: string;
     user: AdminAccount;
   }>;
 
-export const replaceAdminScopes = (adminId: string, programIds: string[]) =>
-  request.put<"/admin/admins/{admin_id}/scopes">(`/admin/admins/${adminId}/scopes`, {
-    program_ids: programIds,
-  }) as Promise<{ message: string; program_ids: string[] }>;
+export const replaceAdminAccess = (adminId: string, access: AdminAccess) =>
+  request.put<"/admin/admins/{admin_id}/access">(`/admin/admins/${adminId}/access`, {
+    access,
+  }) as Promise<{ message: string; access: AdminAccess }>;
 
 export const addStudent = async (studentData: ApiRequestBody<"/admin/add-student", "post">) =>
   request.post<"/admin/add-student">("/admin/add-student", studentData);
@@ -55,6 +57,18 @@ export const importStudents = async (file: File, options: { dryRun?: boolean } =
 
 export const getAdminUsers = (params: Record<string, unknown> = {}) => request.get<"/admin/users">("/admin/users", { params });
 
+// The API returns 20 users per page by default. Screens that filter or count on the client need every page.
+const ALL_USERS_PAGE_SIZE = 200;
+export const getAllAdminUsers = async (params: Record<string, unknown> = {}) => {
+  const first = await getAdminUsers({ ...params, page: 1, per_page: ALL_USERS_PAGE_SIZE });
+  const users = [...(first.users || [])];
+  for (let page = 2; page <= (first.total_pages || 1); page += 1) {
+    const next = await getAdminUsers({ ...params, page, per_page: ALL_USERS_PAGE_SIZE });
+    users.push(...(next.users || []));
+  }
+  return { ...first, users };
+};
+
 export const getAdminStudentProfile = (userId: string) => request.get<"/admin/user/{user_id}/profile">(`/admin/user/${userId}/profile`);
 
 export const getAdminUserDetails = (userId: string) => request.get<"/admin/user/{user_id}/details">(`/admin/user/${userId}/details`);
@@ -64,7 +78,5 @@ export const toggleUserStatus = async (userId: string, isActive: boolean) =>
 
 export const updateAdminUser = async (userId: string, userData: ApiRequestBody<"/admin/user/{user_id}", "put">) =>
   request.put<"/admin/user/{user_id}">(`/admin/user/${userId}`, userData);
-
-export const resetAdminUserPassword = (userId: string) => request.patch<"/admin/user/{user_id}/reset-password">(`/admin/user/${userId}/reset-password`);
 
 export const deleteUser = (userId: string) => request.delete<"/admin/user/{user_id}">(`/admin/user/${userId}`);

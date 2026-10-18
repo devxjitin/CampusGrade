@@ -55,56 +55,6 @@ def _utc_response(value):
     return value.astimezone(datetime.timezone.utc)
 
 
-def _normalize_generated_assignment(
-    payload: dict,
-    total_marks: float = 20,
-    rubric_count: int = 5,
-    difficulty: str = "intermediate",
-    require_readme: bool = True,
-) -> dict:
-    requested_total_marks = max(0.1, min(10_000, float(total_marks)))
-    requested_rubric_count = max(1, min(20, int(rubric_count)))
-    rubric = payload.get("rubric") if isinstance(payload.get("rubric"), list) else []
-    if len(rubric) != requested_rubric_count:
-        raise ValueError(f"AI must return exactly {requested_rubric_count} rubric criteria")
-    raw_marks = []
-    for item in rubric:
-        try:
-            raw_marks.append(max(0.1, float(item.get("max_marks", 4))))
-        except (TypeError, ValueError):
-            raw_marks.append(4.0)
-    scale = requested_total_marks / sum(raw_marks)
-    marks = [round(value * scale, 2) for value in raw_marks]
-    marks[-1] = round(requested_total_marks - sum(marks[:-1]), 2)
-    clean_rubric = [
-        {
-            "id": str(uuid.uuid4()),
-            "title": str(item.get("title") or f"Criterion {index + 1}")[:150],
-            "description": str(item.get("description") or "")[:2000],
-            "max_marks": marks[index],
-        }
-        for index, item in enumerate(rubric)
-    ]
-    selected_difficulty = str(difficulty or "intermediate").lower()
-    if selected_difficulty not in {"beginner", "intermediate", "advanced"}:
-        selected_difficulty = "intermediate"
-    requirements = payload.get("repository_requirements") if isinstance(payload.get("repository_requirements"), dict) else {}
-    return {
-        "title": str(payload.get("title") or "Generated assignment")[:255],
-        "short_description": str(payload.get("short_description") or "")[:500],
-        "instructions": str(payload.get("instructions") or "")[:50000],
-        "learning_outcomes": [str(value)[:300] for value in (payload.get("learning_outcomes") or []) if str(value).strip()][:10],
-        "tags": [str(value)[:80] for value in (payload.get("tags") or []) if str(value).strip()][:12],
-        "difficulty": selected_difficulty,
-        "repository_requirements": {
-            "require_readme": bool(require_readme),
-            "required_files": [str(value)[:255] for value in (requirements.get("required_files") or []) if str(value).strip()][:20],
-        },
-        "total_marks": requested_total_marks,
-        "rubric": clean_rubric,
-    }
-
-
 def _phase(assignment: SqlAssignment, now=None):
     now = now or _now()
     if assignment.status == "archived":

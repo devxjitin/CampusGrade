@@ -8,8 +8,8 @@ import { request, type ApiRequestBody } from "@/types/api-client";
 export { refreshAccessToken };
 export const refreshSession = refreshAccessToken;
 
-export const login = async (email: string, password: string, role?: string) => {
-  const data = await request.post<"/login">("/login", { email, password }, { params: role ? { role } : undefined });
+export const login = async (email: string, role?: string) => {
+  const data = await request.post<"/login">("/login", { email }, { params: role ? { role } : undefined });
   const user = data.user as SessionUser;
   setCachedUser(user);
   return { ...data, user };
@@ -21,13 +21,6 @@ export const logout = async () => {
   return data;
 };
 
-// ─── Password recovery (no session needed) ────────────────────────────
-
-export const forgotPassword = (email: string) => request.post<"/auth/forgot-password">("/auth/forgot-password", { email });
-
-export const resetPassword = (token: string, newPassword: string) =>
-  request.post<"/auth/reset-password">("/auth/reset-password", { token, new_password: newPassword });
-
 // ─── Profile ──────────────────────────────────────────────────────────
 
 export const getProfile = () => request.get<"/profile">("/profile");
@@ -37,9 +30,6 @@ export const getAssignedTeachers = () => request.get<"/me/teachers">("/me/teache
 export const getTeachingScope = () => request.get<"/me/teaching-scope">("/me/teaching-scope");
 
 export const updateProfile = (data: ApiRequestBody<"/profile", "patch">) => request.patch<"/profile">("/profile", data);
-
-export const changePassword = async (oldPassword: string, newPassword: string) =>
-  request.patch<"/change-password">("/change-password", { old_password: oldPassword, new_password: newPassword });
 
 export const getPreferences = () => request.get<"/me/preferences">("/me/preferences");
 

@@ -55,43 +55,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/forgot-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Forgot Password
-         * @description Always answers 200 with the same text, so the response never reveals whether an email has an account.
-         */
-        post: operations["forgot_password_auth_forgot_password_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/auth/reset-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reset Password */
-        post: operations["reset_password_auth_reset_password_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/auth/refresh": {
         parameters: {
             query?: never;
@@ -312,23 +275,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/change-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Change Password */
-        patch: operations["change_password_change_password_patch"];
-        trace?: never;
-    };
     "/admin/users": {
         parameters: {
             query?: never;
@@ -391,28 +337,6 @@ export interface paths {
          *     module rather than duplicated.
          */
         patch: operations["toggle_user_status_admin_user__user_id__patch"];
-        trace?: never;
-    };
-    "/admin/user/{user_id}/reset-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Reset User Password
-         * @description Async port of admin_helpers.py::reset_user_password. No admin-continuity
-         *     logic involved (resetting a password doesn't remove an admin), so this
-         *     one only needed a plain lookup, not the row-locking safety context.
-         */
-        patch: operations["reset_user_password_admin_user__user_id__reset_password_patch"];
         trace?: never;
     };
     "/admin/add-teacher": {
@@ -582,7 +506,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/admin/admins/{admin_id}/scopes": {
+    "/admin/admins/{admin_id}/access": {
         parameters: {
             query?: never;
             header?: never;
@@ -590,8 +514,8 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Replace Admin Scopes */
-        put: operations["replace_admin_scopes_admin_admins__admin_id__scopes_put"];
+        /** Replace Admin Access */
+        put: operations["replace_admin_access_admin_admins__admin_id__access_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -875,6 +799,61 @@ export interface paths {
         put?: never;
         /** Retry Job */
         post: operations["retry_job_admin_jobs__job_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Exports */
+        get: operations["list_exports_admin_exports_get"];
+        put?: never;
+        /** Request Export */
+        post: operations["request_export_admin_exports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/exports/{export_id}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Download Url
+         * @description Five-minute presigned link. `url` is null when the backend cannot presign; use `/file` then.
+         */
+        get: operations["export_download_url_admin_exports__export_id__url_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/exports/{export_id}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export Download File */
+        get: operations["export_download_file_admin_exports__export_id__file_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1394,7 +1373,18 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Export External Evaluation */
+        /**
+         * Export External Evaluation
+         * @description Prepare prompts in which every student is a pseudonym (`Student-07`).
+         *
+         *     The prompt carries no name, roll number, email, student id, repository owner or submission id.
+         *     The mapping back to real students lives only in the signed batch token that the teacher's browser
+         *     keeps (`batch_id` in the response); the prompt contains an unrelated random `batch_ref` instead.
+         *
+         *     `mode="links"` is for AI tools that can open GitHub themselves: no file contents are exported, each
+         *     student gets a link pinned to the submitted commit, and the whole class is one prompt. The link names
+         *     the repository owner, so this mode is not anonymous; the browser warns the teacher before using it.
+         */
         post: operations["export_external_evaluation_assignments_teacher__assignment_id__external_evaluation_export_post"];
         delete?: never;
         options?: never;
@@ -1422,6 +1412,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assignments/teacher-tools/context-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Teacher Context Options
+         * @description Program > batch > section > subject tree the teacher is allocated to, resolved from the database.
+         */
+        get: operations["teacher_context_options_assignments_teacher_tools_context_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assignments/teacher/{assignment_id}/external-evaluation/validate": {
         parameters: {
             query?: never;
@@ -1431,8 +1441,35 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Validate External Evaluation */
+        /**
+         * Validate External Evaluation
+         * @description Validate an imported AI response and return, per student, the proposed marks next to what is saved.
+         *
+         *     Nothing is written. `preview` and `validate` are the same operation.
+         */
         post: operations["validate_external_evaluation_assignments_teacher__assignment_id__external_evaluation_validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assignments/teacher/{assignment_id}/external-evaluation/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate External Evaluation
+         * @description Validate an imported AI response and return, per student, the proposed marks next to what is saved.
+         *
+         *     Nothing is written. `preview` and `validate` are the same operation.
+         */
+        post: operations["validate_external_evaluation_assignments_teacher__assignment_id__external_evaluation_preview_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1473,7 +1510,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/assignments/teacher-tools/external-ai-proposal/import": {
+    "/assignments/teacher-tools/external-ai-proposal/validate": {
         parameters: {
             query?: never;
             header?: never;
@@ -1482,8 +1519,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Import External Ai Proposal */
-        post: operations["import_external_ai_proposal_assignments_teacher_tools_external_ai_proposal_import_post"];
+        /** Validate External Ai Proposal */
+        post: operations["validate_external_ai_proposal_assignments_teacher_tools_external_ai_proposal_validate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1590,91 +1627,6 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
-        trace?: never;
-    };
-    "/assignments/student-tools/{assignment_id}/threads": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Student Thread */
-        post: operations["create_student_thread_assignments_student_tools__assignment_id__threads_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/assignments/student-tools/threads": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Student Threads */
-        get: operations["student_threads_assignments_student_tools_threads_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/assignments/teacher-tools/threads": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Teacher Threads */
-        get: operations["teacher_threads_assignments_teacher_tools_threads_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/assignments/discussion/threads/{thread_id}/messages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reply Thread */
-        post: operations["reply_thread_assignments_discussion_threads__thread_id__messages_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/assignments/teacher-tools/threads/{thread_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update Thread Status */
-        patch: operations["update_thread_status_assignments_teacher_tools_threads__thread_id__patch"];
         trace?: never;
     };
     "/assignments/admin-tools/dashboard": {
@@ -1819,13 +1771,20 @@ export interface components {
             /** Is Current */
             is_current?: boolean | null;
         };
+        /** AdminAccessUpdate */
+        AdminAccessUpdate: {
+            /** Access */
+            access?: {
+                [key: string]: string;
+            };
+        };
         /** AdminAssignmentActionInput */
         AdminAssignmentActionInput: {
             /**
              * Action
              * @enum {string}
              */
-            action: "reassign" | "lock" | "unlock" | "archive" | "remind";
+            action: "reassign" | "lock" | "unlock" | "archive";
             /** Teacher Id */
             teacher_id?: string | null;
             /**
@@ -1845,16 +1804,13 @@ export interface components {
             email: string;
             /**
              * Role
-             * @default program_admin
+             * @default admin
              */
             role: string;
-            /** Program Ids */
-            program_ids?: string[];
-        };
-        /** AdminScopesUpdate */
-        AdminScopesUpdate: {
-            /** Program Ids */
-            program_ids?: string[];
+            /** Access */
+            access?: {
+                [key: string]: string;
+            };
         };
         /** AdminUserUpdate */
         AdminUserUpdate: {
@@ -2132,11 +2088,6 @@ export interface components {
             assignments?: unknown[];
             /** Avatar */
             avatar?: string | null;
-            /**
-             * Must Change Password
-             * @default false
-             */
-            must_change_password: boolean;
         };
         /** BatchCreate */
         BatchCreate: {
@@ -2159,64 +2110,6 @@ export interface components {
             start_year?: number | null;
             /** End Year */
             end_year?: number | null;
-        };
-        /** Body_generate_external_ai_prompt_assignments_teacher_tools_external_ai_prompt_post */
-        Body_generate_external_ai_prompt_assignments_teacher_tools_external_ai_prompt_post: {
-            /**
-             * Source Prompt
-             * @default
-             */
-            source_prompt: string;
-            /**
-             * Course
-             * @default
-             */
-            course: string;
-            /**
-             * Program
-             * @default
-             */
-            program: string;
-            /**
-             * Program Year
-             * @default
-             */
-            program_year: string;
-            /**
-             * Batch
-             * @default
-             */
-            batch: string;
-            /**
-             * Section
-             * @default
-             */
-            section: string;
-            /**
-             * Difficulty
-             * @default intermediate
-             */
-            difficulty: string;
-            /**
-             * Require Readme
-             * @default true
-             */
-            require_readme: boolean;
-            /**
-             * Custom Instructions
-             * @default
-             */
-            custom_instructions: string;
-            /**
-             * Total Marks
-             * @default 20
-             */
-            total_marks: number;
-            /**
-             * Rubric Count
-             * @default 5
-             */
-            rubric_count: number;
         };
         /** Body_import_students_admin_import_students_post */
         Body_import_students_admin_import_students_post: {
@@ -2291,13 +2184,6 @@ export interface components {
             /** Duplicate Flag Ids */
             duplicate_flag_ids?: string[];
         };
-        /** ChangePasswordRequest */
-        ChangePasswordRequest: {
-            /** Old Password */
-            old_password: string;
-            /** New Password */
-            new_password: string;
-        };
         /** CourseCreate */
         CourseCreate: {
             /** Name */
@@ -2326,12 +2212,48 @@ export interface components {
             /** Year */
             year?: number | null;
         };
-        /** ExternalAIAssignmentProposalImport */
-        ExternalAIAssignmentProposalImport: {
-            /** Proposal */
-            proposal: {
-                [key: string]: unknown;
-            };
+        /** CreatedUser */
+        CreatedUser: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+            /** Role */
+            role: string;
+        };
+        /** CreatedUserResponse */
+        CreatedUserResponse: {
+            /** Message */
+            message: string;
+            user: components["schemas"]["CreatedUser"];
+        };
+        /** ExportRequest */
+        ExportRequest: {
+            /** Session Id */
+            session_id: string;
+        };
+        /** ExternalAIPromptRequest */
+        ExternalAIPromptRequest: {
+            /** Program Id */
+            program_id: string;
+            /** Batch Id */
+            batch_id: string;
+            /** Section Id */
+            section_id: string;
+            /** Subject Id */
+            subject_id: string;
+            /** Brief */
+            brief: string;
+            /**
+             * Guidance
+             * @default
+             */
+            guidance: string;
             /**
              * Total Marks
              * @default 20
@@ -2354,6 +2276,38 @@ export interface components {
              */
             require_readme: boolean;
         };
+        /**
+         * ExternalAIProposalValidate
+         * @description Validate AI JSON. With a draft_token it must match that prompt; without one (the teacher's own JSON) the class is given as IDs.
+         */
+        ExternalAIProposalValidate: {
+            /** Draft Token */
+            draft_token?: string | null;
+            /** Program Id */
+            program_id?: string | null;
+            /** Batch Id */
+            batch_id?: string | null;
+            /** Section Id */
+            section_id?: string | null;
+            /** Subject Id */
+            subject_id?: string | null;
+            /** Proposal */
+            proposal: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * ExternalEvaluationExportRequest
+         * @description `files` embeds every repository file (batches of up to 10); `links` sends one GitHub link per student for the whole class.
+         */
+        ExternalEvaluationExportRequest: {
+            /**
+             * Mode
+             * @default files
+             * @enum {string}
+             */
+            mode: "files" | "links";
+        };
         /** ExternalEvaluationValidateInput */
         ExternalEvaluationValidateInput: {
             /** Batch Token */
@@ -2362,11 +2316,6 @@ export interface components {
             result: {
                 [key: string]: unknown;
             };
-        };
-        /** ForgotPasswordRequest */
-        ForgotPasswordRequest: {
-            /** Email */
-            email: string;
         };
         /** GradeInput */
         GradeInput: {
@@ -2397,8 +2346,6 @@ export interface components {
         LoginRequest: {
             /** Email */
             email: string;
-            /** Password */
-            password: string;
         };
         /** LoginResponse */
         LoginResponse: {
@@ -2436,13 +2383,6 @@ export interface components {
         RepositorySubmitRequest: {
             /** Preview Token */
             preview_token: string;
-        };
-        /** ResetPasswordRequest */
-        ResetPasswordRequest: {
-            /** Token */
-            token: string;
-            /** New Password */
-            new_password: string;
         };
         /** RubricCriterionInput */
         RubricCriterionInput: {
@@ -2600,48 +2540,6 @@ export interface components {
             designation?: string | null;
             /** Assignments */
             assignments: components["schemas"]["TeacherAssignment"][];
-        };
-        /** TemporaryCredentialResponse */
-        TemporaryCredentialResponse: {
-            /** Message */
-            message: string;
-            /** Temporary Password */
-            temporary_password: string;
-            user: components["schemas"]["TemporaryCredentialUser"];
-        };
-        /** TemporaryCredentialUser */
-        TemporaryCredentialUser: {
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** Role */
-            role: string;
-        };
-        /** ThreadInput */
-        ThreadInput: {
-            /** Subject */
-            subject: string;
-            /** Message */
-            message: string;
-        };
-        /** ThreadMessageInput */
-        ThreadMessageInput: {
-            /** Message */
-            message: string;
-        };
-        /** ThreadStatusInput */
-        ThreadStatusInput: {
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "open" | "resolved";
         };
         /** UserResponse */
         UserResponse: {
@@ -2801,72 +2699,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LoginResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    forgot_password_auth_forgot_password_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ForgotPasswordRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reset_password_auth_reset_password_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ResetPasswordRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3249,39 +3081,6 @@ export interface operations {
             };
         };
     };
-    change_password_change_password_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChangePasswordRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MessageResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_users_admin_users_get: {
         parameters: {
             query?: {
@@ -3418,37 +3217,6 @@ export interface operations {
             };
         };
     };
-    reset_user_password_admin_user__user_id__reset_password_patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TemporaryCredentialResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     add_teacher_admin_add_teacher_post: {
         parameters: {
             query?: never;
@@ -3468,7 +3236,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TemporaryCredentialResponse"];
+                    "application/json": components["schemas"]["CreatedUserResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3567,7 +3335,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TemporaryCredentialResponse"];
+                    "application/json": components["schemas"]["CreatedUserResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3731,7 +3499,7 @@ export interface operations {
             };
         };
     };
-    replace_admin_scopes_admin_admins__admin_id__scopes_put: {
+    replace_admin_access_admin_admins__admin_id__access_put: {
         parameters: {
             query?: never;
             header?: never;
@@ -3742,7 +3510,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AdminScopesUpdate"];
+                "application/json": components["schemas"]["AdminAccessUpdate"];
             };
         };
         responses: {
@@ -4541,6 +4309,121 @@ export interface operations {
             header?: never;
             path: {
                 job_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_exports_admin_exports_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    request_export_admin_exports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_download_url_admin_exports__export_id__url_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_download_file_admin_exports__export_id__file_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                export_id: string;
             };
             cookie?: never;
         };
@@ -5533,7 +5416,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ExternalEvaluationExportRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -5575,7 +5462,62 @@ export interface operations {
             };
         };
     };
+    teacher_context_options_assignments_teacher_tools_context_options_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     validate_external_evaluation_assignments_teacher__assignment_id__external_evaluation_validate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExternalEvaluationValidateInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_external_evaluation_assignments_teacher__assignment_id__external_evaluation_preview_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -5652,9 +5594,9 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/x-www-form-urlencoded": components["schemas"]["Body_generate_external_ai_prompt_assignments_teacher_tools_external_ai_prompt_post"];
+                "application/json": components["schemas"]["ExternalAIPromptRequest"];
             };
         };
         responses: {
@@ -5678,7 +5620,7 @@ export interface operations {
             };
         };
     };
-    import_external_ai_proposal_assignments_teacher_tools_external_ai_proposal_import_post: {
+    validate_external_ai_proposal_assignments_teacher_tools_external_ai_proposal_validate_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -5687,7 +5629,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ExternalAIAssignmentProposalImport"];
+                "application/json": components["schemas"]["ExternalAIProposalValidate"];
             };
         };
         responses: {
@@ -5889,151 +5831,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["AnnouncementInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_student_thread_assignments_student_tools__assignment_id__threads_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                assignment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ThreadInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    student_threads_assignments_student_tools_threads_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    teacher_threads_assignments_teacher_tools_threads_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    reply_thread_assignments_discussion_threads__thread_id__messages_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                thread_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ThreadMessageInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_thread_status_assignments_teacher_tools_threads__thread_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                thread_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ThreadStatusInput"];
             };
         };
         responses: {

@@ -5,8 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui";
 import { useToast } from "@/components/Toast";
-import { EmailNotificationSettingsSection, NotificationSettingsSection, PasswordSettingsSection, SessionsSettingsSection } from "./settings/SettingsSections";
-import { changePassword, getPreferences, getSessions, revokeOtherSessions, revokeSession, updatePreferences } from "@/features/auth/api";
+import { EmailNotificationSettingsSection, NotificationSettingsSection, SessionsSettingsSection } from "./settings/SettingsSections";
+import { getPreferences, getSessions, revokeOtherSessions, revokeSession, updatePreferences } from "@/features/auth/api";
 import { getAssignmentMonitoringSettings, updateAssignmentMonitoringSettings } from "@/features/reporting/api";
 import { clearSession, getCachedUser, isAdminRole } from "@/lib/session";
 
@@ -36,9 +36,6 @@ export default function SettingsPage() {
   const toast = useToast();
   const user = useMemo(() => getCachedUser() || { role: "student" as const }, []);
   const role = user.role || "student";
-  const mustChangePassword = Boolean(user.must_change_password);
-  const [password, setPassword] = useState({ oldPassword: "", newPassword: "", confirmPassword: "" });
-  const [savingPassword, setSavingPassword] = useState(false);
   const [preferences, setPreferences] = useState<Record<string, boolean>>({});
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +43,6 @@ export default function SettingsPage() {
   const [savingMonitoring, setSavingMonitoring] = useState(false);
 
   useEffect(() => {
-    if (mustChangePassword) return;
     const load = async () => {
       setLoading(true);
       try {
@@ -77,24 +73,6 @@ export default function SettingsPage() {
     } catch (error) {
       setPreferences(previous);
       toast.error(errorMessage(error, "Preference could not be saved."));
-    }
-  };
-
-  const submitPassword = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (password.newPassword !== password.confirmPassword) {
-      toast.error("New password and confirmation do not match.");
-      return;
-    }
-    setSavingPassword(true);
-    try {
-      await changePassword(password.oldPassword, password.newPassword);
-      clearSession();
-      router.push("/login?session=password-changed");
-    } catch (error) {
-      toast.error(errorMessage(error, "Password could not be updated."));
-    } finally {
-      setSavingPassword(false);
     }
   };
 
@@ -140,25 +118,6 @@ export default function SettingsPage() {
       setSavingMonitoring(false);
     }
   };
-
-  if (mustChangePassword) {
-    return (
-      <>
-        <PageHeader
-          eyebrow="Account security"
-          title="Change temporary password"
-          description="Choose a private password before continuing to your account."
-        />
-        <div className="mx-auto max-w-2xl space-y-6 pb-8">
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
-            An administrator reset your password. Enter the temporary password and choose a new one. Other account features
-            remain locked until this is complete.
-          </div>
-          <PasswordSettingsSection requiredChange password={password} setPassword={setPassword} saving={savingPassword} onSubmit={submitPassword} />
-        </div>
-      </>
-    );
-  }
 
   return (
     <>
@@ -223,7 +182,6 @@ export default function SettingsPage() {
           </section>
         )}
         <div className="grid gap-6 lg:grid-cols-2">
-          <PasswordSettingsSection password={password} setPassword={setPassword} saving={savingPassword} onSubmit={submitPassword} />
           <NotificationSettingsSection role={role} loading={loading} preferences={preferences} savePreference={savePreference} />
           <EmailNotificationSettingsSection loading={loading} preferences={preferences} savePreference={savePreference} />
         </div>

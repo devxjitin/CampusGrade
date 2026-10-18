@@ -1,7 +1,7 @@
 "use client";
 
 // Ported from frontend-legacy/src/pages/AssignmentReview.jsx
-import { ArrowLeft, Download, Send as Publish, Users } from "lucide-react";
+import { ArrowLeft, Download, Send as Publish, Sparkles, Users } from "lucide-react";
 import BulkExternalEvaluationDialog from "@/components/BulkExternalEvaluationDialog";
 import { downloadAssignmentGradebook, publishAllAssignmentGrades } from "@/features/grading/api";
 import { formatDateTime } from "@/lib/datetime";
@@ -53,12 +53,17 @@ export default function AssignmentReviewPage() {
           <p className="mt-2 text-xs text-slate-500">Start evaluation per student to pin their latest synchronized commit. Other students remain live until evaluated or the deadline.</p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          {evaluation.can_evaluate && <BulkExternalEvaluationDialog assignmentId={id} assignment={assignment} onSaved={async () => {
+          {evaluation.can_evaluate || evaluation.all_submitted || evaluation.deadline_passed ? <BulkExternalEvaluationDialog assignmentId={id} assignment={assignment} filesReady={Boolean(evaluation.can_evaluate)} onSaved={async () => {
             // Invalidate the TanStack Query roster key so any useQuery("assignment-roster", id)
             // hooks (present or future) also refresh, then fall back to the ad-hoc load().
             await queryClient.invalidateQueries({ queryKey: ["assignment-roster", id] });
             load(selectedId);
-          }} />}
+          }} /> : (
+            <button type="button" className="btn btn-outline" disabled title="Opens after all students submit or the deadline passes">
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+              External AI evaluator
+            </button>
+          )}
           <button
             type="button"
             onClick={() => downloadAssignmentGradebook(id, `${assignment.title}-gradebook.csv`).catch(() => toast.error("Gradebook download failed"))}
@@ -168,18 +173,18 @@ export default function AssignmentReviewPage() {
                   className={`mb-1 w-full rounded-xl p-3 text-left ${row.is_low_score ? "bg-red-50 ring-1 ring-red-200" : selectedId === row.student.id ? "bg-primary-50 ring-1 ring-primary-200" : "hover:bg-slate-50"}`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-sm font-semibold">{row.student.name}</p>
+                    <p className="[overflow-wrap:anywhere] text-sm font-semibold">{row.student.name}</p>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold capitalize ${statusTone[status] || statusTone.missing}`}>
                       {status === "pending_teacher" ? "awaiting analysis" : status === "draft" ? "evaluation saved" : status}
                     </span>
                   </div>
-                  <p className="mt-1 truncate text-xs text-slate-500">{row.student.roll_no || row.student.email}</p>
+                  <p className="mt-1 [overflow-wrap:anywhere] text-xs text-slate-600">{row.student.roll_no || row.student.email}</p>
                   {row.is_low_score && (
                     <p className="mt-1 text-xs font-bold text-red-700">
                       Below 50% · {row.score_percentage}%
                     </p>
                   )}
-                  {row.version?.is_late && <p className="mt-1 text-xs font-semibold text-amber-600">Late submission</p>}
+                  {row.version?.is_late && <p className="mt-1 text-xs font-semibold text-amber-700">Late submission</p>}
                 </button>
               );
             })}

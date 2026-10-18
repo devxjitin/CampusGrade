@@ -131,7 +131,7 @@ export const TeacherAssignmentsEditor = ({
                 </label>
               </div>
               {assignment.program_id && rowSubjects.length === 0 && (
-                <p className="mt-2 text-xs text-amber-600">No subjects are available for this program scope.</p>
+                <p className="mt-2 text-xs text-amber-700">No subjects are available for this program scope.</p>
               )}
             </div>
           );

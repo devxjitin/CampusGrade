@@ -32,7 +32,6 @@ async def preview_rollover(principal=Depends(require(Permission.ROLLOVER_EXECUTE
         "graduate_count": result.graduate_count,
         "new_batches": result.new_batches,
         "new_sections_count": result.new_sections_count,
-        "enrollment_count": result.enrollment_count,
         "teacher_allocation_count": result.teacher_allocation_count,
         "warnings": result.warnings,
     }

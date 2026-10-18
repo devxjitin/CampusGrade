@@ -1,4 +1,4 @@
-import { BookOpen, CalendarClock, CheckCircle2, FileText, Link2 } from "lucide-react";
+import { BookOpen, CalendarClock, CheckCircle2, FileText, GraduationCap, Link2 } from "lucide-react";
 export type AssignmentDifficulty = "beginner" | "intermediate" | "advanced";
 
 export const toAssignmentDifficulty = (value: unknown): AssignmentDifficulty =>
@@ -6,13 +6,19 @@ export const toAssignmentDifficulty = (value: unknown): AssignmentDifficulty =>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyRecord = Record<string, any>;
 
+export type ContextSubject = { id: string; name: string; code?: string };
+export type ContextSection = { id: string; name: string; subjects: ContextSubject[] };
+export type ContextBatch = { id: string; name: string; sections: ContextSection[] };
+export type ContextProgram = { id: string; name: string; batches: ContextBatch[] };
+
 export const TABS: [string, string, typeof FileText][] = [
+  ["context", "Class & subject", GraduationCap],
   ["basics", "Basics", FileText],
-  ["audience", "Audience & schedule", CalendarClock],
+  ["audience", "Schedule", CalendarClock],
   ["rubric", "Rubric", BookOpen],
-  ["results", "Result release", CheckCircle2],
+  ["results", "Results", CheckCircle2],
   ["resources", "Resources", Link2],
-  ["review", "Review & publish", CheckCircle2],
+  ["review", "Review", CheckCircle2],
 ];
 
 export const blank = (): AnyRecord => ({
@@ -51,23 +57,3 @@ export const parseCommaSeparatedValues = (value: string) =>
     .filter(Boolean);
 
 export const textValue = (value: unknown) => (typeof value === "string" || typeof value === "number" ? String(value) : "");
-
-export const normalizeTeachingAssignments = (rows: unknown): AnyRecord[] =>
-  Array.isArray(rows)
-    ? rows
-        .filter((row) => row && typeof row === "object")
-        .map((row: AnyRecord) => ({
-          ...row,
-          program_id: textValue(row.program_id || row.course_id),
-          course_id: textValue(row.course_id || row.program_id),
-          batch_id: textValue(row.batch_id),
-          section_id: textValue(row.section_id),
-          program: textValue(row.program || row.course),
-          course: textValue(row.course || row.program),
-          batch: textValue(row.batch),
-          section: textValue(row.section),
-          subject: textValue(row.subject),
-          subject_ids: Array.isArray(row.subject_ids) ? row.subject_ids.map(textValue).filter(Boolean) : [],
-          subjects: Array.isArray(row.subjects) ? row.subjects.map(textValue).filter(Boolean) : [],
-        }))
-    : [];

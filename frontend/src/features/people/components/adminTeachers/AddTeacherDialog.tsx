@@ -25,7 +25,7 @@ export const AddTeacherDialog = ({ model }: { model: AdminTeachersModel }) => {
     subjects
   } = model;
   return (
-<Dialog open={showModal} onClose={handleCloseAddModal} title="Add teacher" description="Create the account and assign teaching scope. A secure temporary password will be shown once." size="lg">
+<Dialog open={showModal} onClose={handleCloseAddModal} title="Add teacher" description="Create the account and assign teaching scope. The teacher signs in with their email address." size="lg">
         <form onSubmit={handleAddSubmit}>
           <div className="space-y-6">
             {submitError && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{submitError}</div>}

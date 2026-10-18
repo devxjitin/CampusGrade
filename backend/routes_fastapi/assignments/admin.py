@@ -2,8 +2,7 @@ import datetime
 import json
 
 from core.db import db_session
-from core.policy import Permission, require
-from core.principal import Role
+from core.policy import Access, Resource, require_access
 from core.scoping import scope_to_programs
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from models.assignment import SqlAssignment, SqlAssignmentSubmission, SqlAssignmentSubmissionVersion
@@ -29,7 +28,7 @@ async def admin_assignment_dashboard(
     to_date: str | None = Query(None, alias="to"),
     program_id: str | None = None,
     session_id: str | None = None,
-    principal=Depends(require(Permission.ASSIGNMENT_ADMIN_OVERRIDE)),
+    principal=Depends(require_access(Resource.ASSIGNMENTS, Access.VIEW)),
     db: AsyncSession = Depends(db_session),
 ):
     from models.sql_models import SqlAcademicSession
@@ -158,13 +157,11 @@ async def admin_assignment_action(
     assignment_id: str,
     body: AdminAssignmentActionInput,
     request: Request,
-    principal=Depends(require(Permission.ASSIGNMENT_ADMIN_OVERRIDE)),
+    principal=Depends(require_access(Resource.ASSIGNMENTS, Access.EDIT)),
     db: AsyncSession = Depends(db_session),
 ):
     assignment = (await db.scalars(select(SqlAssignment).filter_by(id=assignment_id))).first()
     if not assignment:
-        raise HTTPException(404, "Assignment not found")
-    if principal.role is Role.PROGRAM_ADMIN and assignment.target_course_id not in principal.program_ids:
         raise HTTPException(404, "Assignment not found")
     if body.action in {"lock", "archive", "reassign"} and len(body.reason.strip()) < 3:
         raise HTTPException(400, "Provide a reason for this governance action")
@@ -192,16 +189,6 @@ async def admin_assignment_action(
         assignment.submission_locked_at = assignment.submission_locked_by = assignment.submission_lock_reason = None
     elif body.action == "archive":
         assignment.status = "archived"
-    elif body.action == "remind":
-        await _notification(
-            db,
-            assignment.created_by,
-            "Assignment grading reminder",
-            f"{assignment.title} has submitted work waiting for marks.",
-            "assignment_overdue",
-            f"/assignments/{assignment.id}/review",
-            f"admin-reminder:{assignment.id}:{_now().date().isoformat()}",
-        )
     await db.commit()
     await write_audit_log(db, principal.user_id, f"assignment.{body.action}", assignment.id, details, request.client.host if request.client else None)
     return {"message": "Assignment governance action completed", "assignment": await _serialize_assignment(db, assignment, False)}
@@ -221,7 +208,7 @@ async def admin_assignments(
     status: str | None = None,
     page: int = Query(1, ge=1),
     per_page: int = Query(100, ge=1, le=500),
-    principal=Depends(require(Permission.ASSIGNMENT_ADMIN_OVERRIDE)),
+    principal=Depends(require_access(Resource.ASSIGNMENTS, Access.VIEW)),
     db: AsyncSession = Depends(db_session),
 ):
     query = scope_to_programs(select(SqlAssignment), principal, SqlAssignment.target_course_id)
@@ -287,7 +274,7 @@ async def admin_assignments(
 
 
 @router.get("/admin/overview")
-async def admin_assignment_overview(principal=Depends(require(Permission.ASSIGNMENT_ADMIN_OVERRIDE)), db: AsyncSession = Depends(db_session)):
+async def admin_assignment_overview(principal=Depends(require_access(Resource.ASSIGNMENTS, Access.VIEW)), db: AsyncSession = Depends(db_session)):
     assignments = (await db.scalars(scope_to_programs(select(SqlAssignment), principal, SqlAssignment.target_course_id))).all()
     serialized = [await _serialize_assignment(db, row, False) for row in assignments]
     versions = (await db.scalars(select(SqlAssignmentSubmissionVersion))).all()
@@ -305,11 +292,9 @@ async def admin_assignment_overview(principal=Depends(require(Permission.ASSIGNM
 
 
 @router.get("/admin/{assignment_id}")
-async def admin_assignment_detail(assignment_id: str, principal=Depends(require(Permission.ASSIGNMENT_ADMIN_OVERRIDE)), db: AsyncSession = Depends(db_session)):
+async def admin_assignment_detail(assignment_id: str, principal=Depends(require_access(Resource.ASSIGNMENTS, Access.VIEW)), db: AsyncSession = Depends(db_session)):
     assignment = (await db.scalars(select(SqlAssignment).filter_by(id=assignment_id))).first()
     if not assignment:
-        raise HTTPException(404, "Assignment not found")
-    if principal.role is Role.PROGRAM_ADMIN and assignment.target_course_id not in principal.program_ids:
         raise HTTPException(404, "Assignment not found")
     payload = await _assignment_roster_payload(db, assignment)
     creator = (await db.scalars(select(SqlUser).filter_by(id=assignment.created_by))).first()
@@ -319,12 +304,10 @@ async def admin_assignment_detail(assignment_id: str, principal=Depends(require(
 
 @router.get("/admin/{assignment_id}/repository/{version_id}")
 async def admin_repository_detail(
-    assignment_id: str, version_id: str, principal=Depends(require(Permission.ASSIGNMENT_ADMIN_OVERRIDE)), db: AsyncSession = Depends(db_session)
+    assignment_id: str, version_id: str, principal=Depends(require_access(Resource.ASSIGNMENTS, Access.VIEW)), db: AsyncSession = Depends(db_session)
 ):
     assignment = (await db.scalars(select(SqlAssignment).filter_by(id=assignment_id))).first()
     if not assignment:
-        raise HTTPException(404, "Assignment not found")
-    if principal.role is Role.PROGRAM_ADMIN and assignment.target_course_id not in principal.program_ids:
         raise HTTPException(404, "Assignment not found")
     version = await _version_for_assignment(db, assignment, version_id)
     manifest = json.loads(await get_assignment_storage().aget_bytes(version.manifest_key)) if version.manifest_key and version.analysis_status == "ready" else []
@@ -333,12 +316,10 @@ async def admin_repository_detail(
 
 @router.delete("/admin/{assignment_id}")
 async def admin_delete_assignment(
-    assignment_id: str, request: Request, principal=Depends(require(Permission.ASSIGNMENT_ADMIN_OVERRIDE)), db: AsyncSession = Depends(db_session)
+    assignment_id: str, request: Request, principal=Depends(require_access(Resource.ASSIGNMENTS, Access.FULL)), db: AsyncSession = Depends(db_session)
 ):
     assignment = (await db.scalars(select(SqlAssignment).filter_by(id=assignment_id))).first()
     if not assignment:
-        raise HTTPException(404, "Assignment not found")
-    if principal.role is Role.PROGRAM_ADMIN and assignment.target_course_id not in principal.program_ids:
         raise HTTPException(404, "Assignment not found")
     keys = [row.storage_key for row in await _resources(db, assignment.id) if row.storage_key]
     versions = (

@@ -1,10 +1,10 @@
 "use client";
 
 // Ported from frontend-legacy/src/pages/AdminStudents.jsx
-import Link from "next/link";
-import { Eye, KeyRound, Pencil, Trash2, Upload } from "lucide-react";
-import { PageHeader } from "@/components/ui";
-import TemporaryPasswordDialog from "@/components/TemporaryPasswordDialog";
+import { getCachedUser } from "@/lib/session";
+import { canAccess } from "@/lib/permissions";
+import { Eye, Pencil, Power, Trash2, Upload } from "lucide-react";
+import { FilterToolbar, IconAction, LoadingState, PageHeader, SearchField, SelectField, StatusBadge } from "@/components/ui";
 import ViewingSessionBanner from "@/components/ViewingSessionBanner";
 import { useAdminStudents } from "./adminStudents/useAdminStudents";
 import { getStudentId } from "./adminStudents/shared";
@@ -13,13 +13,12 @@ import { EditStudentDialog } from "./adminStudents/EditStudentDialog";
 import { UploadStudentsDialog } from "./adminStudents/UploadStudentsDialog";
 
 export default function AdminStudentsPage() {
+  const canEdit = canAccess(getCachedUser(), "users", "edit");
+  const canDelete = canAccess(getCachedUser(), "users", "full");
   const model = useAdminStudents();
   const {
     loading,
     error,
-    passwordResetResult,
-    setPasswordResetResult,
-    resettingPasswordId,
     searchName,
     setSearchName,
     filterCourse,
@@ -30,7 +29,6 @@ export default function AdminStudentsPage() {
     setFilterSection,
     handleToggleStatus,
     handleDeleteStudent,
-    handleResetPassword,
     handleOpenEditStudent,
     handleOpenAddModal,
     handleOpenUploadModal,
@@ -49,7 +47,7 @@ export default function AdminStudentsPage() {
           title="Students"
           description="Manage student accounts and academic placement for assignment delivery."
           actions={
-            <>
+            !canEdit ? undefined : <>
               <button onClick={handleOpenUploadModal} className="btn btn-outline">
                 <Upload className="h-4 w-4" />
                 Import students
@@ -61,140 +59,124 @@ export default function AdminStudentsPage() {
           }
         />
 
-        <div className="ui-toolbar flex-wrap items-end">
-          <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Search by Name</label>
-            <input type="text" value={searchName} onChange={(e) => setSearchName(e.target.value)} className="input-field" placeholder="Student name" />
-          </div>
-          <div className="w-48">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Program</label>
-            <select
-              value={filterCourse}
-              onChange={(e) => {
-                setFilterCourse(e.target.value);
-                setFilterBatch("");
-                setFilterSection("");
-              }}
-              className="w-full border border-gray-300 rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="">All Programs</option>
-              {courseFilterOptions.map((course) => (
-                <option key={course} value={course}>
-                  {course}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="w-48">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Batch</label>
-            <select
-              value={filterBatch}
-              onChange={(e) => {
-                setFilterBatch(e.target.value);
-                setFilterSection("");
-              }}
-              className="w-full border border-gray-300 rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="">All Batches</option>
-              {batchFilterOptions.map((batch) => (
-                <option key={batch} value={batch}>
-                  {batch}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="w-32">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
-            <select value={filterSection} onChange={(e) => setFilterSection(e.target.value)} className="w-full border border-gray-300 rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500">
-              <option value="">All Sections</option>
-              {sectionFilterOptions.map((section) => (
-                <option key={section} value={section}>
-                  {section}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+        <FilterToolbar
+          search={<SearchField value={searchName} onChange={(e) => setSearchName(e.target.value)} placeholder="Search by student name" aria-label="Search students by name" />}
+          filters={
+            <>
+              <SelectField
+                aria-label="Program"
+                value={filterCourse}
+                onChange={(e) => {
+                  setFilterCourse(e.target.value);
+                  setFilterBatch("");
+                  setFilterSection("");
+                }}
+              >
+                <option value="">All programs</option>
+                {courseFilterOptions.map((course) => (
+                  <option key={course} value={course}>{course}</option>
+                ))}
+              </SelectField>
+              <SelectField
+                aria-label="Batch"
+                value={filterBatch}
+                onChange={(e) => {
+                  setFilterBatch(e.target.value);
+                  setFilterSection("");
+                }}
+              >
+                <option value="">All batches</option>
+                {batchFilterOptions.map((batch) => (
+                  <option key={batch} value={batch}>{batch}</option>
+                ))}
+              </SelectField>
+              <SelectField aria-label="Section" value={filterSection} onChange={(e) => setFilterSection(e.target.value)}>
+                <option value="">All sections</option>
+                {sectionFilterOptions.map((section) => (
+                  <option key={section} value={section}>{section}</option>
+                ))}
+              </SelectField>
+            </>
+          }
+          resultSummary={loading ? undefined : `${filteredStudents.length} student${filteredStudents.length === 1 ? "" : "s"}`}
+        />
 
-        <div className="ui-data-card overflow-x-auto">
+        <div className="ui-data-card">
           {loading ? (
-            <div className="p-6 text-center text-gray-500">Loading...</div>
+            <LoadingState label="Loading students…" />
           ) : error ? (
-            <div className="p-6 text-center text-red-500">{error}</div>
+            <div className="p-6 text-center text-red-500" role="alert">{error}</div>
           ) : (
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roll No</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Program Data</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredStudents.length === 0 ? (
+            <div className="ui-table-wrap">
+              <table className="ui-table">
+                <thead>
                   <tr>
-                    <td colSpan={6} className="px-6 py-4 text-center text-sm text-gray-500">
-                      No students found.
-                    </td>
+                    <th>Student</th>
+                    <th>Roll no</th>
+                    <th>Placement</th>
+                    <th>Status</th>
+                    <th className="text-right">Actions</th>
                   </tr>
-                ) : (
-                  filteredStudents.map((student) => (
-                    <tr key={getStudentId(student)}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.name}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{student.email}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{student.roll_no}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        <p className="font-medium text-gray-700">{student.course || "-"}</p>
-                        <p className="text-xs text-gray-500">
-                          Batch: {student.batch || "-"} | Section: {student.section_name || "-"}
-                          {student.semester ? ` | Semester: ${student.semester}` : ""}
-                        </p>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${student.is_active ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
-                          {student.is_active ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center gap-4">
-                          <Link href={`/admin/users/${getStudentId(student)}`} className="text-primary-600 hover:text-primary-800" title="View student details">
-                            <Eye className="h-4 w-4" />
-                          </Link>
-                          <button onClick={() => handleOpenEditStudent(student)} className="text-indigo-600 hover:text-indigo-900" title="Edit student">
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleResetPassword(student)}
-                            disabled={resettingPasswordId === getStudentId(student)}
-                            className="text-amber-600 hover:text-amber-900 disabled:opacity-50"
-                            title="Reset password"
-                          >
-                            <KeyRound className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleToggleStatus(student, student.is_active)}
-                            className={student.is_active ? "text-red-600 hover:text-red-900" : "text-green-600 hover:text-green-900"}
-                          >
-                            {student.is_active ? "Deactivate" : "Activate"}
-                          </button>
-                          <button onClick={() => handleDeleteStudent(student)} className="text-red-700 hover:text-red-900" title="Remove student">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
+                </thead>
+                <tbody>
+                  {filteredStudents.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-10 text-center text-slate-500">No students found.</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    filteredStudents.map((student) => (
+                      <tr key={getStudentId(student)}>
+                        <td>
+                          <p className="cell-primary">{student.name}</p>
+                          <p className="cell-muted">{student.email}</p>
+                        </td>
+                        <td className="whitespace-nowrap">{student.roll_no || "-"}</td>
+                        <td>
+                          <p className="font-medium text-slate-700">{student.course || "-"}</p>
+                          <p className="cell-muted">
+                            Batch {student.batch || "-"} · Section {student.section_name || "-"}
+                            {student.semester ? ` · Semester ${student.semester}` : ""}
+                          </p>
+                        </td>
+                        <td>
+                          <StatusBadge status={student.is_active ? "active" : "inactive"} />
+                        </td>
+                        <td>
+                          <div className="flex items-center justify-end gap-1">
+                            <IconAction label="View student details" tone="info" href={`/admin/users/${getStudentId(student)}`}>
+                              <Eye className="h-4 w-4" />
+                            </IconAction>
+                            {canEdit && (
+                              <>
+                                <IconAction label="Edit student" onClick={() => handleOpenEditStudent(student)}>
+                                  <Pencil className="h-4 w-4" />
+                                </IconAction>
+                                <IconAction
+                                  label={student.is_active ? "Deactivate student" : "Activate student"}
+                                  tone={student.is_active ? "danger" : "success"}
+                                  onClick={() => handleToggleStatus(student, student.is_active)}
+                                >
+                                  <Power className="h-4 w-4" />
+                                </IconAction>
+                              </>
+                            )}
+                            {canDelete && (
+                              <IconAction label="Remove student" tone="danger" onClick={() => handleDeleteStudent(student)}>
+                                <Trash2 className="h-4 w-4" />
+                              </IconAction>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       </div>
 
-      <TemporaryPasswordDialog result={passwordResetResult} onClose={() => setPasswordResetResult(null)} />
 
       <AddStudentDialog model={model} />
       <UploadStudentsDialog model={model} />

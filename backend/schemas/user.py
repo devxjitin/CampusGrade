@@ -7,8 +7,8 @@ class UserCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     email: EmailStr
     # Sprint 5, the original implementation plan: "admin" split into "super_admin"/
-    # "program_admin" (see migration `canvasgrade_022`).
-    role: str = Field(pattern="^(super_admin|program_admin|teacher|student)$")
+    # "admin" (see migrations `canvasgrade_022` and `canvasgrade_031`).
+    role: str = Field(pattern="^(super_admin|admin|teacher|student)$")
     teacher_id: str | None = Field(default=None, max_length=50)
     roll_no: str | None = Field(default=None, max_length=50)
     course_id: str | None = Field(default=None, max_length=64)
@@ -62,21 +62,16 @@ class UserStatusUpdate(BaseModel):
     is_active: bool
 
 
-class TemporaryCredentialUser(BaseModel):
+class CreatedUser(BaseModel):
     id: str
     name: str
     email: EmailStr
     role: str = Field(pattern="^(teacher|student)$")
 
 
-class TemporaryCredentialResponse(BaseModel):
+class CreatedUserResponse(BaseModel):
     message: str
-    temporary_password: str
-    user: TemporaryCredentialUser
-
-
-class PasswordResetRequest(BaseModel):
-    new_password: str = Field(min_length=8, max_length=256)
+    user: CreatedUser
 
 
 class AssignmentsUpdate(BaseModel):
@@ -86,7 +81,7 @@ class AssignmentsUpdate(BaseModel):
 class AdminUserUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
     email: EmailStr | None = None
-    role: str | None = Field(default=None, pattern="^(super_admin|program_admin|teacher|student)$")
+    role: str | None = Field(default=None, pattern="^(super_admin|admin|teacher|student)$")
     roll_no: str | None = Field(default=None, max_length=50)
     teacher_id: str | None = Field(default=None, max_length=50)
     contact_number: str | None = Field(default=None, max_length=50)
@@ -118,11 +113,6 @@ class UserUpdate(BaseModel):
         if value is not None and any(not item.strip() for item in value):
             raise ValueError("List items cannot be blank")
         return value
-
-
-class ChangePasswordRequest(BaseModel):
-    old_password: str = Field(min_length=1, max_length=256)
-    new_password: str = Field(min_length=8, max_length=256)
 
 
 class UserResponse(BaseModel):

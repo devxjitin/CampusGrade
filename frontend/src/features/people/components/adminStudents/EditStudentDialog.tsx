@@ -64,7 +64,7 @@ export const EditStudentDialog = ({ model }: { model: AdminStudentsModel }) => {
                   </option>
                 ))}
               </select>
-              {courses.length === 0 && <p className="mt-1 text-xs text-amber-600">No programs available. Add one in the Programs page first.</p>}
+              {courses.length === 0 && <p className="mt-1 text-xs text-amber-700">No programs available. Add one in the Programs page first.</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Year</label>
@@ -80,7 +80,7 @@ export const EditStudentDialog = ({ model }: { model: AdminStudentsModel }) => {
                   </option>
                 ))}
               </select>
-              {selectedEditCourseId && editCourseBatches.length === 0 && <p className="mt-1 text-xs text-amber-600">No batches found for this program. Add one in the Batches page.</p>}
+              {selectedEditCourseId && editCourseBatches.length === 0 && <p className="mt-1 text-xs text-amber-700">No batches found for this program. Add one in the Batches page.</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Section</label>
@@ -98,7 +98,7 @@ export const EditStudentDialog = ({ model }: { model: AdminStudentsModel }) => {
                   </option>
                 ))}
               </select>
-              {selectedEditBatchId && editCourseSections.length === 0 && <p className="mt-1 text-xs text-amber-600">No sections found for this batch. Add one in the Sections page.</p>}
+              {selectedEditBatchId && editCourseSections.length === 0 && <p className="mt-1 text-xs text-amber-700">No sections found for this batch. Add one in the Sections page.</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Semester</label>

@@ -3,7 +3,7 @@
 // Ported from frontend-legacy/src/pages/AssignmentWorkspace.jsx.
 //
 // Note: this component derives its "mode" from the last path segment, and
-// only has special handling for "subjects" and "discussions" — anything else
+// only has special handling for "subjects" — anything else
 // (including "workspace", which is what this route actually mounts on:
 // /assignments/:id/workspace) falls through to the Analytics branch, which
 // calls the teacher-only getTeacherAssignmentAnalytics() endpoint even though
@@ -12,11 +12,10 @@
 // preserved as-is here for exact parity with frontend-legacy.
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { MessageSquare, Send } from "lucide-react";
-import { PageHeader } from "@/components/ui";
+import { LoadingState, PageHeader } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { formatDateTime } from "@/lib/datetime";
-import { getStudentAssignmentSubjects, getStudentAssignmentThreads, getTeacherAssignmentThreads, replyAssignmentThread, updateAssignmentThreadStatus } from "@/features/assignments/api";
+import { getStudentAssignmentSubjects } from "@/features/assignments/api";
 import { getTeacherAssignmentAnalytics } from "@/features/grading/api";
 import { getCachedUser, isAdminRole } from "@/lib/session";
 
@@ -24,14 +23,6 @@ import { getCachedUser, isAdminRole } from "@/lib/session";
 type AnyRecord = Record<string, any>;
 
 const card = "rounded-2xl border border-slate-200 bg-white shadow-sm";
-
-const Empty = ({ icon: Icon, title, text }: { icon: typeof MessageSquare; title: string; text: string }) => (
-  <div className={`${card} p-12 text-center`}>
-    <Icon className="mx-auto h-10 w-10 text-slate-300" />
-    <h2 className="mt-3 font-bold">{title}</h2>
-    <p className="mt-1 text-sm text-slate-500">{text}</p>
-  </div>
-);
 
 const Analytics = ({ data, admin }: { data: AnyRecord | null; admin: boolean }) => {
   const summary = data?.summary;
@@ -58,7 +49,7 @@ const Analytics = ({ data, admin }: { data: AnyRecord | null; admin: boolean }) 
               <strong className="sm:col-span-2">{row.teacher_name || row.subject}</strong>
               <span className="text-sm text-slate-500">{row.assignments} assignments</span>
               <span className="text-sm text-slate-500">{row.submissions ?? row.submitted} submitted</span>
-              <span className={`text-sm font-semibold ${row.overdue || row.pending_grades ? "text-amber-600" : "text-emerald-600"}`}>
+              <span className={`text-sm font-semibold ${row.overdue || row.pending_grades ? "text-amber-700" : "text-emerald-700"}`}>
                 {row.overdue ?? row.published ?? 0} {admin ? "overdue" : "results"}
               </span>
             </div>
@@ -77,13 +68,11 @@ export default function AssignmentWorkspacePage() {
   const mode = pathname?.split("/").filter(Boolean).pop();
   const [data, setData] = useState<AnyRecord | null>(null);
   const [loading, setLoading] = useState(true);
-  const [reply, setReply] = useState<Record<string, string>>({});
 
   const load = async () => {
     setLoading(true);
     try {
       if (mode === "subjects") setData(await getStudentAssignmentSubjects());
-      else if (mode === "discussions") setData(user?.role === "teacher" ? await getTeacherAssignmentThreads() : await getStudentAssignmentThreads());
       else setData(await getTeacherAssignmentAnalytics());
     } catch (error) {
       const err = error as { response?: { data?: { detail?: string; message?: string } } };
@@ -101,32 +90,17 @@ export default function AssignmentWorkspacePage() {
 
   if (!user) return null;
 
-  const title = mode === "subjects" ? "Subject hubs" : mode === "discussions" ? "Questions & discussions" : "Assignment analytics";
+  const title = mode === "subjects" ? "Subject hubs" : "Assignment analytics";
   const description =
     mode === "subjects"
       ? "Every assignment organised by its official course, with progress visible at a glance."
-      : mode === "discussions"
-        ? "Private, assignment-specific conversations between students and teachers."
-        : "Operational insights for follow-up and workload planning.";
-
-  const postReply = async (threadId: string) => {
-    if (!reply[threadId]?.trim()) return;
-    try {
-      await replyAssignmentThread(threadId, reply[threadId]);
-      setReply((old) => ({ ...old, [threadId]: "" }));
-      await load();
-      toast.success("Reply sent");
-    } catch (error) {
-      const message = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      toast.error(message || "Reply failed");
-    }
-  };
+      : "Operational insights for follow-up and workload planning.";
 
   return (
     <>
       <PageHeader eyebrow={`${user.role} workspace`} title={title} description={description} />
       {loading ? (
-        <div className={`${card} p-12 text-center text-slate-500`}>Loading workspace…</div>
+        <LoadingState label="Loading workspace…" />
       ) : mode === "subjects" ? (
         <div className="grid gap-5 xl:grid-cols-2">
           {(data?.subjects || []).map((group: AnyRecord) => (
@@ -155,54 +129,6 @@ export default function AssignmentWorkspacePage() {
               </div>
             </section>
           ))}
-        </div>
-      ) : mode === "discussions" ? (
-        <div className="space-y-4">
-          {(data?.threads || []).length === 0 ? (
-            <Empty icon={MessageSquare} title="No discussions yet" text="Assignment questions and teacher responses will appear here." />
-          ) : (
-            data?.threads.map((thread: AnyRecord) => (
-              <section key={thread.id} className={`${card} p-5`}>
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 className="font-bold">{thread.subject}</h2>
-                    <p className="text-xs text-slate-500">
-                      {thread.student?.name || "Student"} · {formatDateTime(thread.updated_at)}
-                    </p>
-                  </div>
-                  {user.role === "teacher" ? (
-                    <button
-                      onClick={async () => {
-                        await updateAssignmentThreadStatus(thread.id, thread.status === "resolved" ? "open" : "resolved");
-                        load();
-                      }}
-                      className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold"
-                    >
-                      {thread.status}
-                    </button>
-                  ) : (
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">{thread.status}</span>
-                  )}
-                </div>
-                <div className="mt-4 space-y-2">
-                  {thread.messages.map((message: AnyRecord) => (
-                    <div key={message.id} className="rounded-xl bg-slate-50 p-3">
-                      <p className="text-xs font-bold text-primary-600">
-                        {message.author.name} · {message.author.role}
-                      </p>
-                      <p className="mt-1 text-sm">{message.body}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <input className="input-field" value={reply[thread.id] || ""} onChange={(event) => setReply((old) => ({ ...old, [thread.id]: event.target.value }))} placeholder="Write a reply…" />
-                  <button className="btn btn-primary" onClick={() => postReply(thread.id)}>
-                    <Send className="h-4 w-4" />
-                  </button>
-                </div>
-              </section>
-            ))
-          )}
         </div>
       ) : (
         <Analytics data={data} admin={isAdminRole(user.role)} />

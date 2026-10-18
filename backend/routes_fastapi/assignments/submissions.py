@@ -21,7 +21,14 @@ from models.settings_store import write_audit_log
 from schemas.assignment import RepositoryPreviewRequest, RepositoryResetRequest, RepositorySubmitRequest
 from services import jobs
 from services.assignment_storage import get_assignment_storage
-from services.github_repository_service import ANALYZE_JOB_TYPE, GitHubRepositoryError, preview_repository, read_repository_file, sync_submission_repository
+from services.github_repository_service import (
+    ANALYZE_JOB_TYPE,
+    EXTRACT_FINAL_JOB_TYPE,
+    GitHubRepositoryError,
+    preview_repository,
+    read_repository_file,
+    sync_submission_repository,
+)
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -241,32 +248,29 @@ async def start_student_evaluation(
     if submission.freeze_requested_at:
         payload = await _submission_payload(db, assignment, student_id)
         return {"message": "Evaluation already started", "freeze_state": payload["freeze_state"]}
-    version = (await db.scalars(select(SqlAssignmentSubmissionVersion).filter_by(submission_id=submission.id, commit_sha=submission.latest_remote_sha))).first()
-    if not version:
-        raise HTTPException(409, "Wait for the repository's initial synchronization")
     now = _now()
+    # From here the student's later pushes no longer count: the worker takes the repository's newest
+    # commit as the final snapshot (a teacher may do this for any student before the deadline).
     submission.freeze_requested_at, submission.freeze_reason, submission.frozen_by = now, "evaluation", teacher["_id"]
     submission.next_sync_at = None
-    if version.analysis_status == "ready":
-        submission.frozen_version_id, submission.frozen_at, submission.active_version_id, submission.sync_status = version.id, now, version.id, "frozen"
-    else:
-        submission.pending_version_id, submission.sync_status = version.id, "freeze_pending"
+    submission.pending_version_id, submission.sync_status = None, "freeze_pending"
     participant = (await db.scalars(select(SqlAssignmentEvaluationParticipant).filter_by(assignment_id=assignment.id, student_id=student_id))).first()
     if not participant:
         db.add(
             SqlAssignmentEvaluationParticipant(
-                id=str(uuid.uuid4()), assignment_id=assignment.id, student_id=student_id, submission_version_id=version.id, status="submitted", locked_at=now
+                id=str(uuid.uuid4()), assignment_id=assignment.id, student_id=student_id, submission_version_id=None, status="submitted", locked_at=now
             )
         )
     else:
-        participant.submission_version_id, participant.locked_at = version.id, now
+        participant.submission_version_id, participant.status, participant.locked_at = None, "submitted", now
+    await jobs.enqueue(db, EXTRACT_FINAL_JOB_TYPE, {"submission_id": submission.id}, max_attempts=6)
     await db.commit()
     await write_audit_log(
         db,
         teacher["_id"],
         "assignment.evaluation_started",
         submission.id,
-        {"assignment_id": assignment.id, "student_id": student_id, "commit_sha": version.commit_sha},
+        {"assignment_id": assignment.id, "student_id": student_id},
         request.client.host if request.client else None,
     )
     payload = await _submission_payload(db, assignment, student_id)

@@ -66,7 +66,7 @@ export default function StudentTeachersPage() {
                       )}
                     </div>
                     <div className="min-w-0">
-                      <h2 className="truncate font-bold text-slate-950">{teacher.name}</h2>
+                      <h2 className="[overflow-wrap:anywhere] font-bold text-slate-950">{teacher.name}</h2>
                       <p className="mt-1 text-sm text-slate-500">
                         {teacher.designation || "Faculty member"}
                         {teacher.teacher_id ? ` · ${teacher.teacher_id}` : ""}

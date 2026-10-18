@@ -41,20 +41,6 @@ def render_email(subject: str, lines: list[str], *, action_label: str | None = N
     return subject, "\n".join(text_parts), html
 
 
-def password_reset_email(name: str, reset_url: str, minutes: int) -> tuple[str, str, str]:
-    return render_email(
-        "Reset your CampusGrade password",
-        [
-            f"Hi {name},",
-            "We received a request to reset your password. The link below works once and expires "
-            f"in {minutes} minutes.",
-            "If you did not ask for this, you can ignore this email; your password stays the same.",
-        ],
-        action_label="Choose a new password",
-        action_url=reset_url,
-    )
-
-
 def _send_sync(to: str, subject: str, text: str, html: str) -> None:
     settings = get_settings()
     assert settings.smtp_host

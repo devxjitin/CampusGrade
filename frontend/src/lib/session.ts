@@ -10,23 +10,27 @@
 
 import { api } from "./http";
 
+export type AccessResource = "batches" | "sections" | "subjects" | "users" | "assignments" | "audit_log";
+export type AccessLevel = "view" | "edit" | "full";
+
 export interface SessionUser {
   id?: string;
   user_id?: string;
   name?: string;
   email?: string;
-  role: "super_admin" | "program_admin" | "teacher" | "student";
+  role: "super_admin" | "admin" | "teacher" | "student";
   status?: string;
   program_ids?: string[];
+  /** What an `admin` may do, per area (Super Admins have everything). Set by a Super Admin. */
+  access?: Partial<Record<AccessResource, AccessLevel>>;
   offering_ids?: string[];
   avatar?: string;
-  must_change_password?: boolean;
   [key: string]: unknown;
 }
 
-/** True for either admin tier (super_admin or program_admin). */
+/** True for either admin tier (super_admin or admin). */
 export const isAdminRole = (role: string | undefined | null): boolean =>
-  role === "super_admin" || role === "program_admin";
+  role === "super_admin" || role === "admin";
 
 let cachedUser: SessionUser | null = null;
 let fetchInFlight: Promise<SessionUser | null> | null = null;

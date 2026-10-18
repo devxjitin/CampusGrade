@@ -3,10 +3,11 @@
 // Ported from frontend-legacy/src/pages/AdminBatches.jsx
 import { useEffect, useMemo, useState } from "react";
 import { Archive, BookOpen, Edit2, GraduationCap, Plus, Trash2, Users } from "lucide-react";
-import { EntityCard, EntityCardGrid, PageHeader, useConfirm } from "@/components/ui";
+import { EmptyState, EntityCard, EntityCardGrid, ErrorState, FilterToolbar, LoadingState, PageHeader, SearchField, SelectField, useConfirm } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { batchHooks, courseHooks, type AcademicRecord } from "@/features/academics/queries";
 import { getCachedUser } from "@/lib/session";
+import { canAccess } from "@/lib/permissions";
 import ViewingSessionBanner from "@/components/ViewingSessionBanner";
 import { ACADEMIC_SESSION_CHANGED_EVENT, getSelectedAcademicSessionId } from "@/lib/academicSession";
 import { BatchFormDialog } from "./dialogs/BatchFormDialog";
@@ -41,10 +42,12 @@ export default function AdminBatchesPage() {
     return () => window.removeEventListener(ACADEMIC_SESSION_CHANGED_EVENT, onSessionChanged);
   }, []);
 
-  const { data: batches = [], isLoading } = batchHooks.useList(sessionId ? { session_id: sessionId } : undefined);
+  const { data: batches = [], isLoading, isError, refetch } = batchHooks.useList(sessionId ? { session_id: sessionId } : undefined);
   const { data: courses = [] } = courseHooks.useList();
   const createMutation = batchHooks.useCreate();
   const updateMutation = batchHooks.useUpdate();
+  const canEdit = canAccess(getCachedUser(), "batches", "edit");
+  const canDelete = canAccess(getCachedUser(), "batches", "full");
   const deleteMutation = batchHooks.useDelete();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -191,30 +194,26 @@ export default function AdminBatchesPage() {
         title="Batches"
         description="Manage academic intake periods within each program."
         actions={
-          <button onClick={() => handleOpenModal()} className="btn btn-primary">
+          !canEdit ? undefined : <button onClick={() => handleOpenModal()} className="btn btn-primary">
             <Plus className="h-4 w-4" />
             Add batch
           </button>
         }
       />
 
-      <div className="ui-toolbar flex-wrap items-end">
-        <div className="flex-1 min-w-[220px]">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Search Batch</label>
-          <input type="text" value={searchBatch} onChange={(e) => setSearchBatch(e.target.value)} className="input-field" placeholder="By label or year" />
-        </div>
-        <div className="w-72">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Program</label>
-          <select value={filterCourseId} onChange={(e) => setFilterCourseId(e.target.value)} className="w-full border border-gray-300 rounded-md p-2">
-            <option value="">All Programs</option>
+      <FilterToolbar
+        search={<SearchField value={searchBatch} onChange={(e) => setSearchBatch(e.target.value)} placeholder="Search by label or year" aria-label="Search batches" />}
+        filters={
+          <SelectField aria-label="Program" value={filterCourseId} onChange={(e) => setFilterCourseId(e.target.value)}>
+            <option value="">All programs</option>
             {courses.map((course) => (
               <option key={course.id} value={course.id as string}>
                 {formatCourseLabel(course)}
               </option>
             ))}
-          </select>
-        </div>
-      </div>
+          </SelectField>
+        }
+      />
 
       <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="card p-4">
@@ -231,10 +230,12 @@ export default function AdminBatchesPage() {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="card p-8 text-center text-sm text-gray-500">Loading...</div>
+      {isError ? (
+        <ErrorState title="Could not load batches" onRetry={() => refetch()} />
+      ) : isLoading ? (
+        <LoadingState label="Loading…" />
       ) : filteredBatches.length === 0 ? (
-        <div className="card p-8 text-center text-sm text-gray-500">No batches found.</div>
+        <EmptyState title="No batches found" description="Add one to get started." />
       ) : (
         <EntityCardGrid>
           {filteredBatches.map((batch) => (
@@ -250,12 +251,12 @@ export default function AdminBatchesPage() {
               ]}
               actions={
                 <>
-                  <button onClick={() => handleOpenModal(batch)} className="text-blue-600 hover:text-blue-800 p-2 rounded-lg transition-colors">
+                  {canEdit && <button onClick={() => handleOpenModal(batch)} className="text-blue-600 hover:text-blue-800 p-2 rounded-lg transition-colors">
                     <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handleDelete(batch)} className="text-red-600 hover:text-red-800 p-2 rounded-lg transition-colors">
+                  </button>}
+                  {canDelete && <button onClick={() => handleDelete(batch)} className="text-red-600 hover:text-red-800 p-2 rounded-lg transition-colors">
                     <Trash2 className="w-4 h-4" />
-                  </button>
+                  </button>}
                 </>
               }
             />

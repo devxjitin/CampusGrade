@@ -54,11 +54,6 @@ export interface UploadResult {
   invalid_rows?: { row_number: number; reasons?: string[] }[];
 }
 
-export interface PasswordResetResult {
-  temporary_password: string;
-  user?: { name?: string };
-}
-
 export const getApiErrorMessage = (err: unknown, fallbackMessage: string): string => {
   const response = (err as { response?: { data?: { detail?: string; message?: string } } })?.response;
   return response?.data?.detail || response?.data?.message || fallbackMessage;

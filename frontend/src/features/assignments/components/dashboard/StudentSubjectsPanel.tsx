@@ -38,7 +38,7 @@ export const StudentSubjectsPanel = ({
                       <BookOpen className="h-5 w-5" />
                     </span>
                     <div className="min-w-0">
-                      <h2 className="truncate text-lg font-bold text-slate-950">{subject.name}</h2>
+                      <h2 className="[overflow-wrap:anywhere] text-lg font-bold text-slate-950">{subject.name}</h2>
                       <p className="mt-0.5 text-sm text-slate-500">
                         {subject.assignments.length} assignment{subject.assignments.length === 1 ? "" : "s"}
                       </p>
@@ -50,7 +50,7 @@ export const StudentSubjectsPanel = ({
                   {subject.assignments.map((assignment) => (
                     <button key={assignment.id} type="button" onClick={() => openItem(assignment)} className="flex w-full items-center justify-between gap-3 py-3 text-left transition hover:text-primary-700">
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold text-slate-800">{assignment.title}</span>
+                        <span className="block [overflow-wrap:anywhere] text-sm font-semibold text-slate-800">{assignment.title}</span>
                         <span className="mt-0.5 block text-xs text-slate-500">Due {formatDateTime(assignment.due_at)}</span>
                       </span>
                       <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold capitalize ${phaseBadge[assignment.phase] || phaseBadge.open}`}>{String(assignment.phase || assignment.status || "open").replaceAll("_", " ")}</span>

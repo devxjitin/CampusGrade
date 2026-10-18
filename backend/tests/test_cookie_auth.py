@@ -11,9 +11,9 @@ from tests.conftest import requires_docker
 @requires_docker
 class TestCookieAuth:
     def test_login_sets_access_refresh_and_csrf_cookies(self, client, seed_user):
-        seed_user(role="student", email="cookie-student@example.edu", password="Str0ng!Pass99")
+        seed_user(role="student", email="cookie-student@example.edu")
 
-        response = client.post("/login", json={"email": "cookie-student@example.edu", "password": "Str0ng!Pass99"})
+        response = client.post("/login", json={"email": "cookie-student@example.edu"})
 
         assert response.status_code == 200
         cookie_names = {cookie.name for cookie in client.cookies.jar}
@@ -23,7 +23,7 @@ class TestCookieAuth:
         """No `Authorization` header sent at all — the httpOnly access
         cookie `/login` just set is what authenticates this request."""
         user = seed_user(role="student", email="cookie-only@example.edu")
-        login_response = client.post("/login", json={"email": user["email"], "password": user["password"]})
+        login_response = client.post("/login", json={"email": user["email"]})
         assert login_response.status_code == 200
 
         response = client.get("/auth/me")
@@ -33,7 +33,7 @@ class TestCookieAuth:
 
     def test_auth_me_reflects_the_real_principal(self, client, seed_user):
         user = seed_user(role="teacher", email="cookie-teacher@example.edu")
-        client.post("/login", json={"email": user["email"], "password": user["password"]})
+        client.post("/login", json={"email": user["email"]})
 
         response = client.get("/auth/me")
 
@@ -42,11 +42,10 @@ class TestCookieAuth:
         assert body["role"] == "teacher"
         assert body["status"] == "active"
         assert body["program_ids"] == []
-        assert body["must_change_password"] is False
 
     def test_post_without_csrf_header_is_rejected(self, client, seed_user):
         user = seed_user(role="student", email="csrf-missing@example.edu")
-        client.post("/login", json={"email": user["email"], "password": user["password"]})
+        client.post("/login", json={"email": user["email"]})
 
         response = client.post("/me/sessions/revoke-others")
 
@@ -55,7 +54,7 @@ class TestCookieAuth:
 
     def test_post_with_wrong_csrf_header_is_rejected(self, client, seed_user):
         user = seed_user(role="student", email="csrf-wrong@example.edu")
-        client.post("/login", json={"email": user["email"], "password": user["password"]})
+        client.post("/login", json={"email": user["email"]})
 
         response = client.post("/me/sessions/revoke-others", headers={"X-CSRF-Token": "not-the-real-token"})
 
@@ -63,7 +62,7 @@ class TestCookieAuth:
 
     def test_post_with_matching_csrf_header_succeeds(self, client, seed_user):
         user = seed_user(role="student", email="csrf-correct@example.edu")
-        client.post("/login", json={"email": user["email"], "password": user["password"]})
+        client.post("/login", json={"email": user["email"]})
         csrf_token = next(cookie.value for cookie in client.cookies.jar if cookie.name == "campusgrade_csrf")
 
         response = client.post("/me/sessions/revoke-others", headers={"X-CSRF-Token": csrf_token})
@@ -75,6 +74,6 @@ class TestCookieAuth:
         a matching CSRF token — /login has to be reachable without one."""
         user = seed_user(role="student", email="csrf-exempt@example.edu")
 
-        response = client.post("/login", json={"email": user["email"], "password": user["password"]})
+        response = client.post("/login", json={"email": user["email"]})
 
         assert response.status_code == 200

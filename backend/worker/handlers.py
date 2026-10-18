@@ -24,28 +24,11 @@ async def analyze_repository(payload: dict) -> None:
     await analyze_repository_version(payload["version_id"])
 
 
-@register("email.password_reset")
-async def send_password_reset_email(payload: dict) -> None:
-    from config import get_settings
-    from models import database
-    from models.password_reset import SqlPasswordResetToken
-    from models.sql_models import utcnow
-    from services import email_service, password_reset_service
-    from services.identity_service import get_user_by_id
+@register("repository.extract_final")
+async def extract_final_repository(payload: dict) -> None:
+    from services.github_repository_service import extract_final_snapshot
 
-    factory = database.async_session_factory
-    assert factory is not None
-    async with factory() as db:
-        token = await db.get(SqlPasswordResetToken, payload["token_id"])
-        if token is None or token.used_at is not None or token.expires_at <= utcnow():
-            return  # superseded, used or expired: nothing worth sending
-        user = await get_user_by_id(db, token.user_id)
-    if not user or user.get("is_active") is False:
-        return
-    settings = get_settings()
-    reset_url = f"{settings.app_base_url.rstrip('/')}/reset-password?token={password_reset_service.raw_token_for(payload['token_id'])}"
-    subject, text, html = email_service.password_reset_email(user["name"], reset_url, settings.password_reset_minutes)
-    await email_service.send_email(user["email"], subject, text, html)
+    await extract_final_snapshot(payload["submission_id"])
 
 
 @register("email.notification")
@@ -70,3 +53,30 @@ async def send_notification_email(payload: dict) -> None:
         payload["subject"], [f"Hi {user['name']},", *payload["lines"]], action_label="Open in CampusGrade", action_url=url
     )
     await email_service.send_email(user["email"], subject, text, html)
+
+
+@register("export.session")
+async def build_session_export_job(payload: dict) -> None:
+    """Build the ZIP, store it privately and mark the export ready (or failed after the last retry)."""
+    from models import database
+    from models.data_export import EXPORT_FAILED, EXPORT_READY, SqlDataExport
+    from models.sql_models import utcnow
+    from services.data_export import build_session_export
+    from services.object_storage import get_private_storage
+
+    factory = database.async_session_factory
+    assert factory is not None
+    async with factory() as db:
+        row = await db.get(SqlDataExport, payload["export_id"])
+        if row is None or row.status == EXPORT_READY:
+            return
+        try:
+            data, filename = await build_session_export(db, row.session_id)
+            key = f"{row.id}.zip"
+            await get_private_storage("exports").aput_bytes(key, data, "application/zip")
+        except LookupError as exc:  # the session was deleted: retrying cannot help
+            row.status, row.error, row.finished_at = EXPORT_FAILED, str(exc), utcnow()
+            await db.commit()
+            return
+        row.status, row.object_key, row.filename, row.size_bytes, row.error, row.finished_at = EXPORT_READY, key, filename, len(data), None, utcnow()
+        await db.commit()

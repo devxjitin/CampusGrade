@@ -7,12 +7,10 @@ import { expect, test } from "@playwright/test";
 
 test("an expired access cookie is refreshed instead of logging the user out", async ({ page, context }) => {
   const email = process.env.E2E_SUPER_ADMIN_EMAIL;
-  const password = process.env.E2E_SUPER_ADMIN_PASSWORD;
-  test.skip(!email || !password, "E2E_SUPER_ADMIN_EMAIL/E2E_SUPER_ADMIN_PASSWORD not set — see e2e/README.md");
+  test.skip(!email, "E2E_SUPER_ADMIN_EMAIL not set — see e2e/README.md");
 
   await page.goto("/login");
   await page.getByLabel(/university email/i).fill(email!);
-  await page.getByPlaceholder("Enter your password").fill(password!);
   await page.getByRole("button", { name: /sign in/i }).click();
   await expect(page).toHaveURL(/\/assignments/);
 

@@ -1,9 +1,9 @@
 """The session-rollover engine: preview, execute and undo.
 
 Promotes every active student from one academic session to the next,
-creates the next intake's batches/sections on an Odd rollover, auto-enrols
-compulsory subjects, and graduates students whose study year has run past
-their course's duration. See the original academic-sessions plan Part 4.
+creates the next intake's batches/sections on an Odd rollover, and graduates
+students whose study year has run past their course's duration. Subjects are
+not auto-enrolled. See the original academic-sessions plan Part 4.
 
 Every row this module creates is stamped with a rollover_run_id so it can
 be audited, and undone within the allowed window (before any new
@@ -26,7 +26,6 @@ from models.sql_models import (
     SqlSection,
     SqlStudentSessionRecord,
     SqlStudentSubjectEnrollment,
-    SqlSubject,
     SqlTeacherSessionAllocation,
     SqlUser,
 )
@@ -58,7 +57,6 @@ class RolloverPreview:
     graduate_count: int = 0
     new_batches: list[dict] = field(default_factory=list)
     new_sections_count: int = 0
-    enrollment_count: int = 0
     teacher_allocation_count: int = 0
     warnings: list[str] = field(default_factory=list)
 
@@ -81,29 +79,38 @@ async def _get_or_build_target_session(db: AsyncSession, from_session: SqlAcadem
 
 
 async def _active_students_in_session(db: AsyncSession, session_id: str):
-    return (
-        await db.scalars(
-            select(SqlStudentSessionRecord).where(
-                SqlStudentSessionRecord.session_id == session_id, SqlStudentSessionRecord.status == "active"
+    # Repeating and on-leave students must carry over too (at the same level),
+    # otherwise they would have no record at all in the next session.
+    # One joined query for records and students (no per-student lookups).
+    rows = (
+        await db.execute(
+            select(SqlStudentSessionRecord, SqlUser)
+            .join(SqlUser, SqlUser.id == SqlStudentSessionRecord.student_id)
+            .where(
+                SqlStudentSessionRecord.session_id == session_id,
+                SqlStudentSessionRecord.status.in_(("active", "repeating", "on_leave")),
             )
         )
     ).all()
+    return [(record, student) for record, student in rows]
 
 
-async def _plan(db: AsyncSession, from_session: SqlAcademicSession, to_session: SqlAcademicSession, to_session_is_new: bool):
+async def _plan(db: AsyncSession, from_session: SqlAcademicSession, to_session: SqlAcademicSession, to_session_exists: bool):
     """Shared logic between preview and execute: works out what would/should
-    happen, without writing anything. Returns a dict of computed pieces."""
+    happen, without writing anything. Returns a dict of computed pieces.
+
+    Everything is loaded with a fixed number of queries, whatever the number of
+    students, so a full-institution rollover stays fast."""
     warnings: list[str] = []
-    outgoing_records = await _active_students_in_session(db, from_session.id)
-    courses_by_id = {row.id: row for row in (await db.scalars(select(SqlCourse))).all()}
-    batches_by_id = {row.id: row for row in (await db.scalars(select(SqlBatch))).all()}
+    outgoing = await _active_students_in_session(db, from_session.id)
+    courses = (await db.scalars(select(SqlCourse))).all()
+    courses_by_id = {row.id: row for row in courses}
+    all_batches = (await db.scalars(select(SqlBatch))).all()
+    batches_by_id = {row.id: row for row in all_batches}
 
     promotions: list[dict] = []
-    for record in outgoing_records:
-        student = (await db.scalars(select(SqlUser).where(SqlUser.id == record.student_id))).first()
-        if not student:
-            continue
-        if record.is_override and record.status in {"repeating", "on_leave"}:
+    for record, student in outgoing:
+        if record.status in {"repeating", "on_leave"}:
             promotions.append({"record": record, "student": student, "study_year": record.study_year, "semester": record.semester, "status": record.status, "keep_same_level": True})
             continue
         batch = batches_by_id.get(record.batch_id) if record.batch_id else None
@@ -117,33 +124,17 @@ async def _plan(db: AsyncSession, from_session: SqlAcademicSession, to_session: 
 
     new_batches: list[dict] = []
     if to_session.term == "odd":
-        active_courses = (await db.scalars(select(SqlCourse))).all()
+        existing_batches = {(row.course_id, row.start_year, row.end_year) for row in all_batches}
         intake_year = int(to_session.label.split("-")[0])
-        for course in active_courses:
+        for course in courses:
             end_year = intake_year + course.duration_years
-            exists = (
-                await db.scalars(
-                    select(SqlBatch).where(SqlBatch.course_id == course.id, SqlBatch.start_year == intake_year, SqlBatch.end_year == end_year)
-                )
-            ).first()
-            if not exists:
+            if (course.id, intake_year, end_year) not in existing_batches:
                 new_batches.append({"course_id": course.id, "course_name": course.name, "start_year": intake_year, "end_year": end_year})
 
     promote_count = sum(1 for p in promotions if p["status"] != "graduated")
     graduate_count = sum(1 for p in promotions if p["status"] == "graduated")
 
-    enrollment_count = 0
-    for p in promotions:
-        if p["status"] != "active" or p["keep_same_level"]:
-            continue
-        record = p["record"]
-        subject_query = select(func.count()).select_from(SqlSubject).where(SqlSubject.enrollment_type == "compulsory", SqlSubject.year == p["study_year"])
-        batch = batches_by_id.get(record.batch_id)
-        if batch:
-            subject_query = subject_query.where((SqlSubject.course_id == batch.course_id) | (SqlSubject.course_id.is_(None)))
-        enrollment_count += await db.scalar(subject_query)
-
-    if not outgoing_records:
+    if not outgoing:
         warnings.append(f"No active students found in {from_session.label} ({from_session.term}) — nothing to promote")
 
     teacher_allocation_count = await db.scalar(
@@ -155,7 +146,6 @@ async def _plan(db: AsyncSession, from_session: SqlAcademicSession, to_session: 
         "new_batches": new_batches,
         "promote_count": promote_count,
         "graduate_count": graduate_count,
-        "enrollment_count": enrollment_count,
         "teacher_allocation_count": teacher_allocation_count,
         "warnings": warnings,
     }
@@ -172,14 +162,31 @@ async def preview(db: AsyncSession, from_session: SqlAcademicSession) -> Rollove
         graduate_count=plan["graduate_count"],
         new_batches=plan["new_batches"],
         new_sections_count=len(plan["new_batches"]),  # one default section per new batch
-        enrollment_count=plan["enrollment_count"],
         teacher_allocation_count=plan["teacher_allocation_count"],
         warnings=plan["warnings"],
     )
 
 
 async def execute(db: AsyncSession, from_session: SqlAcademicSession, executed_by: str | None) -> dict:
+    # Lock the outgoing session row and re-read it: a second admin (or a double click)
+    # waits here, then sees the first rollover already moved "current" and is refused
+    # instead of failing half way on duplicate student records.
+    locked = (
+        await db.scalars(
+            select(SqlAcademicSession).where(SqlAcademicSession.id == from_session.id).with_for_update().execution_options(populate_existing=True)
+        )
+    ).first()
+    if locked is None or not locked.is_current:
+        raise HTTPException(409, "This session is no longer the current session — it may already have been rolled over")
+    from_session = locked
+
     to_session, exists = await _get_or_build_target_session(db, from_session)
+    if exists:
+        already_populated = await db.scalar(
+            select(func.count()).select_from(SqlStudentSessionRecord).where(SqlStudentSessionRecord.session_id == to_session.id)
+        )
+        if already_populated:
+            raise HTTPException(409, f"{to_session.label} ({to_session.term}) already has student records — undo or clear them before rolling over")
     plan = await _plan(db, from_session, to_session, exists)
 
     if not exists:
@@ -196,15 +203,16 @@ async def execute(db: AsyncSession, from_session: SqlAcademicSession, executed_b
     for spec in plan["new_batches"]:
         batch = SqlBatch(id=str(uuid.uuid4()), course_id=spec["course_id"], start_year=spec["start_year"], end_year=spec["end_year"], status="active", auto_created=True, intake_open=True)
         db.add(batch)
-        await db.flush()
         section = SqlSection(id=str(uuid.uuid4()), course_id=spec["course_id"], batch_id=batch.id, name="A")
         db.add(section)
         created_batches += 1
         created_sections += 1
 
-    # 2. Promote / graduate every active student.
+    # 2. Promote / graduate every active student. Rows are added in bulk and written
+    # in one flush; the unit of work orders them by foreign key.
     promoted = 0
     graduated = 0
+    new_records: dict[str, SqlStudentSessionRecord] = {}
     for p in plan["promotions"]:
         record, student = p["record"], p["student"]
         new_record = SqlStudentSessionRecord(
@@ -220,31 +228,13 @@ async def execute(db: AsyncSession, from_session: SqlAcademicSession, executed_b
             rollover_run_id=run.id,
         )
         db.add(new_record)
-        await db.flush()
+        new_records[student.id] = new_record
         if p["status"] == "graduated":
             graduated += 1
         else:
             promoted += 1
-            # 3. Auto-enrol compulsory subjects for the new level.
-            batch = (await db.scalars(select(SqlBatch).where(SqlBatch.id == record.batch_id))).first() if record.batch_id else None
-            subject_query = select(SqlSubject).where(SqlSubject.enrollment_type == "compulsory", SqlSubject.year == p["study_year"])
-            if batch:
-                subject_query = subject_query.where((SqlSubject.course_id == batch.course_id) | (SqlSubject.course_id.is_(None)))
-            subjects = (await db.scalars(subject_query)).all()
-            for subject in subjects:
-                already = (
-                    await db.scalars(
-                        select(SqlStudentSubjectEnrollment).where(
-                            SqlStudentSubjectEnrollment.student_id == student.id,
-                            SqlStudentSubjectEnrollment.subject_id == subject.id,
-                            SqlStudentSubjectEnrollment.session_id == to_session.id,
-                        )
-                    )
-                ).first()
-                if not already:
-                    db.add(SqlStudentSubjectEnrollment(id=str(uuid.uuid4()), student_id=student.id, subject_id=subject.id, session_id=to_session.id))
 
-    # 4. Carry teacher allocations forward. users.assignments (the JSON blob
+    # 3. Carry teacher allocations forward. users.assignments (the JSON blob
     # every existing screen reads) is re-synced too, so teachers keep the
     # same allocations in the new session without an admin re-entering them.
     carried_allocations = 0
@@ -265,29 +255,21 @@ async def execute(db: AsyncSession, from_session: SqlAcademicSession, executed_b
             "subject_ids": allocation.subject_ids,
         })
         carried_allocations += 1
-    for teacher_id, allocations in allocations_by_teacher.items():
-        teacher = (await db.scalars(select(SqlUser).where(SqlUser.id == teacher_id))).first()
-        if teacher:
-            teacher.assignments = allocations
+    if allocations_by_teacher:
+        teachers = (await db.scalars(select(SqlUser).where(SqlUser.id.in_(list(allocations_by_teacher))))).all()
+        for teacher in teachers:
+            teacher.assignments = allocations_by_teacher[teacher.id]
 
-    # 5. Flip is_current.
+    # 4. Flip is_current.
     await db.execute(update(SqlAcademicSession).where(SqlAcademicSession.id != to_session.id).values(is_current=False))
     to_session.is_current = True
     to_session.status = "active"
     from_session.status = "closed"
 
-    # 6. Sync cached fields for anything still shown from users.year/semester.
+    # 5. Sync cached fields for anything still shown from users.year/semester.
     for p in plan["promotions"]:
         if p["status"] != "graduated":
-            new_record = (
-                await db.scalars(
-                    select(SqlStudentSessionRecord).where(
-                        SqlStudentSessionRecord.student_id == p["student"].id, SqlStudentSessionRecord.session_id == to_session.id
-                    )
-                )
-            ).first()
-            if new_record:
-                sync_user_cached_fields(db, p["student"], new_record)
+            sync_user_cached_fields(db, p["student"], new_records[p["student"].id])
 
     counts = {
         "promoted": promoted,
@@ -349,11 +331,23 @@ def notify_admins_if_rollover_due(db: Session) -> int:
 
 
 async def undo(db: AsyncSession, run_id: str) -> dict:
-    run = (await db.scalars(select(SqlRolloverRun).where(SqlRolloverRun.id == run_id))).first()
+    # Lock the run so two concurrent undos cannot both proceed.
+    run = (await db.scalars(select(SqlRolloverRun).where(SqlRolloverRun.id == run_id).with_for_update())).first()
     if not run:
         raise HTTPException(404, "Rollover run not found")
     if run.undone_at:
         raise HTTPException(400, "This rollover has already been undone")
+
+    newer_runs = await db.scalar(
+        select(func.count()).select_from(SqlRolloverRun).where(
+            SqlRolloverRun.undone_at.is_(None), SqlRolloverRun.id != run.id, SqlRolloverRun.executed_at > run.executed_at
+        )
+    )
+    if newer_runs:
+        raise HTTPException(409, "Cannot undo — a more recent rollover exists. Undo that one first")
+    to_session = (await db.scalars(select(SqlAcademicSession).where(SqlAcademicSession.id == run.to_session_id))).first()
+    if to_session is not None and not to_session.is_current:
+        raise HTTPException(409, "Cannot undo — the session this rollover created is no longer the current session")
 
     has_assignment_activity = (
         await db.scalars(select(SqlAssignment).where(SqlAssignment.session_id == run.to_session_id))
@@ -369,11 +363,30 @@ async def undo(db: AsyncSession, run_id: str) -> dict:
     # that's not worth the risk for what is otherwise a harmless empty
     # "upcoming" batch. Admins can delete an empty auto-created batch by hand
     # from the Batches page if it really shouldn't exist.
+    # Put the cached users.year/semester/batch/section back to the outgoing session's
+    # values (the rollover overwrote them with the promoted ones).
+    if run.from_session_id:
+        run_student_ids = select(SqlStudentSessionRecord.student_id).where(SqlStudentSessionRecord.rollover_run_id == run_id)
+        outgoing_records = (
+            await db.scalars(
+                select(SqlStudentSessionRecord).where(
+                    SqlStudentSessionRecord.session_id == run.from_session_id, SqlStudentSessionRecord.student_id.in_(run_student_ids)
+                )
+            )
+        ).all()
+        if outgoing_records:
+            users = {user.id: user for user in (await db.scalars(select(SqlUser).where(SqlUser.id.in_(run_student_ids)))).all()}
+            for outgoing in outgoing_records:
+                if outgoing.student_id in users:
+                    sync_user_cached_fields(db, users[outgoing.student_id], outgoing)
+
+    # Only what this run created is removed: its enrollments are tagged, so subjects an
+    # admin added by hand afterwards stay. (Enrollments from runs made before the tag
+    # existed are untagged and are left alone.)
     await db.execute(delete(SqlStudentSessionRecord).where(SqlStudentSessionRecord.rollover_run_id == run_id))
-    await db.execute(delete(SqlStudentSubjectEnrollment).where(SqlStudentSubjectEnrollment.session_id == run.to_session_id))
+    await db.execute(delete(SqlStudentSubjectEnrollment).where(SqlStudentSubjectEnrollment.rollover_run_id == run_id))
     await db.execute(delete(SqlTeacherSessionAllocation).where(SqlTeacherSessionAllocation.rollover_run_id == run_id))
 
-    to_session = (await db.scalars(select(SqlAcademicSession).where(SqlAcademicSession.id == run.to_session_id))).first()
     from_session = (
         (await db.scalars(select(SqlAcademicSession).where(SqlAcademicSession.id == run.from_session_id))).first()
         if run.from_session_id else None
@@ -381,6 +394,8 @@ async def undo(db: AsyncSession, run_id: str) -> dict:
     if to_session:
         to_session.is_current = False
         to_session.status = "upcoming"
+        # Flush before re-activating the old session: only one row may be current at a time.
+        await db.flush()
     if from_session:
         from_session.is_current = True
         from_session.status = "active"

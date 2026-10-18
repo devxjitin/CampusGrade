@@ -1,11 +1,13 @@
 // Ported from frontend-legacy/src/components/ui/index.jsx.
 // react-router-dom's <Link> is replaced with next/link throughout.
 import Link from "next/link";
+import { Children } from "react";
 import { ChevronDown, ChevronRight, Search, UploadCloud, type LucideIcon } from "lucide-react";
 
 export { default as Dialog } from "./Dialog";
 export { ConfirmDialogProvider, useConfirm } from "./ConfirmDialog";
 export { EntityCard, EntityCardGrid, StatChip } from "./EntityCard";
+export { Stagger } from "./Stagger";
 export { ErrorState, LoadingState, SkeletonBlock, SkeletonList } from "./FeedbackStates";
 
 export const PageHeader = ({
@@ -28,6 +30,24 @@ export const PageHeader = ({
     {actions && <div className="ui-page-actions">{actions}</div>}
   </div>
 );
+
+/** Small square icon button used for row actions in tables and cards. */
+export const IconAction = ({
+  label,
+  tone,
+  href,
+  ...props
+}: { label: string; tone?: "danger" | "success" | "info"; href?: string } & React.ButtonHTMLAttributes<HTMLButtonElement>) => {
+  const className = `ui-icon-action ${tone ? `is-${tone}` : ""}`;
+  if (href) {
+    return (
+      <Link href={href} className={className} title={label} aria-label={label}>
+        {props.children}
+      </Link>
+    );
+  }
+  return <button type="button" className={className} title={label} aria-label={label} {...props} />;
+};
 
 export const SectionHeader = ({
   title,
@@ -56,7 +76,7 @@ export const EmptyState = ({
   description?: React.ReactNode;
   action?: React.ReactNode;
 }) => (
-  <div className="ui-empty-state" role="status">
+  <div className="ui-empty-state page-enter" role="status">
     <h3 className="font-bold text-slate-900">{title}</h3>
     {description && <p className="mt-1 max-w-md text-sm leading-6 text-slate-500">{description}</p>}
     {action && <div className="mt-4">{action}</div>}
@@ -163,11 +183,11 @@ export const Breadcrumbs = ({ items = [] }: { items?: BreadcrumbItem[] }) => (
           <li key={`${item.label}-${index}`} className="flex min-w-0 items-center gap-1.5">
             {index > 0 && <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-300" aria-hidden="true" />}
             {item.path && !isLast ? (
-              <Link href={item.path} className="truncate font-medium hover:text-primary-700">
+              <Link href={item.path} className="[overflow-wrap:anywhere] font-medium hover:text-primary-700">
                 {item.label}
               </Link>
             ) : (
-              <span className={`truncate ${isLast ? "font-semibold text-slate-900" : "font-medium"}`}>{item.label}</span>
+              <span className={`[overflow-wrap:anywhere] ${isLast ? "font-semibold text-slate-900" : "font-medium"}`}>{item.label}</span>
             )}
           </li>
         );
@@ -249,6 +269,9 @@ const statusTone: Record<string, string> = {
   scheduled: "info",
   in_progress: "info",
   inactive: "neutral",
+  suspended: "danger",
+  upcoming: "info",
+  closed: "neutral",
   failed: "danger",
   rejected: "danger",
   cancelled: "danger",
@@ -274,16 +297,59 @@ export const MetricCard = ({
   icon?: LucideIcon;
   detail?: React.ReactNode;
 }) => (
-  <article className="ui-metric-card">
+  <article className="ui-metric-card page-enter">
     <div className="min-w-0">
       <p className="text-sm font-medium text-slate-500">{label}</p>
       <p className="mt-1 text-2xl font-bold tracking-tight text-slate-950">{value}</p>
       {detail && <p className="mt-1 text-xs text-slate-500">{detail}</p>}
     </div>
     {Icon && (
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary-50 text-primary-700">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary-50 text-primary-700 ring-1 ring-primary-100">
         <Icon className="h-5 w-5" />
       </span>
     )}
   </article>
+);
+
+/** Icon + label + value tile for dashboard summary rows. */
+export const StatTile = ({ label, value, icon: Icon }: { label: React.ReactNode; value: React.ReactNode; icon?: LucideIcon }) => (
+  <div className="card card-hover h-full p-5">
+    {Icon && (
+      <span className="mb-3 grid h-9 w-9 place-items-center rounded-xl bg-primary-50 text-primary-600 ring-1 ring-primary-100">
+        <Icon className="h-5 w-5" />
+      </span>
+    )}
+    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{label}</p>
+    <p className="mt-1 text-2xl font-bold tracking-tight text-slate-950">{value}</p>
+  </div>
+);
+
+/** Columns that split `count` tiles into balanced rows (no lone tile on the last row where avoidable). */
+const statColumns = (count: number) => {
+  if (count <= 5) return Math.max(count, 1);
+  for (const columns of [4, 3, 5, 6]) if (count % columns === 0) return columns;
+  return 4;
+};
+
+/** Responsive stat tiles: an incomplete last row stretches to the full width so both edges stay aligned. */
+export const StatGrid = ({ children }: { children: React.ReactNode }) => {
+  const tiles = Children.toArray(children);
+  const columns = statColumns(tiles.length);
+  return (
+    <div className="flex flex-wrap gap-4" style={{ "--cols": columns } as React.CSSProperties}>
+      {tiles.map((tile, index) => (
+        <div key={index} className="stagger-item grow basis-[calc((100%-1rem)/2)] md:basis-[calc((100%-(var(--cols)-1)*1rem)/var(--cols))]" style={{ "--i": index } as React.CSSProperties}>
+          {tile}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/** Labelled date input: label stacked above the control, same height as buttons and selects. */
+export const DateField = ({ label, className = "", ...props }: { label: React.ReactNode } & React.InputHTMLAttributes<HTMLInputElement>) => (
+  <label className="ui-field w-auto">
+    <span className="ui-field-label">{label}</span>
+    <input type="date" className={`input-field min-w-[10.5rem] ${className}`} {...props} />
+  </label>
 );
