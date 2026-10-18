@@ -1,5 +1,5 @@
 // Assignment CRUD/detail across teacher, student, and admin modes, plus
-// discussions/announcements.
+// announcements.
 // Sprint 7: split out of src/lib/api.ts.
 import axios from "axios";
 import { downloadBlob } from "@/lib/http";
@@ -109,19 +109,6 @@ export const getStudentAssignmentSubjects = () => request.get<"/assignments/stud
 
 export const createAssignmentAnnouncement = async (id: string, payload: ApiRequestBody<"/assignments/teacher/{assignment_id}/announcements", "post">) =>
   request.post<"/assignments/teacher/{assignment_id}/announcements">(`/assignments/teacher/${id}/announcements`, payload);
-
-export const getStudentAssignmentThreads = () => request.get<"/assignments/student-tools/threads">("/assignments/student-tools/threads");
-
-export const createAssignmentThread = async (id: string, payload: ApiRequestBody<"/assignments/student-tools/{assignment_id}/threads", "post">) =>
-  request.post<"/assignments/student-tools/{assignment_id}/threads">(`/assignments/student-tools/${id}/threads`, payload);
-
-export const getTeacherAssignmentThreads = () => request.get<"/assignments/teacher-tools/threads">("/assignments/teacher-tools/threads");
-
-export const replyAssignmentThread = async (id: string, body: string) =>
-  request.post<"/assignments/discussion/threads/{thread_id}/messages">(`/assignments/discussion/threads/${id}/messages`, { message: body });
-
-export const updateAssignmentThreadStatus = async (id: string, status: "open" | "resolved") =>
-  request.patch<"/assignments/teacher-tools/threads/{thread_id}">(`/assignments/teacher-tools/threads/${id}`, { status });
 
 export const performAdminAssignmentAction = async (id: string, payload: ApiRequestBody<"/assignments/admin-tools/{assignment_id}/action", "post">) =>
   request.post<"/assignments/admin-tools/{assignment_id}/action">(`/assignments/admin-tools/${id}/action`, payload);

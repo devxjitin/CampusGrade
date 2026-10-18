@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from schemas.assignment import BulkExternalGradeStudentInput
 from services.assignment_external_evaluation import (
     build_student_source,
+    pinned_repository_url,
     render_prompt,
     rubric_digest,
     sanitize_external_feedback,
@@ -110,3 +111,19 @@ def test_external_feedback_removes_resubmission_advice():
         "It has no text-to-summary functionality and no tests."
     )
     assert sanitize_external_feedback("You should resubmit the assignment.") == ""
+
+
+def test_links_mode_pins_github_url_to_the_submitted_commit():
+    version = SimpleNamespace(repository_url="https://github.com/octo/demo.git", commit_sha="abc123")
+    assert pinned_repository_url(version) == "https://github.com/octo/demo/tree/abc123"
+    assert pinned_repository_url(SimpleNamespace(repository_url="https://gitlab.com/octo/demo", commit_sha="abc123")) is None
+
+
+def test_links_prompt_covers_the_whole_class_and_explains_access_failures():
+    assignment = SimpleNamespace(id="a1", title="API", subject="Python", difficulty="easy", total_marks=10, instructions="Build it", learning_outcomes=[])
+    rubric = [SimpleNamespace(id="r1", title="Correctness", description="Works", max_marks=10, position=0)]
+    students = [{"prompt_section": "STUDENT SUBMISSION Student-01 Repository (open exactly this commit): https://github.com/o/r/tree/abc"}]
+    prompt = render_prompt(assignment, rubric, "ref", 1, 1, students, "links")
+    assert "WHOLE CLASS" in prompt and "BATCH 1 OF 1" not in prompt
+    assert "repository_inaccessible" in prompt and "tree/abc" in prompt
+    assert "WHOLE CLASS" not in render_prompt(assignment, rubric, "ref", 1, 2, students)

@@ -1380,6 +1380,10 @@ export interface paths {
          *     The prompt carries no name, roll number, email, student id, repository owner or submission id.
          *     The mapping back to real students lives only in the signed batch token that the teacher's browser
          *     keeps (`batch_id` in the response); the prompt contains an unrelated random `batch_ref` instead.
+         *
+         *     `mode="links"` is for AI tools that can open GitHub themselves: no file contents are exported, each
+         *     student gets a link pinned to the submitted commit, and the whole class is one prompt. The link names
+         *     the repository owner, so this mode is not anonymous; the browser warns the teacher before using it.
          */
         post: operations["export_external_evaluation_assignments_teacher__assignment_id__external_evaluation_export_post"];
         delete?: never;
@@ -1625,91 +1629,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/assignments/student-tools/{assignment_id}/threads": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Student Thread */
-        post: operations["create_student_thread_assignments_student_tools__assignment_id__threads_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/assignments/student-tools/threads": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Student Threads */
-        get: operations["student_threads_assignments_student_tools_threads_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/assignments/teacher-tools/threads": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Teacher Threads */
-        get: operations["teacher_threads_assignments_teacher_tools_threads_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/assignments/discussion/threads/{thread_id}/messages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reply Thread */
-        post: operations["reply_thread_assignments_discussion_threads__thread_id__messages_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/assignments/teacher-tools/threads/{thread_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update Thread Status */
-        patch: operations["update_thread_status_assignments_teacher_tools_threads__thread_id__patch"];
-        trace?: never;
-    };
     "/assignments/admin-tools/dashboard": {
         parameters: {
             query?: never;
@@ -1865,7 +1784,7 @@ export interface components {
              * Action
              * @enum {string}
              */
-            action: "reassign" | "lock" | "unlock" | "archive" | "remind";
+            action: "reassign" | "lock" | "unlock" | "archive";
             /** Teacher Id */
             teacher_id?: string | null;
             /**
@@ -2377,6 +2296,18 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /**
+         * ExternalEvaluationExportRequest
+         * @description `files` embeds every repository file (batches of up to 10); `links` sends one GitHub link per student for the whole class.
+         */
+        ExternalEvaluationExportRequest: {
+            /**
+             * Mode
+             * @default files
+             * @enum {string}
+             */
+            mode: "files" | "links";
+        };
         /** ExternalEvaluationValidateInput */
         ExternalEvaluationValidateInput: {
             /** Batch Token */
@@ -2609,26 +2540,6 @@ export interface components {
             designation?: string | null;
             /** Assignments */
             assignments: components["schemas"]["TeacherAssignment"][];
-        };
-        /** ThreadInput */
-        ThreadInput: {
-            /** Subject */
-            subject: string;
-            /** Message */
-            message: string;
-        };
-        /** ThreadMessageInput */
-        ThreadMessageInput: {
-            /** Message */
-            message: string;
-        };
-        /** ThreadStatusInput */
-        ThreadStatusInput: {
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "open" | "resolved";
         };
         /** UserResponse */
         UserResponse: {
@@ -5505,7 +5416,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ExternalEvaluationExportRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -5916,151 +5831,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["AnnouncementInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_student_thread_assignments_student_tools__assignment_id__threads_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                assignment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ThreadInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    student_threads_assignments_student_tools_threads_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    teacher_threads_assignments_teacher_tools_threads_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    reply_thread_assignments_discussion_threads__thread_id__messages_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                thread_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ThreadMessageInput"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_thread_status_assignments_teacher_tools_threads__thread_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                thread_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ThreadStatusInput"];
             };
         };
         responses: {

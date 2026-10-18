@@ -18,8 +18,8 @@ export const validateExternalAIProposal = async (
       : { program_id: source.programId, batch_id: source.batchId, section_id: source.sectionId, subject_id: source.subjectId, proposal },
   );
 
-export const exportAssignmentExternalEvaluation = async (assignmentId: string) =>
-  request.post<"/assignments/teacher/{assignment_id}/external-evaluation/export">(`/assignments/teacher/${assignmentId}/external-evaluation/export`);
+export const exportAssignmentExternalEvaluation = async (assignmentId: string, mode: "files" | "links" = "links") =>
+  request.post<"/assignments/teacher/{assignment_id}/external-evaluation/export">(`/assignments/teacher/${assignmentId}/external-evaluation/export`, { mode });
 
 export const validateAssignmentExternalEvaluation = async (assignmentId: string, payload: ApiRequestBody<"/assignments/teacher/{assignment_id}/external-evaluation/validate", "post">) =>
   request.post<"/assignments/teacher/{assignment_id}/external-evaluation/validate">(`/assignments/teacher/${assignmentId}/external-evaluation/validate`, payload);

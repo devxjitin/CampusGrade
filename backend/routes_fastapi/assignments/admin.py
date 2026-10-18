@@ -189,16 +189,6 @@ async def admin_assignment_action(
         assignment.submission_locked_at = assignment.submission_locked_by = assignment.submission_lock_reason = None
     elif body.action == "archive":
         assignment.status = "archived"
-    elif body.action == "remind":
-        await _notification(
-            db,
-            assignment.created_by,
-            "Assignment grading reminder",
-            f"{assignment.title} has submitted work waiting for marks.",
-            "assignment_overdue",
-            f"/assignments/{assignment.id}/review",
-            f"admin-reminder:{assignment.id}:{_now().date().isoformat()}",
-        )
     await db.commit()
     await write_audit_log(db, principal.user_id, f"assignment.{body.action}", assignment.id, details, request.client.host if request.client else None)
     return {"message": "Assignment governance action completed", "assignment": await _serialize_assignment(db, assignment, False)}

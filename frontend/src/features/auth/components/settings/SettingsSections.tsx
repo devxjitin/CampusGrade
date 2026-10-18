@@ -22,7 +22,6 @@ const rolePreferences: Record<string, Array<[string, string, string]>> = {
 const emailPreferences: Array<[string, string, string]> = [
   ["email_assignment_grades", "Results published", "An email when a grade for one of your assignments is published."],
   ["email_assignment_deadlines", "Deadline reminders", "An email 24 hours before an assignment is due, if you have not submitted."],
-  ["email_discussions", "Discussion replies", "An email when someone replies in one of your assignment discussions."],
 ];
 
 export const EmailNotificationSettingsSection = ({ loading, preferences, savePreference }: { loading: boolean; preferences: Record<string, boolean>; savePreference: (key: string, enabled: boolean) => void }) => (

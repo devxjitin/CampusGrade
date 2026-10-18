@@ -1,7 +1,7 @@
 import datetime
 
 from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, backref, mapped_column, relationship
 
 from models.database import Base
 
@@ -98,7 +98,7 @@ class SqlUserProfile(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=utcnow)
     updated_at: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
 
-    user: Mapped[SqlUser] = relationship(foreign_keys=[user_id], backref="profile")
+    user: Mapped[SqlUser] = relationship(foreign_keys=[user_id], backref=backref("profile", cascade="all, delete-orphan", passive_deletes=True))
 
 
 class SqlStudentProfile(Base):
@@ -114,7 +114,7 @@ class SqlStudentProfile(Base):
     admission_year: Mapped[int] = mapped_column(Integer, nullable=False)
     enrollment_status: Mapped[str] = mapped_column(Text, nullable=False, default="active")
 
-    user: Mapped[SqlUser] = relationship(foreign_keys=[user_id], backref="student_profile")
+    user: Mapped[SqlUser] = relationship(foreign_keys=[user_id], backref=backref("student_profile", cascade="all, delete-orphan", passive_deletes=True))
     program: Mapped["SqlCourse"] = relationship(foreign_keys=[program_id])
 
 
@@ -126,7 +126,7 @@ class SqlTeacherProfile(Base):
     employee_code: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     designation: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    user: Mapped[SqlUser] = relationship(foreign_keys=[user_id], backref="teacher_profile")
+    user: Mapped[SqlUser] = relationship(foreign_keys=[user_id], backref=backref("teacher_profile", cascade="all, delete-orphan", passive_deletes=True))
 
 
 class SqlAdminProgramScope(Base):

@@ -100,7 +100,7 @@ export default function AdminUserDetailsPage() {
             </div>
           </section>
 
-          <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+          <section className="grid gap-6 xl:grid-cols-2">
             <div className="card p-5">
               <h2 className="mb-4 text-base font-bold text-slate-900">Personal and contact information</h2>
               <div className="grid gap-3 sm:grid-cols-2">

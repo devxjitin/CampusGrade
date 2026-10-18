@@ -18,7 +18,13 @@ from models.assignment import (
 )
 from models.settings_store import write_audit_log
 from models.sql_models import SqlBatch, SqlCourse, SqlSection, SqlSubject, SqlUser
-from schemas.assignment import BulkExternalGradeInput, ExternalAIPromptRequest, ExternalAIProposalValidate, ExternalEvaluationValidateInput
+from schemas.assignment import (
+    BulkExternalGradeInput,
+    ExternalAIPromptRequest,
+    ExternalAIProposalValidate,
+    ExternalEvaluationExportRequest,
+    ExternalEvaluationValidateInput,
+)
 from services.admin_helpers import _build_batch_label
 from services.assignment_ai_proposal import validate_ai_proposal
 from services.assignment_external_evaluation import (
@@ -26,6 +32,7 @@ from services.assignment_external_evaluation import (
     build_student_source,
     duplicate_evidence_for,
     identity_terms,
+    pinned_repository_url,
     render_prompt,
     rubric_digest,
 )
@@ -48,6 +55,7 @@ from .workflow import (
     _assert_evaluation_allowed,
     _decode_ai_draft,
     _decode_external_batch,
+    _evaluation_workflow,
     _external_duplicate_flags,
     _normalize_rubric_feedback,
     _resolve_assignment_context,
@@ -57,16 +65,38 @@ from .workflow import (
 router = APIRouter()
 
 
+async def _assert_external_evaluation_allowed(db: AsyncSession, assignment, links: bool):
+    """Full-file exports need every repository fetched and analysed. Link exports only need the cohort
+    to be decided (everyone submitted, or the deadline passed), because the AI reads GitHub itself."""
+    if not links:
+        return await _assert_evaluation_allowed(db, assignment)
+    workflow = await _evaluation_workflow(db, assignment)
+    if not (workflow["all_submitted"] or workflow["deadline_passed"]):
+        raise HTTPException(409, f"Evaluation opens after all {workflow['eligible_count']} students submit or after the deadline")
+    return workflow
+
+
 @router.post("/teacher/{assignment_id}/external-evaluation/export")
-async def export_external_evaluation(assignment_id: str, request: Request, teacher=Depends(require_roles("teacher")), db: AsyncSession = Depends(db_session)):
+async def export_external_evaluation(
+    assignment_id: str,
+    request: Request,
+    body: ExternalEvaluationExportRequest | None = None,
+    teacher=Depends(require_roles("teacher")),
+    db: AsyncSession = Depends(db_session),
+):
     """Prepare prompts in which every student is a pseudonym (`Student-07`).
 
     The prompt carries no name, roll number, email, student id, repository owner or submission id.
     The mapping back to real students lives only in the signed batch token that the teacher's browser
     keeps (`batch_id` in the response); the prompt contains an unrelated random `batch_ref` instead.
+
+    `mode="links"` is for AI tools that can open GitHub themselves: no file contents are exported, each
+    student gets a link pinned to the submitted commit, and the whole class is one prompt. The link names
+    the repository owner, so this mode is not anonymous; the browser warns the teacher before using it.
     """
+    links = body is not None and body.mode == "links"
     assignment = await _teacher_assignment(db, assignment_id, teacher)
-    await _assert_evaluation_allowed(db, assignment)
+    await _assert_external_evaluation_allowed(db, assignment, links)
     rubric = await _rubric(db, assignment.id)
     students = sorted(await _assignment_students(db, assignment), key=lambda row: ((row.name or "").casefold(), row.id))
     submissions = {row.student_id: row for row in (await db.scalars(select(SqlAssignmentSubmission).filter_by(assignment_id=assignment.id))).all()}
@@ -85,7 +115,7 @@ async def export_external_evaluation(assignment_id: str, request: Request, teach
             excluded.append({"student_id": student.id, "name": student.name, "roll_no": student.roll_no, "reason": "No submission"})
             continue
         version = (await db.scalars(select(SqlAssignmentSubmissionVersion).filter_by(id=submission.active_version_id))).first()
-        if not version or version.analysis_status != "ready" or not version.archive_key or not version.manifest_key:
+        if not version or (not links and (version.analysis_status != "ready" or not version.archive_key or not version.manifest_key)):
             reason = "Repository analysis is not ready" if not version or version.analysis_status != "failed" else "Repository analysis failed"
             excluded.append({"student_id": student.id, "name": student.name, "roll_no": student.roll_no, "reason": reason})
             continue
@@ -93,16 +123,23 @@ async def export_external_evaluation(assignment_id: str, request: Request, teach
         if grade:
             excluded.append({"student_id": student.id, "name": student.name, "roll_no": student.roll_no, "reason": "Already evaluated"})
             continue
-        terms = identity_terms(student, version.repository_owner)
-        try:
-            manifest = json.loads(await storage.aget_bytes(version.manifest_key))
-            archive = await storage.aget_bytes(version.archive_key)
-            source, included, omitted = await asyncio.to_thread(build_student_source, version, manifest, archive, terms)
-        except Exception:
-            excluded.append(
-                {"student_id": student.id, "name": student.name, "roll_no": student.roll_no, "reason": "Immutable repository snapshot is unavailable"}
-            )
-            continue
+        if links:
+            source = pinned_repository_url(version)
+            if not source:
+                excluded.append({"student_id": student.id, "name": student.name, "roll_no": student.roll_no, "reason": "Not a public GitHub repository link"})
+                continue
+            included, omitted = [], []
+        else:
+            terms = identity_terms(student, version.repository_owner)
+            try:
+                manifest = json.loads(await storage.aget_bytes(version.manifest_key))
+                archive = await storage.aget_bytes(version.archive_key)
+                source, included, omitted = await asyncio.to_thread(build_student_source, version, manifest, archive, terms)
+            except Exception:
+                excluded.append(
+                    {"student_id": student.id, "name": student.name, "roll_no": student.roll_no, "reason": "Immutable repository snapshot is unavailable"}
+                )
+                continue
         prepared.append(
             {
                 "student_id": student.id,
@@ -125,6 +162,11 @@ async def export_external_evaluation(assignment_id: str, request: Request, teach
         item["pseudonym"] = pseudonyms[item["student_id"]]
         item["submission_version_id"] = version.id
         evidence = duplicate_evidence_for(version.id, flags, pseudonym_by_version, anonymize=True)
+        repository = f"Repository (open exactly this commit): {item['source']}\n" if links else ""
+        file_summary = (
+            "" if links else f"Complete file export: {len(item['included_files'])} files included in full; {len(item['omitted_files'])} archive read errors.\nArchive read errors: {json.dumps(item['omitted_files'], ensure_ascii=False)}\n"
+        )
+        file_body = "" if links else f"{item['source']}\n"
         item["prompt_section"] = f"""
 
 STUDENT SUBMISSION
@@ -133,16 +175,13 @@ Branch: {version.default_branch}
 Commit SHA: {version.commit_sha}
 Submitted at: {version.submitted_at.isoformat()}
 Platform duplicate evidence: {json.dumps(evidence, ensure_ascii=False)}
-Complete file export: {len(item["included_files"])} files included in full; {len(item["omitted_files"])} archive read errors.
-Archive read errors: {json.dumps(item["omitted_files"], ensure_ascii=False)}
-{item["source"]}
-END STUDENT SUBMISSION
+{repository}{file_summary}{file_body}END STUDENT SUBMISSION
 """
     # Stable, name-independent order inside the export (pseudonym order).
     prepared.sort(key=lambda row: row["pseudonym"])
     groups, current = [], []
     for item in prepared:
-        if current and len(current) >= MAX_EXTERNAL_EVALUATION_BATCH_STUDENTS:
+        if not links and current and len(current) >= MAX_EXTERNAL_EVALUATION_BATCH_STUDENTS:
             groups.append(current)
             current = []
         current.append(item)
@@ -157,6 +196,7 @@ END STUDENT SUBMISSION
             "assignment_id": assignment.id,
             "teacher_id": teacher["_id"],
             "export_id": export_id,
+            "mode": "links" if links else "files",
             "batch_number": index,
             "batch_count": len(groups),
             "batch_ref": batch_ref,
@@ -174,7 +214,7 @@ END STUDENT SUBMISSION
             "exp": _now() + datetime.timedelta(hours=8),
         }
         token = jwt.encode(token_payload, request.app.state.secret_key, algorithm="HS256")
-        prompt = render_prompt(assignment, rubric, batch_ref, index, len(groups), group)
+        prompt = render_prompt(assignment, rubric, batch_ref, index, len(groups), group, "links" if links else "files")
         included = [file for row in group for file in row["included_files"]]
         omitted = [file for row in group for file in row["omitted_files"]]
         batch = {
@@ -183,7 +223,7 @@ END STUDENT SUBMISSION
             "batch_number": index,
             "batch_count": len(groups),
             "prompt": prompt,
-            "filename": f"{assignment.title[:60]}-evaluation-batch-{index}.txt",
+            "filename": f"{assignment.title[:60]}-evaluation-{'class' if links else f'batch-{index}'}.txt",
             "students": [
                 {key: row[key] for key in ("student_id", "student_name", "roll_no", "pseudonym", "submission_version_id", "grade_revision", "duplicate_evidence")}
                 for row in group
@@ -208,11 +248,19 @@ END STUDENT SUBMISSION
                 "student_count": len(group),
                 "included_file_count": len(included),
                 "omitted_file_count": len(omitted),
-                "pseudonymized": True,
+                "pseudonymized": not links,
+                "mode": "links" if links else "files",
             },
             request.client.host if request.client else None,
         )
-    return {"schema_version": 1, "export_id": export_id, "assignment_id": assignment.id, "batches": batches, "excluded_students": excluded}
+    return {
+        "schema_version": 1,
+        "export_id": export_id,
+        "assignment_id": assignment.id,
+        "mode": "links" if links else "files",
+        "batches": batches,
+        "excluded_students": excluded,
+    }
 
 
 @router.get("/teacher-tools/targets")
@@ -481,7 +529,8 @@ async def validate_external_evaluation(
     Nothing is written. `preview` and `validate` are the same operation.
     """
     assignment = await _teacher_assignment(db, assignment_id, teacher)
-    await _assert_evaluation_allowed(db, assignment)
+    token_mode = _decode_external_batch(body.batch_token, request.app.state.secret_key).get("mode")
+    await _assert_external_evaluation_allowed(db, assignment, token_mode == "links")
     batch, students = await _validate_external_result(db, assignment, teacher["_id"], body.batch_token, body.result, request.app.state.secret_key)
     return {"valid": True, "export_id": batch["export_id"], "batch_number": batch["batch_number"], "batch_count": batch["batch_count"], "students": students}
 
@@ -493,10 +542,10 @@ async def save_external_evaluations(
     assignment = await _teacher_assignment(db, assignment_id, teacher, lock=True)
     rubric = await _rubric(db, assignment.id)
     try:
-        await _assert_evaluation_allowed(db, assignment)
+        decoded = [_decode_external_batch(row.batch_token, request.app.state.secret_key) for row in body.students]
+        await _assert_external_evaluation_allowed(db, assignment, all(token.get("mode") == "links" for token in decoded))
         maximums = {row.id: float(row.max_marks) for row in rubric}
         digest = rubric_digest(rubric)
-        decoded = [_decode_external_batch(row.batch_token, request.app.state.secret_key) for row in body.students]
         if any(
             token.get("assignment_id") != assignment.id or token.get("teacher_id") != teacher["_id"] or token.get("rubric_digest") != digest
             for token in decoded

@@ -61,7 +61,7 @@ def test_handler_sends_and_respects_the_users_opt_out(client, seed_user, databas
     client.portal.call(send_notification_email, payload)
     assert len(sent) == 1  # opted out: nothing more is sent
     # ... but another type still goes out
-    client.portal.call(send_notification_email, {**payload, "preference_key": "email_discussions"})
+    client.portal.call(send_notification_email, {**payload, "preference_key": "email_assignment_deadlines"})
     assert len(sent) == 2
 
 

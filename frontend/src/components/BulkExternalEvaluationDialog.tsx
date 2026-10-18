@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clipboard, Download, EyeOff, Loader2, Sparkles } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clipboard, Download, EyeOff, Link2, Loader2, Sparkles } from "lucide-react";
 import Dialog from "@/components/ui/Dialog";
 import { downloadText, type AnyRecord } from "./bulkExternalEvaluation/shared";
 import ProblemList from "./bulkExternalEvaluation/ProblemList";
@@ -10,10 +10,12 @@ import Stepper from "./bulkExternalEvaluation/Stepper";
 import { useBulkExternalEvaluation } from "./bulkExternalEvaluation/useBulkExternalEvaluation";
 
 // Four steps: copy the prompt -> paste the AI's JSON -> review the proposed changes -> save.
-export default function BulkExternalEvaluationDialog({ assignmentId, assignment, onSaved }: { assignmentId: string; assignment: AnyRecord; onSaved?: () => void | Promise<void> }) {
+export default function BulkExternalEvaluationDialog({ assignmentId, assignment, filesReady = true, onSaved }: { assignmentId: string; assignment: AnyRecord; filesReady?: boolean; onSaved?: () => void | Promise<void> }) {
   const {
     open,
     setOpen,
+    mode,
+    setMode,
     busy,
     exportData,
     activeBatch,
@@ -62,7 +64,8 @@ export default function BulkExternalEvaluationDialog({ assignmentId, assignment,
     }
   };
 
-  const batchTabs = exportData && (
+  const wholeClass = mode === "links";
+  const batchTabs = exportData && exportData.batches.length > 1 && (
     <div className="flex flex-wrap gap-2" role="tablist" aria-label="Batches">
       {exportData.batches.map((item: AnyRecord, index: number) => (
         <button
@@ -93,7 +96,7 @@ export default function BulkExternalEvaluationDialog({ assignmentId, assignment,
       {step === 1 && (
         <button type="button" className="btn btn-primary" disabled={busy || !batch || !responses[batch.batch_number]?.trim()} onClick={runValidate}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" aria-hidden="true" />}
-          Validate batch
+          {wholeClass ? "Validate response" : "Validate batch"}
         </button>
       )}
       {step === 2 && (
@@ -120,7 +123,7 @@ export default function BulkExternalEvaluationDialog({ assignmentId, assignment,
         open={open}
         onClose={() => setOpen(false)}
         size="xl"
-        title="External AI batch evaluation"
+        title="External AI evaluation"
         description={`${assignment.title} · imported marks stay private until you publish them`}
         footer={footer}
       >
@@ -130,21 +133,56 @@ export default function BulkExternalEvaluationDialog({ assignmentId, assignment,
           {step === 0 && (
             <section aria-labelledby="step-prompt" className="space-y-4">
               <h3 id="step-prompt" className="text-lg font-bold">Copy the prompt</h3>
-              <div className="flex gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-950">
-                <EyeOff className="mt-0.5 h-5 w-5 flex-none" aria-hidden="true" />
-                <p>Students appear only as <strong>Student-01, Student-02…</strong> in the prompt. Names, roll numbers, emails and GitHub usernames are removed, and the mapping back to real students stays in this browser.</p>
-              </div>
-              <div className="flex gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-                <AlertTriangle className="mt-0.5 h-5 w-5 flex-none" aria-hidden="true" />
-                <p>Student source code still leaves CampusGrade when you paste the prompt into an external service. Use only an institution-approved AI account and review its data policy.</p>
-              </div>
+              {!exportData && (
+                <div className="grid gap-3 sm:grid-cols-2" role="radiogroup" aria-label="Evaluation mode">
+                  {(
+                    [
+                      ["links", Link2, "Whole class with GitHub links", "One prompt and one JSON for the whole class. The AI opens each repository itself, so nothing is copied. Public repositories only."],
+                      ["files", EyeOff, "Full files in batches", `Every repository file is included in full, in batches of up to 10 students. Works with any AI, private repositories too.${filesReady ? "" : " Available after every repository is fetched."}`],
+                    ] as const
+                  ).map(([value, Icon, title, text]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={mode === value}
+                      disabled={value === "files" && !filesReady}
+                      onClick={() => setMode(value)}
+                      className={`rounded-xl border p-4 text-left focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-4 focus-visible:ring-primary-200 ${mode === value ? "border-primary-600 bg-primary-50" : "border-slate-300"}`}
+                    >
+                      <span className="flex items-center gap-2 font-bold text-slate-900">
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                        {title}
+                      </span>
+                      <span className="mt-1 block text-xs text-slate-600">{text}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {wholeClass ? (
+                <div className="flex gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 flex-none" aria-hidden="true" />
+                  <p>Students appear as <strong>Student-01, Student-02…</strong>, and names, roll numbers and emails are not in the prompt. The GitHub links do contain each student&apos;s GitHub username, so this mode is not anonymous. Use only an institution-approved AI account that can browse GitHub.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="flex gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-950">
+                    <EyeOff className="mt-0.5 h-5 w-5 flex-none" aria-hidden="true" />
+                    <p>Students appear only as <strong>Student-01, Student-02…</strong> in the prompt. Names, roll numbers, emails and GitHub usernames are removed, and the mapping back to real students stays in this browser.</p>
+                  </div>
+                  <div className="flex gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 flex-none" aria-hidden="true" />
+                    <p>Student source code still leaves CampusGrade when you paste the prompt into an external service. Use only an institution-approved AI account and review its data policy.</p>
+                  </div>
+                </>
+              )}
               {!exportData && (
                 <div className="rounded-2xl border border-slate-300 p-8 text-center">
                   <Sparkles className="mx-auto h-9 w-9 text-primary-700" aria-hidden="true" />
-                  <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-700">Analyzed submissions are divided into batches of up to 10 students. Every repository file is included in full.</p>
+                  <p className="mx-auto mt-2 max-w-2xl text-sm text-slate-700">{wholeClass ? "Every submitted repository is linked at its submitted commit in a single prompt for the whole class." : "Analyzed submissions are divided into batches of up to 10 students. Every repository file is included in full."}</p>
                   <button className="btn btn-primary mt-5" disabled={busy} onClick={prepare}>
                     {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}
-                    Prepare batches
+                    {wholeClass ? "Prepare class prompt" : "Prepare batches"}
                   </button>
                 </div>
               )}
@@ -154,9 +192,9 @@ export default function BulkExternalEvaluationDialog({ assignmentId, assignment,
                   <div className="rounded-2xl border border-slate-300 p-5">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <h4 className="font-bold">Batch {batch.batch_number} of {batch.batch_count}</h4>
+                        <h4 className="font-bold">{wholeClass ? `Whole class · ${batch.students.length} students` : `Batch ${batch.batch_number} of ${batch.batch_count}`}</h4>
                         <p className="mt-1 text-xs text-slate-600">
-                          {batch.character_count.toLocaleString()} characters · ≈{batch.estimated_tokens.toLocaleString()} tokens · {batch.included_file_count} complete files{batch.omitted_file_count ? ` · ${batch.omitted_file_count} archive read errors` : ""}
+                          {batch.character_count.toLocaleString()} characters · ≈{batch.estimated_tokens.toLocaleString()} tokens{wholeClass ? "" : ` · ${batch.included_file_count} complete files${batch.omitted_file_count ? ` · ${batch.omitted_file_count} archive read errors` : ""}`}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -196,7 +234,7 @@ export default function BulkExternalEvaluationDialog({ assignmentId, assignment,
               <h3 id="step-paste" className="text-lg font-bold">Paste the AI response</h3>
               {batchTabs}
               <label className="block">
-                <span className="ui-field-label">JSON response for batch {batch.batch_number}</span>
+                <span className="ui-field-label">{wholeClass ? "JSON response for the whole class" : `JSON response for batch ${batch.batch_number}`}</span>
                 <textarea
                   className="input-field mt-2 min-h-56 font-mono text-xs"
                   value={responses[batch.batch_number] || ""}
@@ -216,7 +254,7 @@ export default function BulkExternalEvaluationDialog({ assignmentId, assignment,
               <ProblemList problems={batchProblems} />
               {validated[batch.batch_number] && !batchProblems.length && (
                 <p role="status" className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">
-                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Batch {batch.batch_number} is valid.
+                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> {wholeClass ? "The response is valid." : `Batch ${batch.batch_number} is valid.`}
                 </p>
               )}
             </section>
@@ -259,7 +297,7 @@ export default function BulkExternalEvaluationDialog({ assignmentId, assignment,
                 </p>
               )}
               <button type="button" className="btn btn-outline" disabled={busy} onClick={prepare}>
-                Discard and prepare fresh batches
+                Discard and prepare again
               </button>
             </section>
           )}

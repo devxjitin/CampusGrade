@@ -17,7 +17,7 @@ from models.assignment import (
 from models.sql_models import SqlBatch, SqlCourse, SqlSection, SqlSubject, SqlUser
 from services import jobs
 from services.assignment_external_evaluation import sanitize_external_feedback
-from services.github_repository_service import EXTRACT_FINAL_JOB_TYPE
+from services.github_repository_service import EXTRACT_FINAL_JOB_TYPE, finalize_evaluation_fetch
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -106,6 +106,9 @@ async def _lock_evaluation_cohort(db: AsyncSession, assignment, *, actor_id=None
     assignment.evaluation_locked_by = actor_id
     assignment.evaluation_lock_trigger = trigger
     assignment.repository_fetch_started_at = assignment.repository_fetch_started_at or now
+    # Students a teacher already froze have no extract job left to complete the fetch, so try now.
+    await db.flush()
+    await db.run_sync(lambda session: finalize_evaluation_fetch(session, assignment.id))
     return participants
 
 

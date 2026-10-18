@@ -55,7 +55,7 @@ export const AssignmentInsights = ({ assignments, summary, role }: { assignments
     }));
 
   return (
-    <section className="mb-7 grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]" aria-label="Assignment insights">
+    <section className={`mb-7 grid gap-5 ${role === "student" ? "xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]" : ""}`} aria-label="Assignment insights">
       {role === "student" && (
         <article className="card relative min-w-0 overflow-hidden p-5 sm:p-6">
           <div className="pointer-events-none absolute -right-16 -top-20 h-44 w-44 rounded-full bg-primary-100/70 blur-3xl" />

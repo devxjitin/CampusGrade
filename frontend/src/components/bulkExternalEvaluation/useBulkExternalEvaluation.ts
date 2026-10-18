@@ -17,6 +17,7 @@ export const useBulkExternalEvaluation = ({
 }) => {
   const toast = useToast();
   const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"files" | "links">("links");
   const [busy, setBusy] = useState(false);
   const [exportData, setExportData] = useState<AnyRecord | null>(null);
   const [activeBatch, setActiveBatch] = useState(0);
@@ -58,9 +59,9 @@ export const useBulkExternalEvaluation = ({
     setBusy(true);
     reset();
     try {
-      const result = await exportAssignmentExternalEvaluation(assignmentId);
+      const result = await exportAssignmentExternalEvaluation(assignmentId, mode);
       setExportData(result);
-      toast.success(`${result.batches.length} secure evaluation batch${result.batches.length === 1 ? "" : "es"} prepared`);
+      toast.success(mode === "links" ? "Class evaluation prompt prepared" : `${result.batches.length} secure evaluation batch${result.batches.length === 1 ? "" : "es"} prepared`);
     } catch (error) {
       toast.error(errorMessage(error, "Could not prepare class evaluation"));
     } finally {
@@ -70,7 +71,7 @@ export const useBulkExternalEvaluation = ({
   const copyPrompt = async () => {
     try {
       await navigator.clipboard.writeText(batch.prompt);
-      toast.success(`Batch ${batch.batch_number} prompt copied`);
+      toast.success(mode === "links" ? "Prompt copied" : `Batch ${batch.batch_number} prompt copied`);
     } catch {
       downloadText(batch.prompt, batch.filename);
       toast.info("Clipboard was unavailable. The prompt was downloaded instead.");
@@ -153,6 +154,8 @@ export const useBulkExternalEvaluation = ({
   return {
     open,
     setOpen,
+    mode,
+    setMode,
     busy,
     exportData,
     activeBatch,

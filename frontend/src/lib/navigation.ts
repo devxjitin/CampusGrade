@@ -4,12 +4,13 @@ import {
   BarChart3,
   BookOpen,
   CalendarRange,
-  ClipboardList,
   FileArchive,
+  FileText,
   GraduationCap,
   ListChecks,
   Layers,
-  MessageSquare,
+  LayoutDashboard,
+  Library,
   PlusCircle,
   RotateCcw,
   Settings,
@@ -45,8 +46,8 @@ const roleNavigation: Record<NavRole, NavSection[]> = {
     {
       title: "Assignments",
       items: [
-        { label: "Home", path: "/assignments", icon: ClipboardList },
-        { label: "Assignments", path: "/assignments/admin/all", icon: ClipboardList },
+        { label: "Home", path: "/assignments", icon: LayoutDashboard },
+        { label: "All assignments", path: "/assignments/admin/all", icon: FileText },
       ],
     },
     {
@@ -55,7 +56,7 @@ const roleNavigation: Record<NavRole, NavSection[]> = {
         { label: "Programs", path: "/admin/programs", icon: BookOpen },
         { label: "Batches", path: "/admin/batches", icon: Layers },
         { label: "Sections", path: "/admin/sections", icon: Archive },
-        { label: "Subjects", path: "/admin/subjects", icon: BookOpen },
+        { label: "Subjects", path: "/admin/subjects", icon: Library },
       ],
     },
     {
@@ -88,8 +89,8 @@ const roleNavigation: Record<NavRole, NavSection[]> = {
     {
       title: "Assignments",
       items: [
-        { label: "Home", path: "/assignments", icon: ClipboardList },
-        { label: "Assignments", path: "/assignments/admin/all", icon: ClipboardList, resource: "assignments" },
+        { label: "Home", path: "/assignments", icon: LayoutDashboard },
+        { label: "All assignments", path: "/assignments/admin/all", icon: FileText, resource: "assignments" },
       ],
     },
     {
@@ -97,7 +98,7 @@ const roleNavigation: Record<NavRole, NavSection[]> = {
       items: [
         { label: "Batches", path: "/admin/batches", icon: Layers, resource: "batches" },
         { label: "Sections", path: "/admin/sections", icon: Archive, resource: "sections" },
-        { label: "Subjects", path: "/admin/subjects", icon: BookOpen, resource: "subjects" },
+        { label: "Subjects", path: "/admin/subjects", icon: Library, resource: "subjects" },
       ],
     },
     {
@@ -120,10 +121,9 @@ const roleNavigation: Record<NavRole, NavSection[]> = {
     {
       title: "Assignments",
       items: [
-        { label: "Home", path: "/assignments", icon: ClipboardList },
+        { label: "Home", path: "/assignments", icon: LayoutDashboard },
         { label: "Create assignment", path: "/assignments/create", icon: PlusCircle },
         { label: "Analytics", path: "/assignments/analytics", icon: BarChart3 },
-        { label: "Discussions", path: "/assignments/discussions", icon: MessageSquare },
         { label: "History", path: "/assignments/records", icon: Archive },
       ],
     },
@@ -139,10 +139,9 @@ const roleNavigation: Record<NavRole, NavSection[]> = {
     {
       title: "Assignments",
       items: [
-        { label: "Home", path: "/assignments", icon: ClipboardList },
+        { label: "Home", path: "/assignments", icon: LayoutDashboard },
         { label: "Subjects", path: "/assignments/subjects", icon: BookOpen },
         { label: "My teachers", path: "/assignments/teachers", icon: Users },
-        { label: "Discussions", path: "/assignments/discussions", icon: MessageSquare },
       ],
     },
     {

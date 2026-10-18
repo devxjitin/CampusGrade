@@ -1,7 +1,7 @@
 // Ported from frontend-legacy/src/components/ui/index.jsx.
 // react-router-dom's <Link> is replaced with next/link throughout.
 import Link from "next/link";
-import { Stagger } from "./Stagger";
+import { Children } from "react";
 import { ChevronDown, ChevronRight, Search, UploadCloud, type LucideIcon } from "lucide-react";
 
 export { default as Dialog } from "./Dialog";
@@ -324,10 +324,27 @@ export const StatTile = ({ label, value, icon: Icon }: { label: React.ReactNode;
   </div>
 );
 
-/** Responsive row of stat tiles: every tile gets the same width however many there are. */
-export const StatGrid = ({ children }: { children: React.ReactNode }) => (
-  <Stagger className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(11.5rem,1fr))]">{children}</Stagger>
-);
+/** Columns that split `count` tiles into balanced rows (no lone tile on the last row where avoidable). */
+const statColumns = (count: number) => {
+  if (count <= 5) return Math.max(count, 1);
+  for (const columns of [4, 3, 5, 6]) if (count % columns === 0) return columns;
+  return 4;
+};
+
+/** Responsive stat tiles: an incomplete last row stretches to the full width so both edges stay aligned. */
+export const StatGrid = ({ children }: { children: React.ReactNode }) => {
+  const tiles = Children.toArray(children);
+  const columns = statColumns(tiles.length);
+  return (
+    <div className="flex flex-wrap gap-4" style={{ "--cols": columns } as React.CSSProperties}>
+      {tiles.map((tile, index) => (
+        <div key={index} className="stagger-item grow basis-[calc((100%-1rem)/2)] md:basis-[calc((100%-(var(--cols)-1)*1rem)/var(--cols))]" style={{ "--i": index } as React.CSSProperties}>
+          {tile}
+        </div>
+      ))}
+    </div>
+  );
+};
 
 /** Labelled date input: label stacked above the control, same height as buttons and selects. */
 export const DateField = ({ label, className = "", ...props }: { label: React.ReactNode } & React.InputHTMLAttributes<HTMLInputElement>) => (

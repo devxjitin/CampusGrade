@@ -26,7 +26,7 @@ export const DashboardHeader = ({
 }) => (
   <PageHeader
     eyebrow={isAdminRole(user.role) ? "Administration" : user.role === "teacher" ? "Teacher workspace" : "Student workspace"}
-    title={isAnalyticsPage ? "Assignment analytics" : user.role === "teacher" ? "Home" : isAdminRole(user.role) ? (isAdminAllAssignmentsPage ? "Assignments" : "Home") : isStudentSubjectsPage ? "My subjects" : "Home"}
+    title={isAnalyticsPage ? "Assignment analytics" : user.role === "teacher" ? "Home" : isAdminRole(user.role) ? (isAdminAllAssignmentsPage ? "All assignments" : "Home") : isStudentSubjectsPage ? "My subjects" : "Home"}
     description={
       isAnalyticsPage
         ? "Explore submission, grading, workload, deadline, and subject trends."

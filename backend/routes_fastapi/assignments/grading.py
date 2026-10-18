@@ -10,6 +10,7 @@ from fastapi.responses import Response
 from models.assignment import SqlAssignment, SqlAssignmentGrade, SqlAssignmentGradeRevision, SqlAssignmentSubmission
 from models.sql_models import SqlUser
 from schemas.assignment import GradeInput, WithdrawGradeInput
+from services.github_repository_service import finalize_evaluation_fetch
 from services.notification_email import enqueue_notification_email
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -185,6 +186,18 @@ async def publish_ready_assignment_results(db: AsyncSession, now=None):
     now = now or _now()
     released = []
     finalized = await finalize_assignment_deadlines(db, now)
+    # Heal cohorts locked before every frozen snapshot was ready: nothing else re-checks them.
+    stuck = (
+        await db.scalars(
+            select(SqlAssignment.id).filter(
+                SqlAssignment.evaluation_locked_at.is_not(None),
+                SqlAssignment.repository_fetch_started_at.is_not(None),
+                SqlAssignment.repository_fetch_completed_at.is_(None),
+            )
+        )
+    ).all()
+    for assignment_id in stuck:
+        await db.run_sync(lambda session, assignment_id=assignment_id: finalize_evaluation_fetch(session, assignment_id))
     rows = (
         await db.scalars(
             select(SqlAssignment)

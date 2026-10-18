@@ -1,9 +1,6 @@
 "use client";
 
 // Ported from frontend-legacy/src/pages/AssignmentDashboard.jsx
-// Note: the legacy "/assignments/discussions" route passes initialView="discussions",
-// but no branch below checks for that value — it silently falls through to the
-// default "overview" rendering, same as legacy. Preserved as-is for parity.
 import {
   AlertTriangle,
   RefreshCw,
@@ -16,6 +13,8 @@ import { AssignmentInsights, TeacherScopeCharts } from "./dashboard/AssignmentIn
 import { useAssignmentDashboard } from "./dashboard/useAssignmentDashboard";
 import { AssignmentList } from "./dashboard/AssignmentList";
 import { StudentSubjectsPanel } from "./dashboard/StudentSubjectsPanel";
+import { StudentHome } from "./dashboard/StudentHome";
+import { TeacherSummary } from "./dashboard/TeacherSummary";
 import { DashboardHeader } from "./dashboard/DashboardHeader";
 import { DateField, LoadingState, StatGrid, StatTile } from "@/components/ui";
 
@@ -24,8 +23,6 @@ export default function AssignmentDashboardView({ initialView = "overview" }: { 
     user,
     loading,
     refreshing,
-    filter,
-    setFilter,
     teacherFilter,
     setTeacherFilter,
     adminStatusFilter,
@@ -86,6 +83,8 @@ export default function AssignmentDashboardView({ initialView = "overview" }: { 
       />
       {isStudentSubjectsPage ? (
         <StudentSubjectsPanel loading={loading} subjects={studentSubjects} openItem={openItem} />
+      ) : user.role === "student" ? (
+        <StudentHome user={user} loading={loading} assignments={assignments} openItem={openItem} navigate={navigate} />
       ) : isAnalyticsPage ? (
         loading ? <LoadingState label="Loading analytics…" /> : <AssignmentAnalytics assignments={assignments} />
       ) : (
@@ -158,6 +157,7 @@ export default function AssignmentDashboardView({ initialView = "overview" }: { 
             </div>
           )}
           {isAdminOverviewPage && <AdminMonitoring data={adminDashboard} allAssignments={assignments} range={adminRange} setRange={setAdminRange} refresh={() => load(true)} navigate={navigate} />}
+          {user.role === "teacher" && !loading && <TeacherSummary user={user} summary={summary} onReview={() => setTeacherFilter("awaiting_grading")} />}
           {!isAdminAllAssignmentsPage && !isAdminOverviewPage && (
             <div className="mb-7">
               <StatGrid>
@@ -169,23 +169,6 @@ export default function AssignmentDashboardView({ initialView = "overview" }: { 
           )}
           {!isAdminAllAssignmentsPage && !loading && user.role === "teacher" && <TeacherScopeCharts scope={teacherScope} summary={summary} />}
           {!isAdminAllAssignmentsPage && !isAdminOverviewPage && !loading && assignments.length > 0 && <AssignmentInsights assignments={assignments} summary={summary} role={user.role} />}
-          {user.role === "student" && (
-            <div className="mb-5 flex flex-wrap gap-2">
-              {(
-                [
-                  ["all", "All"],
-                  ["upcoming", "Upcoming"],
-                  ["open", "Open"],
-                  ["submitted", "Submitted"],
-                  ["results", "Results"],
-                ] as [string, string][]
-              ).map(([value, label]) => (
-                <button key={value} onClick={() => setFilter(value)} className={`btn ${filter === value ? "btn-primary" : "btn-outline"}`}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
           {user.role === "teacher" && (
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center">
               <input value={query} onChange={(event) => setQuery(event.target.value)} className="input-field sm:max-w-sm" placeholder="Search assignments or subjects" />

@@ -126,6 +126,12 @@ class GradeInput(BaseModel):
     missing: bool = False
 
 
+class ExternalEvaluationExportRequest(BaseModel):
+    """`files` embeds every repository file (batches of up to 10); `links` sends one GitHub link per student for the whole class."""
+
+    mode: Literal["files", "links"] = "files"
+
+
 class ExternalEvaluationValidateInput(BaseModel):
     batch_token: str = Field(min_length=20, max_length=20_000)
     result: dict
@@ -163,20 +169,7 @@ class AnnouncementInput(BaseModel):
     body: str = Field(min_length=1, max_length=20_000)
 
 
-class ThreadInput(BaseModel):
-    subject: str = Field(min_length=1, max_length=200)
-    message: str = Field(min_length=1, max_length=20_000)
-
-
-class ThreadMessageInput(BaseModel):
-    message: str = Field(min_length=1, max_length=20_000)
-
-
-class ThreadStatusInput(BaseModel):
-    status: Literal["open", "resolved"]
-
-
 class AdminAssignmentActionInput(BaseModel):
-    action: Literal["reassign", "lock", "unlock", "archive", "remind"]
+    action: Literal["reassign", "lock", "unlock", "archive"]
     teacher_id: str | None = Field(default=None, max_length=64)
     reason: str = Field(default="", max_length=2000)

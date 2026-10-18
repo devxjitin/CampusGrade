@@ -1,12 +1,11 @@
 "use client";
 
-import WrapInput from "@/components/ui/WrapInput";
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, CalendarClock, ExternalLink, MessageSquare, Send } from "lucide-react";
+import { ArrowLeft, CalendarClock, ExternalLink } from "lucide-react";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import { EmptyState, PageHeader, StatusBadge, Tabs } from "@/components/ui";
-import { createAssignmentThread, downloadAssignmentResource, getStudentAssignment, getStudentRepository, previewAssignmentRepository, submitAssignmentRepository, syncAssignmentRepository } from "@/features/assignments/api";
+import { downloadAssignmentResource, getStudentAssignment, getStudentRepository, previewAssignmentRepository, submitAssignmentRepository, syncAssignmentRepository } from "@/features/assignments/api";
 import { formatDateTime } from "@/lib/datetime";
 import { useToast } from "@/components/Toast";
 import { getCachedUser } from "@/lib/session";
@@ -27,7 +26,6 @@ export default function StudentAssignmentDetailPage() {
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
-  const [question, setQuestion] = useState({ subject: "", message: "" });
   const [snapshot, setSnapshot] = useState<AnyRecord | null>(null);
   const [snapshotPath, setSnapshotPath] = useState("");
   const [snapshotContent, setSnapshotContent] = useState("");
@@ -135,7 +133,6 @@ export default function StudentAssignmentDetailPage() {
             { value: "overview", label: "Overview" },
             { value: "submission", label: "Submission" },
             { value: "feedback", label: "Feedback" },
-            { value: "discussion", label: "Ask the teacher" },
           ]}
         />
       </div>
@@ -221,33 +218,6 @@ export default function StudentAssignmentDetailPage() {
           </main>
         )}
         <aside className="space-y-5">
-          {activeTab === "discussion" && (
-            <section className="card p-5">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5 text-primary-600" />
-                <h2 className="font-bold">Ask the teacher</h2>
-              </div>
-              <WrapInput rows={2} className="input-field mt-4" value={question.subject} onChange={(e) => setQuestion({ ...question, subject: e.target.value })} placeholder="Question subject" />
-              <textarea className="input-field mt-3 min-h-24" value={question.message} onChange={(e) => setQuestion({ ...question, message: e.target.value })} placeholder="Explain what you need help with…" />
-              <button
-                className="btn btn-outline mt-3 w-full"
-                disabled={!question.subject.trim() || !question.message.trim()}
-                onClick={async () => {
-                  try {
-                    await createAssignmentThread(id, question);
-                    setQuestion({ subject: "", message: "" });
-                    toast.success("Question sent privately to your teacher");
-                  } catch (error) {
-                    const message = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-                    toast.error(message || "Could not send question");
-                  }
-                }}
-              >
-                <Send className="h-4 w-4" />
-                Send question
-              </button>
-            </section>
-          )}
           <StudentSubmissionPanel
             activeTab={activeTab} assignment={assignment}
             version={version} canSubmit={canSubmit}

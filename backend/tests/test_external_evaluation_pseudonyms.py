@@ -126,6 +126,15 @@ def test_export_prompt_is_pseudonymized_and_import_restores_real_students(client
     pseudonyms = {row["pseudonym"]: row for row in batch["students"]}
     assert set(pseudonyms) == {"Student-01", "Student-02"}
 
+    # Links mode: one prompt for the whole class with a commit-pinned GitHub link per student and no file contents.
+    linked = client.post(f"/assignments/teacher/{assignment_id}/external-evaluation/export", headers=headers, json={"mode": "links"})
+    assert linked.status_code == 200, linked.text
+    assert linked.json()["mode"] == "links" and len(linked.json()["batches"]) == 1
+    link_batch = linked.json()["batches"][0]
+    assert link_batch["batch_count"] == 1 and len(link_batch["students"]) == 2
+    assert f"/project/tree/{'c' * 40}" in link_batch["prompt"] and "WHOLE CLASS" in link_batch["prompt"]
+    assert "Project by" not in link_batch["prompt"] and "FILE:" not in link_batch["prompt"]
+
     def ai_row(pseudonym, awarded):
         return {
             "student_id": pseudonym,

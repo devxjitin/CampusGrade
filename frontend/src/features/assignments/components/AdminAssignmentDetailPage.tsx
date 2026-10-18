@@ -2,7 +2,7 @@
 
 // Ported from frontend-legacy/src/pages/AdminAssignmentDetail.jsx (route: /assignments/admin/:id)
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Bell, ExternalLink, GitCommit, Trash2, LockKeyhole, Users } from "lucide-react";
+import { ArrowLeft, ExternalLink, GitCommit, Trash2, LockKeyhole, Users } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { LoadingState, PageHeader, useConfirm } from "@/components/ui";
 import { deleteAdminAssignment, getAdminAssignmentDetail, performAdminAssignmentAction } from "@/features/assignments/api";
@@ -63,13 +63,13 @@ export default function AdminAssignmentDetailPage() {
     }
   };
 
-  const govern = async (action: "remind" | "reassign" | "lock" | "unlock" | "archive") => {
-    const reason = action === "remind" ? "Administrative evaluation reminder" : window.prompt(`Reason for ${action}?`);
+  const govern = async (action: "reassign" | "lock" | "unlock" | "archive") => {
+    const reason = window.prompt(`Reason for ${action}?`);
     if (!reason) return;
     try {
       const result = await performAdminAssignmentAction(id, { action, reason });
       setData((current) => ({ ...current, assignment: result.assignment }));
-      toast.success(action === "remind" ? "Teacher reminded" : `Assignment ${action} action completed`);
+      toast.success(`Assignment ${action} action completed`);
     } catch (error) {
       const err = error as { response?: { data?: { detail?: string; message?: string } } };
       toast.error(err.response?.data?.detail || err.response?.data?.message || "Governance action failed");
@@ -104,10 +104,6 @@ export default function AdminAssignmentDetailPage() {
           <p className="mt-1 text-sm text-slate-500">Actions are audited. Student marks remain teacher-controlled.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className="btn btn-outline" onClick={() => govern("remind")}>
-            <Bell className="h-4 w-4" />
-            Remind teacher
-          </button>
           <button className="btn btn-outline" onClick={() => govern(assignment.submission_locked_at ? "unlock" : "lock")}>
             <LockKeyhole className="h-4 w-4" />
             {assignment.submission_locked_at ? "Unlock submissions" : "Lock submissions"}

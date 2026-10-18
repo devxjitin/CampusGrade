@@ -1,7 +1,7 @@
 "use client";
 
 // Ported from frontend-legacy/src/pages/AssignmentReview.jsx
-import { ArrowLeft, Download, Send as Publish, Users } from "lucide-react";
+import { ArrowLeft, Download, Send as Publish, Sparkles, Users } from "lucide-react";
 import BulkExternalEvaluationDialog from "@/components/BulkExternalEvaluationDialog";
 import { downloadAssignmentGradebook, publishAllAssignmentGrades } from "@/features/grading/api";
 import { formatDateTime } from "@/lib/datetime";
@@ -53,12 +53,17 @@ export default function AssignmentReviewPage() {
           <p className="mt-2 text-xs text-slate-500">Start evaluation per student to pin their latest synchronized commit. Other students remain live until evaluated or the deadline.</p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          {evaluation.can_evaluate && <BulkExternalEvaluationDialog assignmentId={id} assignment={assignment} onSaved={async () => {
+          {evaluation.can_evaluate || evaluation.all_submitted || evaluation.deadline_passed ? <BulkExternalEvaluationDialog assignmentId={id} assignment={assignment} filesReady={Boolean(evaluation.can_evaluate)} onSaved={async () => {
             // Invalidate the TanStack Query roster key so any useQuery("assignment-roster", id)
             // hooks (present or future) also refresh, then fall back to the ad-hoc load().
             await queryClient.invalidateQueries({ queryKey: ["assignment-roster", id] });
             load(selectedId);
-          }} />}
+          }} /> : (
+            <button type="button" className="btn btn-outline" disabled title="Opens after all students submit or the deadline passes">
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
+              External AI evaluator
+            </button>
+          )}
           <button
             type="button"
             onClick={() => downloadAssignmentGradebook(id, `${assignment.title}-gradebook.csv`).catch(() => toast.error("Gradebook download failed"))}

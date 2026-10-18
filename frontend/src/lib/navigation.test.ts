@@ -25,7 +25,7 @@ describe("administrator navigation", () => {
     expect(labels).toContain("Assignment audit log");
     expect(labels).not.toContain("Sections");
     expect(labels).not.toContain("Subjects");
-    expect(labels).not.toContain("Assignments");
+    expect(labels).not.toContain("All assignments");
     expect(labels).toContain("Profile");
   });
 

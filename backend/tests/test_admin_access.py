@@ -156,3 +156,29 @@ def test_auth_me_reports_what_the_account_may_do(client, seed_user, login):
     assert client.get("/auth/me", headers=_headers(login, admin)).json()["access"] == {"batches": "edit", "audit_log": "view"}
     boss_access = client.get("/auth/me", headers=_headers(login, boss)).json()["access"]
     assert boss_access["batches"] == "full" and boss_access["audit_log"] == "view"
+
+
+@requires_docker
+def test_deleting_a_student_with_profile_rows_succeeds(client, seed_user, login):
+    from models.database import async_session_factory
+    from models.sql_models import SqlUser, SqlUserProfile
+    from sqlalchemy import select
+
+    boss = seed_user(role="super_admin", email="delete-boss@example.edu")
+    student = seed_user(role="student", email="delete-me@example.edu")
+
+    async def add_profile():
+        async with async_session_factory() as session:
+            session.add(SqlUserProfile(user_id=student["id"], full_name="Delete Me"))
+            await session.commit()
+
+    client.portal.call(add_profile)
+    assert client.delete(f"/admin/user/{student['id']}", headers=_headers(login, boss)).status_code == 200
+
+    async def remaining():
+        async with async_session_factory() as session:
+            users = (await session.scalars(select(SqlUser).filter_by(id=student["id"]))).all()
+            profiles = (await session.scalars(select(SqlUserProfile).filter_by(user_id=student["id"]))).all()
+            return len(users), len(profiles)
+
+    assert client.portal.call(remaining) == (0, 0)

@@ -109,7 +109,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-stretch">
           <ProfileInformationCard
             user={user}
             formData={formData}
@@ -128,7 +128,7 @@ export default function ProfilePage() {
               </p>
             </div>
           ) : (
-            <div className="xl:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6 content-start">
+            <div className="xl:col-span-2 grid grid-cols-1 lg:grid-cols-2 auto-rows-fr gap-6">
               {showGitHubData ? (
                 <GitHubIdentityCard profile={profile!} />
               ) : (
@@ -176,7 +176,7 @@ export default function ProfilePage() {
               )}
 
               {user.role === "student" && (
-                <div className="card rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm">
+                <div className="card rounded-[2rem] border border-gray-100 bg-white p-6 shadow-sm lg:col-span-2">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="flex items-center gap-2 text-sm font-bold text-gray-900">
                       <Code2 className="h-5 w-5 text-amber-700" />

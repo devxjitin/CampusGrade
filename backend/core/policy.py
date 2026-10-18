@@ -48,7 +48,6 @@ class Permission(str, Enum):
     REPORT_VIEW = "report.view"
     TEACHER_PORTAL = "portal.teacher"
     STUDENT_PORTAL = "portal.student"
-    DISCUSSION_PARTICIPATE = "discussion.participate"
 
 
 # What an `admin` may do beyond the platform-wide permissions above is not a fixed role
@@ -99,7 +98,6 @@ PERMISSIONS: dict[Permission, frozenset[Role]] = {
     Permission.REPORT_VIEW: frozenset({S, A, T, U}),
     Permission.TEACHER_PORTAL: frozenset({T}),
     Permission.STUDENT_PORTAL: frozenset({U}),
-    Permission.DISCUSSION_PARTICIPATE: frozenset({T, U}),
 }
 
 
@@ -190,7 +188,6 @@ def require_roles(*roles: str):
     permission = {
         frozenset({"teacher"}): Permission.TEACHER_PORTAL,
         frozenset({"student"}): Permission.STUDENT_PORTAL,
-        frozenset({"teacher", "student"}): Permission.DISCUSSION_PARTICIPATE,
     }.get(role_set)
     if permission is None:
         raise ValueError(f"No canonical portal permission for roles: {sorted(role_set)}")

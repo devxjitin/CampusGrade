@@ -28,7 +28,6 @@ export const useAssignmentDashboard = (initialView = "overview") => {
   const [teacherScope, setTeacherScope] = useState<Assignment>({ students: 0, programs: 0, batches: 0, sections: 0, subjects: 0, allocations: 0 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState("all");
   const [teacherFilter, setTeacherFilter] = useState(initialAdminParams.get("teacher_id") || "all");
   const [adminStatusFilter, setAdminStatusFilter] = useState(initialAdminParams.get("status") || "all");
   const [adminProgramFilter, setAdminProgramFilter] = useState(initialAdminParams.get("program_id") || "all");
@@ -269,17 +268,7 @@ export const useAssignmentDashboard = (initialView = "overview") => {
         search.includes(query.toLowerCase().trim())
       );
     }
-    return user.role !== "student" || filter === "all"
-      ? true
-      : filter === "upcoming"
-        ? item.phase === "scheduled"
-        : filter === "open"
-          ? item.phase === "open" && !item.submission
-          : filter === "submitted"
-            ? item.submission && !item.grade
-            : filter === "results"
-              ? Boolean(item.grade)
-              : true;
+    return true;
   });
   const adminPageSize = 25;
   const adminTotalPages = Math.max(1, Math.ceil((isAdminAllAssignmentsPage ? adminTotalAssignments : filteredAssignments.length) / adminPageSize));
@@ -308,8 +297,6 @@ export const useAssignmentDashboard = (initialView = "overview") => {
     user,
     loading,
     refreshing,
-    filter,
-    setFilter,
     teacherFilter,
     setTeacherFilter,
     adminStatusFilter,

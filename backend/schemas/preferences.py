@@ -5,10 +5,10 @@ from pydantic import BaseModel, Field
 # In-app notification categories.
 IN_APP_KEYS = {
     "assignment_deadlines", "assignment_submissions", "assignment_grades",
-    "discussions", "administration",
+    "administration",
 }
 # Per-type email opt-outs (Sprint 4). Stored beside the in-app keys; every key defaults to on.
-EMAIL_KEYS = {"email_assignment_deadlines", "email_assignment_grades", "email_discussions"}
+EMAIL_KEYS = {"email_assignment_deadlines", "email_assignment_grades"}
 NOTIFICATION_KEYS = IN_APP_KEYS | EMAIL_KEYS
 
 
