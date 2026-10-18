@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatDateTime } from "@/lib/datetime";
 import { setSelectedAcademicSessionId } from "@/lib/academicSession";
+import { DateField } from "@/components/ui";
 import { insightTooltip, type Assignment } from "./shared";
 
 export const AdminMonitoring = ({
@@ -100,14 +101,8 @@ export const AdminMonitoring = ({
     <div className="mb-7 space-y-6">
       <section className="card p-4">
         <div className="flex flex-wrap items-end gap-3">
-          <label>
-            <span className="ui-field-label">From</span>
-            <input type="date" className="input-field mt-1 w-auto" value={range?.from || ""} onChange={(event) => setRange((value) => ({ ...value, from: event.target.value }))} />
-          </label>
-          <label>
-            <span className="ui-field-label">To</span>
-            <input type="date" className="input-field mt-1 w-auto" value={range?.to || ""} onChange={(event) => setRange((value) => ({ ...value, to: event.target.value }))} />
-          </label>
+          <DateField label="From" value={range?.from || ""} onChange={(event) => setRange((value) => ({ ...value, from: event.target.value }))} />
+          <DateField label="To" value={range?.to || ""} onChange={(event) => setRange((value) => ({ ...value, to: event.target.value }))} />
           <button
             className="btn btn-primary"
             onClick={() => {

@@ -17,7 +17,7 @@ import { useAssignmentDashboard } from "./dashboard/useAssignmentDashboard";
 import { AssignmentList } from "./dashboard/AssignmentList";
 import { StudentSubjectsPanel } from "./dashboard/StudentSubjectsPanel";
 import { DashboardHeader } from "./dashboard/DashboardHeader";
-import { LoadingState, StatGrid, StatTile } from "@/components/ui";
+import { DateField, LoadingState, StatGrid, StatTile } from "@/components/ui";
 
 export default function AssignmentDashboardView({ initialView = "overview" }: { initialView?: string }) {
   const {
@@ -208,15 +208,9 @@ export default function AssignmentDashboardView({ initialView = "overview" }: { 
                   Refresh
                 </button>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <label>
-                  <span className="ui-field-label">Due from</span>
-                  <input type="date" className="input-field mt-1 w-auto" value={adminFromDate} onChange={(event) => setAdminFromDate(event.target.value)} />
-                </label>
-                <label>
-                  <span className="ui-field-label">Due to</span>
-                  <input type="date" className="input-field mt-1 w-auto" value={adminToDate} onChange={(event) => setAdminToDate(event.target.value)} />
-                </label>
+              <div className="mt-3 flex flex-wrap items-end gap-3">
+                <DateField label="Due from" value={adminFromDate} onChange={(event) => setAdminFromDate(event.target.value)} />
+                <DateField label="Due to" value={adminToDate} onChange={(event) => setAdminToDate(event.target.value)} />
                 <select className="input-field w-auto" value={adminProgramFilter} onChange={(event) => setAdminProgramFilter(event.target.value)}>
                   <option value="all">All programs</option>
                   {adminFilterOptions.programs.map((item) => (

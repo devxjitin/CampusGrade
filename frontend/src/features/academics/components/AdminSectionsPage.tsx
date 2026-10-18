@@ -3,7 +3,7 @@
 // Ported from frontend-legacy/src/pages/AdminSections.jsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Edit2, GraduationCap, Plus, Trash2, Users } from "lucide-react";
-import { EmptyState, EntityCard, EntityCardGrid, ErrorState, LoadingState, PageHeader, useConfirm } from "@/components/ui";
+import { EmptyState, EntityCard, EntityCardGrid, ErrorState, FilterToolbar, LoadingState, PageHeader, SearchField, SelectField, useConfirm } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { batchHooks, courseHooks, sectionHooks, type AcademicRecord } from "@/features/academics/queries";
 import { getCachedUser } from "@/lib/session";
@@ -213,41 +213,36 @@ export default function AdminSectionsPage() {
         }
       />
 
-      <div className="ui-toolbar flex-wrap items-end">
-        <div className="flex-1 min-w-[220px]">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Search Section</label>
-          <input type="text" value={searchSection} onChange={(e) => setSearchSection(e.target.value)} className="input-field" placeholder="By section/program/batch" />
-        </div>
-        <div className="w-64">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Program</label>
-          <select
-            value={filterCourseId}
-            onChange={(e) => {
-              setFilterCourseId(e.target.value);
-              setFilterBatchId("");
-            }}
-            className="w-full border border-gray-300 rounded-md p-2"
-          >
-            <option value="">All Programs</option>
-            {courses.map((course) => (
-              <option key={course.id} value={course.id as string}>
-                {String(course.code || "").trim().toUpperCase() || (course.name as string)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="w-64">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Batch</label>
-          <select value={filterBatchId} onChange={(e) => setFilterBatchId(e.target.value)} className="w-full border border-gray-300 rounded-md p-2">
-            <option value="">All Batches</option>
-            {filterCourseBatches.map((batch) => (
-              <option key={batch.id} value={batch.id as string}>
-                {getBatchLabel(batch)}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <FilterToolbar
+        search={<SearchField value={searchSection} onChange={(e) => setSearchSection(e.target.value)} placeholder="Search by section, program or batch" aria-label="Search sections" />}
+        filters={
+          <>
+            <SelectField
+              aria-label="Program"
+              value={filterCourseId}
+              onChange={(e) => {
+                setFilterCourseId(e.target.value);
+                setFilterBatchId("");
+              }}
+            >
+              <option value="">All programs</option>
+              {courses.map((course) => (
+                <option key={course.id} value={course.id as string}>
+                  {String(course.code || "").trim().toUpperCase() || (course.name as string)}
+                </option>
+              ))}
+            </SelectField>
+            <SelectField aria-label="Batch" value={filterBatchId} onChange={(e) => setFilterBatchId(e.target.value)}>
+              <option value="">All batches</option>
+              {filterCourseBatches.map((batch) => (
+                <option key={batch.id} value={batch.id as string}>
+                  {getBatchLabel(batch)}
+                </option>
+              ))}
+            </SelectField>
+          </>
+        }
+      />
 
       {isError ? (
         <ErrorState title="Could not load sections" onRetry={() => refetch()} />

@@ -328,3 +328,11 @@ export const StatTile = ({ label, value, icon: Icon }: { label: React.ReactNode;
 export const StatGrid = ({ children }: { children: React.ReactNode }) => (
   <Stagger className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(11.5rem,1fr))]">{children}</Stagger>
 );
+
+/** Labelled date input: label stacked above the control, same height as buttons and selects. */
+export const DateField = ({ label, className = "", ...props }: { label: React.ReactNode } & React.InputHTMLAttributes<HTMLInputElement>) => (
+  <label className="ui-field w-auto">
+    <span className="ui-field-label">{label}</span>
+    <input type="date" className={`input-field min-w-[10.5rem] ${className}`} {...props} />
+  </label>
+);

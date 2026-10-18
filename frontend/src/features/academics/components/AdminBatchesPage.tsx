@@ -3,7 +3,7 @@
 // Ported from frontend-legacy/src/pages/AdminBatches.jsx
 import { useEffect, useMemo, useState } from "react";
 import { Archive, BookOpen, Edit2, GraduationCap, Plus, Trash2, Users } from "lucide-react";
-import { EmptyState, EntityCard, EntityCardGrid, ErrorState, LoadingState, PageHeader, useConfirm } from "@/components/ui";
+import { EmptyState, EntityCard, EntityCardGrid, ErrorState, FilterToolbar, LoadingState, PageHeader, SearchField, SelectField, useConfirm } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { batchHooks, courseHooks, type AcademicRecord } from "@/features/academics/queries";
 import { getCachedUser } from "@/lib/session";
@@ -201,23 +201,19 @@ export default function AdminBatchesPage() {
         }
       />
 
-      <div className="ui-toolbar flex-wrap items-end">
-        <div className="flex-1 min-w-[220px]">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Search Batch</label>
-          <input type="text" value={searchBatch} onChange={(e) => setSearchBatch(e.target.value)} className="input-field" placeholder="By label or year" />
-        </div>
-        <div className="w-72">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Program</label>
-          <select value={filterCourseId} onChange={(e) => setFilterCourseId(e.target.value)} className="w-full border border-gray-300 rounded-md p-2">
-            <option value="">All Programs</option>
+      <FilterToolbar
+        search={<SearchField value={searchBatch} onChange={(e) => setSearchBatch(e.target.value)} placeholder="Search by label or year" aria-label="Search batches" />}
+        filters={
+          <SelectField aria-label="Program" value={filterCourseId} onChange={(e) => setFilterCourseId(e.target.value)}>
+            <option value="">All programs</option>
             {courses.map((course) => (
               <option key={course.id} value={course.id as string}>
                 {formatCourseLabel(course)}
               </option>
             ))}
-          </select>
-        </div>
-      </div>
+          </SelectField>
+        }
+      />
 
       <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="card p-4">
