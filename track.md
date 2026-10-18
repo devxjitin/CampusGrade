@@ -21,3 +21,4 @@ Naye entries neeche add hote hain. Purani lines edit mat karo.
 [2026-10-17 22:33] [Claude] [Remove: saare passwords; sign-in sirf email se, APP_ENV=production refuse]
 [2026-10-17 22:33] [Claude] [Remove: forgot/reset/change password, temp passwords, reset emails, password columns (migration 032)]
 [2026-10-17 22:33] [Claude] [Update: login UI, settings, admin pages, e2e, scripts, docs email-only]
+[2026-10-18 06:58] [Claude] [Add: backend/seed_dev.py demo data (3 programs, 6 teachers, 54 students) seeded in dev DB]
