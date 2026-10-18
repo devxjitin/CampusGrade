@@ -3,11 +3,11 @@ import { Check } from "lucide-react";
 export const EVALUATION_STEPS = ["Copy prompt", "Paste JSON", "Review changes", "Save"] as const;
 
 // A numbered progress list. `current` is 0-based; earlier steps show a check.
-export default function Stepper({ current, onSelect, reachable }: { current: number; onSelect: (index: number) => void; reachable: number }) {
+export default function Stepper({ current, onSelect, reachable, steps = EVALUATION_STEPS, label = "Evaluation steps" }: { current: number; onSelect: (index: number) => void; reachable: number; steps?: readonly string[]; label?: string }) {
   return (
-    <nav aria-label="Evaluation steps">
+    <nav aria-label={label}>
       <ol className="flex flex-wrap gap-2">
-        {EVALUATION_STEPS.map((label, index) => {
+        {steps.map((label, index) => {
           const done = index < current;
           const active = index === current;
           return (

@@ -1408,6 +1408,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assignments/teacher-tools/context-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Teacher Context Options
+         * @description Program > batch > section > subject tree the teacher is allocated to, resolved from the database.
+         */
+        get: operations["teacher_context_options_assignments_teacher_tools_context_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assignments/teacher/{assignment_id}/external-evaluation/validate": {
         parameters: {
             query?: never;
@@ -1486,7 +1506,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/assignments/teacher-tools/external-ai-proposal/import": {
+    "/assignments/teacher-tools/external-ai-proposal/validate": {
         parameters: {
             query?: never;
             header?: never;
@@ -1495,8 +1515,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Import External Ai Proposal */
-        post: operations["import_external_ai_proposal_assignments_teacher_tools_external_ai_proposal_import_post"];
+        /** Validate External Ai Proposal */
+        post: operations["validate_external_ai_proposal_assignments_teacher_tools_external_ai_proposal_validate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2172,64 +2192,6 @@ export interface components {
             /** End Year */
             end_year?: number | null;
         };
-        /** Body_generate_external_ai_prompt_assignments_teacher_tools_external_ai_prompt_post */
-        Body_generate_external_ai_prompt_assignments_teacher_tools_external_ai_prompt_post: {
-            /**
-             * Source Prompt
-             * @default
-             */
-            source_prompt: string;
-            /**
-             * Course
-             * @default
-             */
-            course: string;
-            /**
-             * Program
-             * @default
-             */
-            program: string;
-            /**
-             * Program Year
-             * @default
-             */
-            program_year: string;
-            /**
-             * Batch
-             * @default
-             */
-            batch: string;
-            /**
-             * Section
-             * @default
-             */
-            section: string;
-            /**
-             * Difficulty
-             * @default intermediate
-             */
-            difficulty: string;
-            /**
-             * Require Readme
-             * @default true
-             */
-            require_readme: boolean;
-            /**
-             * Custom Instructions
-             * @default
-             */
-            custom_instructions: string;
-            /**
-             * Total Marks
-             * @default 20
-             */
-            total_marks: number;
-            /**
-             * Rubric Count
-             * @default 5
-             */
-            rubric_count: number;
-        };
         /** Body_import_students_admin_import_students_post */
         Body_import_students_admin_import_students_post: {
             /**
@@ -2356,12 +2318,23 @@ export interface components {
             /** Session Id */
             session_id: string;
         };
-        /** ExternalAIAssignmentProposalImport */
-        ExternalAIAssignmentProposalImport: {
-            /** Proposal */
-            proposal: {
-                [key: string]: unknown;
-            };
+        /** ExternalAIPromptRequest */
+        ExternalAIPromptRequest: {
+            /** Program Id */
+            program_id: string;
+            /** Batch Id */
+            batch_id: string;
+            /** Section Id */
+            section_id: string;
+            /** Subject Id */
+            subject_id: string;
+            /** Brief */
+            brief: string;
+            /**
+             * Guidance
+             * @default
+             */
+            guidance: string;
             /**
              * Total Marks
              * @default 20
@@ -2383,6 +2356,15 @@ export interface components {
              * @default true
              */
             require_readme: boolean;
+        };
+        /** ExternalAIProposalValidate */
+        ExternalAIProposalValidate: {
+            /** Draft Token */
+            draft_token: string;
+            /** Proposal */
+            proposal: {
+                [key: string]: unknown;
+            };
         };
         /** ExternalEvaluationValidateInput */
         ExternalEvaluationValidateInput: {
@@ -5554,6 +5536,26 @@ export interface operations {
             };
         };
     };
+    teacher_context_options_assignments_teacher_tools_context_options_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     validate_external_evaluation_assignments_teacher__assignment_id__external_evaluation_validate_post: {
         parameters: {
             query?: never;
@@ -5666,9 +5668,9 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/x-www-form-urlencoded": components["schemas"]["Body_generate_external_ai_prompt_assignments_teacher_tools_external_ai_prompt_post"];
+                "application/json": components["schemas"]["ExternalAIPromptRequest"];
             };
         };
         responses: {
@@ -5692,7 +5694,7 @@ export interface operations {
             };
         };
     };
-    import_external_ai_proposal_assignments_teacher_tools_external_ai_proposal_import_post: {
+    validate_external_ai_proposal_assignments_teacher_tools_external_ai_proposal_validate_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -5701,7 +5703,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ExternalAIAssignmentProposalImport"];
+                "application/json": components["schemas"]["ExternalAIProposalValidate"];
             };
         };
         responses: {

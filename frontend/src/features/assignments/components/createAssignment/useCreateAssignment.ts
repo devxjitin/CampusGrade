@@ -2,21 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getTeacherCourses } from "@/features/academics/api";
-import { generateExternalAIPrompt, importExternalAIProposal } from "@/features/ai/api";
+import { getTeacherContextOptions } from "@/features/academics/api";
+import { generateExternalAIPrompt, validateExternalAIProposal } from "@/features/ai/api";
 import { createAssignment, getTeacherAssignment, updateAssignment, uploadAssignmentAttachment } from "@/features/assignments/api";
 import { useToast } from "@/components/Toast";
+import { useConfirm } from "@/components/ui";
 import { toLocalInputDateTime, toServerDateTime } from "@/lib/datetime";
 import { getCachedUser } from "@/lib/session";
 import { parseExternalJson } from "@/lib/parseExternalJson";
+import { validationProblems, type ValidationProblem } from "@/components/bulkExternalEvaluation/shared";
 import type { ApiRequestBody } from "@/types/api-client";
 import {
   TABS,
   blank,
-  normalizeTeachingAssignments,
   parseCommaSeparatedValues,
   type AnyRecord,
   type AssignmentDifficulty,
+  type ContextProgram,
 } from "./shared";
 
 export const useCreateAssignment = () => {
@@ -25,8 +27,9 @@ export const useCreateAssignment = () => {
   const id = params?.id;
   const editing = Boolean(id);
   const [form, setForm] = useState<AnyRecord>(blank());
-  const [assignments, setAssignments] = useState<AnyRecord[]>([]);
-  const [tab, setTab] = useState("basics");
+  const [contextOptions, setContextOptions] = useState<ContextProgram[]>([]);
+  const [contextLoaded, setContextLoaded] = useState(false);
+  const [tab, setTab] = useState(id ? "basics" : "context");
   const [saving, setSaving] = useState(false);
   const [attachments, setAttachments] = useState<AnyRecord[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -43,11 +46,16 @@ export const useCreateAssignment = () => {
   const [aiPreview, setAiPreview] = useState<AnyRecord | null>(null);
   const [generatingAI, setGeneratingAI] = useState(false);
   const [externalPrompt, setExternalPrompt] = useState("");
+  const [aiStep, setAiStep] = useState(0);
+  const [draftToken, setDraftToken] = useState("");
+  const [aiProblems, setAiProblems] = useState<ValidationProblem[]>([]);
+  const [aiWarnings, setAiWarnings] = useState<string[]>([]);
   const [externalJson, setExternalJson] = useState("");
   const [importingProposal, setImportingProposal] = useState(false);
   const [showAiStudio, setShowAiStudio] = useState(false);
   const router = useRouter();
   const toast = useToast();
+  const confirm = useConfirm();
 
   const hydrateAssignment = useCallback((item: AnyRecord) => {
     setForm({
@@ -70,9 +78,10 @@ export const useCreateAssignment = () => {
     let active = true;
     (async () => {
       try {
-        const courses = await getTeacherCourses();
+        const options = await getTeacherContextOptions();
         if (!active) return;
-        setAssignments(normalizeTeachingAssignments(courses.assignments));
+        setContextOptions(options.programs as ContextProgram[]);
+        setContextLoaded(true);
         if (editing && id) {
           const result = await getTeacherAssignment(id);
           if (!active) return;
@@ -95,40 +104,38 @@ export const useCreateAssignment = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing, id]);
 
-  const programs = useMemo(() => {
-    const seen = new Set<string>();
-    return assignments.filter((x) => {
-      const key = `${x.program_id || x.course_id}|${x.batch_id || ""}|${x.section_id || ""}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [assignments]);
-  const selectedKey = `${form.target_course_id}|${form.target_batch_id}|${form.target_section_id}`;
-  const selectedProgram = useMemo(() => programs.find((item) => `${item.program_id || item.course_id}|${item.batch_id || ""}|${item.section_id || ""}` === selectedKey), [programs, selectedKey]);
-  const subjects = useMemo(
-    () =>
-      assignments
-        .filter((x) => `${x.program_id || x.course_id}|${x.batch_id || ""}|${x.section_id || ""}` === selectedKey)
-        .flatMap((x) => (x.subjects || (x.subject ? [x.subject] : [])).map((name: string, index: number) => ({ name, id: (x.subject_ids || [])[index] || "" })))
-        .filter((item, index, rows) => item.name && rows.findIndex((other) => other.id === item.id && other.name === item.name) === index),
-    [assignments, selectedKey],
-  );
+  const selectedProgram = contextOptions.find((item) => item.id === form.target_course_id);
+  const selectedBatch = selectedProgram?.batches.find((item) => item.id === form.target_batch_id);
+  const selectedSection = selectedBatch?.sections.find((item) => item.id === form.target_section_id);
+  const selectedSubject = selectedSection?.subjects.find((item) => item.id === form.subject_id);
+  const contextReady = Boolean(selectedProgram && selectedBatch && selectedSection && selectedSubject);
+  const contextLabel = contextReady ? [selectedProgram?.name, selectedBatch?.name, `Section ${selectedSection?.name}`, selectedSubject?.name].join(" · ") : "";
 
-  const selectAiAudience = (value: string) => {
-    const item = programs.find((program) => `${program.program_id || program.course_id}|${program.batch_id || ""}|${program.section_id || ""}` === value);
-    setForm((current: AnyRecord) => ({
-      ...current,
-      target_course_id: item?.program_id || item?.course_id || "",
-      target_batch_id: item?.batch_id || "",
-      target_section_id: item?.section_id || "",
-      subject: "",
-      subject_id: "",
-    }));
-  };
-  const selectAiCourse = (subjectId: string) => {
-    const selected = subjects.find((item) => item.id === subjectId);
-    setForm((current: AnyRecord) => ({ ...current, subject_id: subjectId, subject: selected?.name || "" }));
+  // Choosing a level clears every level below it. A generated AI prompt or proposal belongs to the
+  // class it was made for, so it is dropped when the class changes.
+  const setContextLevel = async (level: "program" | "batch" | "section" | "subject", value: string) => {
+    if ((externalPrompt || aiPreview) && value !== { program: form.target_course_id, batch: form.target_batch_id, section: form.target_section_id, subject: form.subject_id }[level]) {
+      const ok = await confirm({ title: "Change class or subject?", description: "The AI prompt and any pasted proposal were made for the current selection and will be discarded.", confirmLabel: "Change", cancelLabel: "Keep current" });
+      if (!ok) return;
+    }
+    setExternalPrompt("");
+    setExternalJson("");
+    setAiPreview(null);
+    setAiProblems([]);
+    setAiWarnings([]);
+    setAiStep(0);
+    setDraftToken("");
+    setForm((current: AnyRecord) => {
+      const next = { ...current };
+      if (level === "program") Object.assign(next, { target_course_id: value, target_batch_id: "", target_section_id: "", subject_id: "", subject: "" });
+      if (level === "batch") Object.assign(next, { target_batch_id: value, target_section_id: "", subject_id: "", subject: "" });
+      if (level === "section") Object.assign(next, { target_section_id: value, subject_id: "", subject: "" });
+      if (level === "subject") {
+        const subject = contextOptions.find((p) => p.id === current.target_course_id)?.batches.find((b) => b.id === current.target_batch_id)?.sections.find((sec) => sec.id === current.target_section_id)?.subjects.find((sub) => sub.id === value);
+        Object.assign(next, { subject_id: value, subject: subject?.name || "" });
+      }
+      return next;
+    });
   };
   const rubricTotal = form.rubric.reduce((sum: number, item: AnyRecord) => sum + Number(item.max_marks || 0), 0);
 
@@ -139,8 +146,8 @@ export const useCreateAssignment = () => {
       toast.error("Describe the assignment for the external AI");
       return;
     }
-    if (!selectedProgram || !form.subject) {
-      toast.error("Select the program, program year/batch, section, and course in the AI assistant before generating a prompt");
+    if (!contextReady) {
+      toast.error("Select program, batch, section and subject first");
       return;
     }
     if (!Number.isFinite(totalMarks) || totalMarks <= 0 || !Number.isInteger(rubricCount) || rubricCount < 1 || rubricCount > 20) {
@@ -150,20 +157,21 @@ export const useCreateAssignment = () => {
     setGeneratingAI(true);
     try {
       const result = await generateExternalAIPrompt({
-        sourcePrompt: aiPrompt,
-        course: form.subject,
-        program: selectedProgram?.program || selectedProgram?.course || "",
-        programYear: selectedProgram?.program_year || selectedProgram?.year || selectedProgram?.batch || "",
-        batch: selectedProgram?.batch || "",
-        section: selectedProgram?.section || "",
+        program_id: form.target_course_id,
+        batch_id: form.target_batch_id,
+        section_id: form.target_section_id,
+        subject_id: form.subject_id,
+        brief: aiPrompt,
+        guidance: aiInstructions,
+        total_marks: totalMarks,
+        rubric_count: rubricCount,
         difficulty: aiDifficulty,
-        requireReadme: aiRequireReadme,
-        customInstructions: aiInstructions,
-        totalMarks,
-        rubricCount,
+        require_readme: aiRequireReadme,
       });
       setExternalPrompt(result.prompt);
+      setDraftToken(result.draft_token);
       setAiPreview(null);
+      setAiStep(1);
       try {
         await navigator.clipboard.writeText(result.prompt);
         toast.success("External-AI prompt copied. Paste the JSON response here when ready.");
@@ -191,17 +199,29 @@ export const useCreateAssignment = () => {
       return;
     }
     setImportingProposal(true);
+    setAiProblems([]);
+    setAiWarnings([]);
     try {
-      // parseExternalJson strips optional ```json...``` fences before parsing —
-      // identical behavior to BulkExternalEvaluationDialog and the legacy app.
+      // parseExternalJson strips optional ```json...``` fences before parsing.
       const parsed = parseExternalJson(externalJson) as Record<string, unknown>;
-      const result = await importExternalAIProposal(parsed, { totalMarks: Number(aiTotalMarks), rubricCount: Number(aiRubricCount), difficulty: aiDifficulty, requireReadme: aiRequireReadme });
+      const result = await validateExternalAIProposal(draftToken, parsed);
       setAiPreview(result.proposal);
-      toast.success("JSON proposal validated and ready to apply");
+      setAiWarnings(result.warnings ?? []);
+      setAiStep(3);
+      toast.success("JSON validated. Review it before applying.");
     } catch (error) {
-      const message =
-        error instanceof SyntaxError ? "The pasted response is not valid JSON" : (error as { response?: { data?: { detail?: string; message?: string } } })?.response?.data?.detail || (error as { response?: { data?: { message?: string } } })?.response?.data?.message || "Could not import the JSON proposal";
-      toast.error(message);
+      setAiPreview(null);
+      if (error instanceof SyntaxError) {
+        setAiProblems([{ student: "", criterion: null, path: "", message: `The pasted text is not valid JSON (${error.message})` }]);
+        return;
+      }
+      const problems = validationProblems(error);
+      if (problems.length) {
+        setAiProblems(problems);
+        return;
+      }
+      const data = (error as { response?: { data?: { detail?: string; message?: string } } })?.response?.data;
+      toast.error(data?.detail || data?.message || "Could not validate the JSON");
     } finally {
       setImportingProposal(false);
     }
@@ -225,6 +245,7 @@ export const useCreateAssignment = () => {
     setRequiredFilesInput((aiPreview.repository_requirements?.required_files || []).join(", "));
     setAiPreview(null);
     setShowAiStudio(false);
+    setAiStep(0);
     setTab("basics");
     toast.success("AI proposal applied. Complete the schedule and publish when ready.");
   };
@@ -233,9 +254,7 @@ export const useCreateAssignment = () => {
   if (!form.title.trim()) issues.push("Title is required");
   if (!form.instructions.trim()) issues.push("Instructions are required");
   if (Number(form.total_marks) <= 0) issues.push("Total marks must be greater than zero");
-  if (!form.target_course_id) issues.push("Program audience is required");
-  if (!form.subject) issues.push("Course is required");
-  if (!form.subject_id) issues.push("Official course record is required");
+  if (!contextReady && contextLoaded) issues.push("Select program, batch, section and subject");
   if (!form.due_at) issues.push("Deadline is required");
   if (form.result_release_mode === "scheduled" && !form.result_release_at) issues.push("Scheduled result release time is required");
   if (form.result_release_mode === "scheduled" && form.due_at && form.result_release_at && form.result_release_at < form.due_at) issues.push("Result release must be at or after the deadline");
@@ -247,12 +266,10 @@ export const useCreateAssignment = () => {
       return [!form.title.trim() && "Assignment title is required", !form.short_description.trim() && "Short description is required", !form.instructions.trim() && "Instructions are required", Number(form.total_marks) <= 0 && "Total marks must be greater than zero"].filter(
         Boolean,
       ) as string[];
+    if (step === "context")
+      return [!form.target_course_id && "Select a program", !form.target_batch_id && "Select a batch", !form.target_section_id && "Select a section", !form.subject_id && "Select a subject", !contextReady && contextLoaded && "Pick a class and subject you are allocated to"].filter(Boolean) as string[];
     if (step === "audience")
       return [
-        !form.target_course_id && "Program, batch, and section are required",
-        !form.target_batch_id && "Batch is required",
-        !form.target_section_id && "Section is required",
-        !form.subject_id && "Course is required",
         !form.due_at && "Normal deadline is required",
         form.opens_at && form.due_at && form.opens_at >= form.due_at && "Opening time must be before the deadline",
       ].filter(Boolean) as string[];
@@ -272,6 +289,11 @@ export const useCreateAssignment = () => {
   };
 
   const goToTab = (nextTab: string) => {
+    if (nextTab !== "context" && contextLoaded && !contextReady) {
+      setTab("context");
+      toast.error(stepIssues("context")[0] || "Select program, batch, section and subject first");
+      return;
+    }
     const currentIndex = TABS.findIndex((item) => item[0] === tab);
     const nextIndex = TABS.findIndex((item) => item[0] === nextTab);
     if (nextIndex > currentIndex) {
@@ -378,6 +400,11 @@ export const useCreateAssignment = () => {
     aiRequireReadme,
     setAiRequireReadme,
     aiPreview,
+    aiStep,
+    setAiStep,
+    draftToken,
+    aiProblems,
+    aiWarnings,
     generatingAI,
     externalPrompt,
     externalJson,
@@ -387,12 +414,15 @@ export const useCreateAssignment = () => {
     setShowAiStudio,
     router,
     toast,
-    programs,
-    selectedKey,
+    contextOptions,
+    contextLoaded,
+    contextReady,
+    contextLabel,
     selectedProgram,
-    subjects,
-    selectAiAudience,
-    selectAiCourse,
+    selectedBatch,
+    selectedSection,
+    selectedSubject,
+    setContextLevel,
     rubricTotal,
     generateWithAI,
     copyExternalPrompt,

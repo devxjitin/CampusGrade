@@ -27,3 +27,6 @@ Naye entries neeche add hote hain. Purani lines edit mat karo.
 [2026-10-18 07:15] [Claude] [Fix: date range filter bars misaligned; add shared DateField]
 [2026-10-18 07:18] [Claude] [Fix: header and sidebar top bar same height and border colour]
 [2026-10-18 07:27] [Claude] [Update: defer GitHub extraction to deadline or teacher evaluation start; one final job per student]
+[2026-10-18 07:44] [Claude] [Add: create-assignment context gate (program>batch>section>subject), strict teacher allocation check, context-options API]
+[2026-10-18 07:49] [Claude] [Add: AI prompt API takes IDs, builds names server-side, signed draft_ref; stepper dialog]
+[2026-10-18 07:55] [Claude] [Add: strict AI proposal validation (/validate, per-field errors, signed draft token); removed silent rescale import]

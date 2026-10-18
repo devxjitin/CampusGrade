@@ -77,8 +77,18 @@ class AssignmentUpdate(AssignmentCreate):
     pass
 
 
-class ExternalAIAssignmentProposalImport(BaseModel):
+class ExternalAIProposalValidate(BaseModel):
+    draft_token: str = Field(min_length=1, max_length=4000)
     proposal: dict
+
+
+class ExternalAIPromptRequest(BaseModel):
+    program_id: str = Field(min_length=1, max_length=64)
+    batch_id: str = Field(min_length=1, max_length=64)
+    section_id: str = Field(min_length=1, max_length=64)
+    subject_id: str = Field(min_length=1, max_length=64)
+    brief: str = Field(min_length=1, max_length=12_000)
+    guidance: str = Field(default="", max_length=4_000)
     total_marks: float = Field(default=20, gt=0, le=10_000)
     rubric_count: int = Field(default=5, ge=1, le=20)
     difficulty: Literal["beginner", "intermediate", "advanced"] = "intermediate"

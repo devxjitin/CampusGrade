@@ -10,6 +10,7 @@ import MarkdownPreview from "@/components/MarkdownPreview";
 import { TABS, toAssignmentDifficulty, type AnyRecord } from "./createAssignment/shared";
 import { useCreateAssignment } from "./createAssignment/useCreateAssignment";
 import { AIStudioDialog } from "./createAssignment/AIStudioDialog";
+import { ContextPanel } from "./createAssignment/ContextPanel";
 import { AudiencePanel } from "./createAssignment/AudiencePanel";
 import { BasicsPanel } from "./createAssignment/BasicsPanel";
 import { ResourcesPanel } from "./createAssignment/ResourcesPanel";
@@ -30,6 +31,8 @@ export default function CreateAssignmentView() {
     setAiDifficulty,
     setAiRequireReadme,
     setShowAiStudio,
+    contextReady,
+    contextLabel,
     router,
     rubricTotal,
     issues,
@@ -58,6 +61,8 @@ export default function CreateAssignmentView() {
                 setAiRequireReadme(form.repository_requirements?.require_readme !== false);
                 setShowAiStudio(true);
               }}
+              disabled={!contextReady}
+              title={contextReady ? undefined : "Choose program, batch, section and subject first"}
               className="btn btn-outline"
             >
               <Sparkles className="h-4 w-4" />
@@ -66,6 +71,14 @@ export default function CreateAssignmentView() {
           )
         }
       />
+      {contextReady && tab !== "context" && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm">
+          <span className="font-semibold text-slate-700">{contextLabel}</span>
+          <button type="button" className="btn btn-ghost" onClick={() => goToTab("context")}>
+            Change
+          </button>
+        </div>
+      )}
       <div className="mb-5 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
         <div className="flex min-w-max gap-1">
           {TABS.map(([key, label, Icon], index) => (
@@ -79,6 +92,7 @@ export default function CreateAssignmentView() {
         </div>
       </div>
       <section className="card min-h-[430px] p-6">
+        <ContextPanel model={model} />
         <BasicsPanel model={model} />
         <AudiencePanel model={model} />
         {tab === "rubric" && (
