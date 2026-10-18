@@ -30,3 +30,4 @@ Naye entries neeche add hote hain. Purani lines edit mat karo.
 [2026-10-18 07:44] [Claude] [Add: create-assignment context gate (program>batch>section>subject), strict teacher allocation check, context-options API]
 [2026-10-18 07:49] [Claude] [Add: AI prompt API takes IDs, builds names server-side, signed draft_ref; stepper dialog]
 [2026-10-18 07:55] [Claude] [Add: strict AI proposal validation (/validate, per-field errors, signed draft token); removed silent rescale import]
+[2026-10-18 08:20] [Claude] [Fix: AI JSON paste tolerates invalid backslash escapes and raw newlines in strings]
